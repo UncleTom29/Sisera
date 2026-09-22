@@ -134,9 +134,9 @@ OpenTelemetry traces/metrics, structured JSON logs, correlation IDs
 | 5 — Risk / Portfolio / Ledger | ✅ Portfolio, deterministic risk, stress testing (domain cores) |
 | 7/13 — Routing / Analytics | ✅ Smart Order Router, TCA (domain cores) |
 | 9/10 — Agents / Prediction | ✅ Autonomy levels, manifests, prediction-market domain |
-| 12 — Institutional controls | ✅ Approvals, kill switches, RBAC, reconciliation, intent compiler (domain) |
+| 12 — Institutional controls | ✅ Approvals, kill switches, RBAC (+persistence), reconciliation, intent compiler, notifications (domain) |
 | 3 — Market-data platform | 🚧 Canonical events + normalization + Bybit connector; realtime/historical storage pending |
-| Persistence (Postgres) | 🚧 Ledger ✅ · OMS ✅ · Decision ✅ · Instruments ✅ · Portfolio ✅ |
+| Persistence (Postgres) | 🚧 Ledger ✅ · OMS ✅ · Decision ✅ · Instruments ✅ · Portfolio ✅ · Auth ✅ |
 | API (§45) | 🚧 Versioned `/api/v1` (instruments/orders/ledger/portfolio) over repositories |
 | 6 — Web terminal | ⏳ Pending (rebuild `apps/web`) |
 | 8 — AI | ⏳ Pending (copilot runtime; intent schema done) |

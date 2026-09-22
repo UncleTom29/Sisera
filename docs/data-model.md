@@ -100,6 +100,12 @@ over-fill), applied against instrument tick/lot metadata.
 - **RBAC** — `Organization`/`Desk`/`User`/`Membership`, `Role`/`Permission` map,
   deterministic `AccessPolicy`.
 
+## Notifications (`sisera_domain.notifications`)
+
+- `Channel` (`IN_APP`/`PUSH`/`EMAIL`/`TELEGRAM`/`WEBHOOK`), `Category`, `Severity`;
+  `Notification` with dedup keys; `NotificationService` fan-out with time-window
+  deduplication; in-memory and log backends.
+
 ## Event schemas (`packages/schemas`)
 
 - `EventHeader` (timestamps, source, instrument, `DataQuality`, sequence, correlation id)

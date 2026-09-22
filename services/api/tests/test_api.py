@@ -1,5 +1,6 @@
 """Tests for the versioned API service (spec §45). Uses file-backed SQLite repositories
-(file DBs are shared across the TestClient worker thread; :memory: is per-connection)."""
+(file DBs are shared across the TestClient worker thread; :memory: is per-connection).
+Mutating endpoints require a bearer token (mock verifier here; Privy in production)."""
 
 from __future__ import annotations
 
@@ -26,6 +27,16 @@ from sisera_portfolio import session_factory as portfolio_sessions
 from sqlalchemy.orm import Session
 
 
+class MockVerifier:
+    def verify(self, token: str) -> object:
+        if token != "test-token":
+            raise ValueError("bad token")
+        return type("V", (), {"user_id": "test_user", "email": "test@example.com"})()
+
+
+AUTH_HEADERS = {"Authorization": "Bearer test-token"}
+
+
 def _client(tmp_path: Path) -> TestClient:
     oms_eng = oms_engine(f"sqlite+pysqlite:///{tmp_path}/oms.db")
     OmsBase.metadata.create_all(oms_eng)
@@ -48,6 +59,7 @@ def _client(tmp_path: Path) -> TestClient:
         ledger_repo_factory=lambda: LedgerRepository(ledger_session),
         instrument_repo_factory=lambda: InstrumentRepository(inst_session),
         portfolio_repo_factory=lambda: PortfolioRepository(pf_session),
+        verifier=MockVerifier(),
     )
     return TestClient(app)
 
@@ -68,12 +80,12 @@ def test_create_and_get_order(tmp_path: Path) -> None:
         "account_id": "a",
         "portfolio_id": "p",
     }
-    created = client.post("/api/v1/orders", json=body)
+    created = client.post("/api/v1/orders", json=body, headers=AUTH_HEADERS)
     assert created.status_code == 201
     assert created.json()["client_order_id"] == "c1"
 
     # Idempotent retry returns the same order.
-    retry = client.post("/api/v1/orders", json=body)
+    retry = client.post("/api/v1/orders", json=body, headers=AUTH_HEADERS)
     assert retry.json()["sisera_order_id"] == created.json()["sisera_order_id"]
 
     fetched = client.get(f"/api/v1/orders/{created.json()['sisera_order_id']}")
@@ -91,13 +103,15 @@ def test_advance_order_and_illegal_transition(tmp_path: Path) -> None:
         "account_id": "a",
         "portfolio_id": "p",
     }
-    created = client.post("/api/v1/orders", json=body).json()
+    created = client.post("/api/v1/orders", json=body, headers=AUTH_HEADERS).json()
     oid = created["sisera_order_id"]
 
-    ok = client.post(f"/api/v1/orders/{oid}/advance", json={"target": "VALIDATING"})
+    ok = client.post(
+        f"/api/v1/orders/{oid}/advance", json={"target": "VALIDATING"}, headers=AUTH_HEADERS
+    )
     assert ok.json()["state"] == "VALIDATING"
 
-    bad = client.post(f"/api/v1/orders/{oid}/advance", json={"target": "FILLED"})
+    bad = client.post(f"/api/v1/orders/{oid}/advance", json={"target": "FILLED"}, headers=AUTH_HEADERS)
     assert bad.status_code == 422
 
 
@@ -111,7 +125,7 @@ def test_ledger_post_and_balances(tmp_path: Path) -> None:
             {"account": "external", "asset": "USDT", "amount": "-1000"},
         ],
     }
-    created = client.post("/api/v1/ledger/entries", json=body)
+    created = client.post("/api/v1/ledger/entries", json=body, headers=AUTH_HEADERS)
     assert created.status_code == 201
 
     balances = client.get("/api/v1/ledger/balances", params={"account": "cash"}).json()
@@ -124,3 +138,24 @@ def test_missing_instrument_returns_404(tmp_path: Path) -> None:
 
 def test_missing_portfolio_returns_404(tmp_path: Path) -> None:
     assert _client(tmp_path).get("/api/v1/portfolios/nope").status_code == 404
+
+
+def test_mutating_endpoints_require_auth(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    body = {
+        "client_order_id": "unauth",
+        "instrument_id": "x",
+        "side": "BUY",
+        "order_type": "MARKET",
+        "quantity": "1",
+        "account_id": "a",
+        "portfolio_id": "p",
+    }
+    # No token -> 401.
+    assert client.post("/api/v1/orders", json=body).status_code == 401
+    # Bad token -> 401.
+    bad = {"Authorization": "Bearer wrong"}
+    assert client.post("/api/v1/orders", json=body, headers=bad).status_code == 401
+    # Authenticated user_id is recorded on the order.
+    created = client.post("/api/v1/orders", json=body, headers=AUTH_HEADERS).json()
+    assert created["user_id"] == "test_user"

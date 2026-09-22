@@ -8,9 +8,11 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Request, WebSocket
 from pydantic import BaseModel, ValidationError
 from sisera_domain.order import InvalidStateTransition, Order, OrderSide, OrderState, OrderType
+
+from sisera_api.auth import require_user
 
 
 class CreateOrderRequest(BaseModel):
@@ -44,12 +46,21 @@ def create_app(
     decision_repo_factory=None,
     instrument_repo_factory=None,
     portfolio_repo_factory=None,
+    verifier=None,
+    hub=None,
 ) -> FastAPI:
     """Factory with injectable repository providers (callables returning a repository).
 
     Production wires these to Postgres sessions; tests inject SQLite-backed repositories.
+    Mutating endpoints require a valid bearer token verified by `verifier`
+    (real `PrivyVerifier` in production, mock in tests). Without a verifier, mutating
+    endpoints return 501. `hub` is the realtime fan-out (shared in-memory default).
     """
+    from sisera_api.ws import RealtimeHub
+
     app = FastAPI(title="Sisera API", version="1.0")
+    realtime = hub or RealtimeHub()
+    app.state.realtime = realtime
 
     v1 = APIRouter(prefix="/api/v1")
 
@@ -66,7 +77,8 @@ def create_app(
         return instrument.model_dump(mode="json")
 
     @v1.post("/orders", status_code=201)
-    def create_order(req: CreateOrderRequest) -> dict:
+    def create_order(req: CreateOrderRequest, request: Request) -> dict:
+        identity = require_user(request, verifier)
         repo = order_repo_factory()
         order = Order(
             sisera_order_id=f"sis_{req.client_order_id}",
@@ -78,7 +90,7 @@ def create_app(
             price=req.price,
             account_id=req.account_id,
             portfolio_id=req.portfolio_id,
-            user_id=req.user_id,
+            user_id=identity.user_id,
         )
         saved = repo.save(order)
         return saved.model_dump(mode="json")
@@ -92,7 +104,8 @@ def create_app(
         return order.model_dump(mode="json")
 
     @v1.post("/orders/{sisera_order_id}/advance")
-    def advance_order(sisera_order_id: str, req: AdvanceOrderRequest) -> dict:
+    def advance_order(sisera_order_id: str, req: AdvanceOrderRequest, request: Request) -> dict:
+        require_user(request, verifier)
         repo = order_repo_factory()
         try:
             advanced = repo.advance(sisera_order_id, req.target, req.note)
@@ -108,9 +121,10 @@ def create_app(
         return {k: str(v) for k, v in repo.balances(account).items()}
 
     @v1.post("/ledger/entries", status_code=201)
-    def post_ledger_entry(req: CreateLedgerEntryRequest) -> dict:
+    def post_ledger_entry(req: CreateLedgerEntryRequest, request: Request) -> dict:
         from sisera_domain.ledger import EntryType, LedgerEntry, Posting
 
+        require_user(request, verifier)
         repo = ledger_repo_factory()
         try:
             entry = LedgerEntry(
@@ -134,4 +148,32 @@ def create_app(
         return portfolio.model_dump(mode="json")
 
     app.include_router(v1)
+
+    @app.websocket("/ws/v1/stream")
+    async def realtime_stream(websocket: WebSocket) -> None:
+        from fastapi import WebSocketDisconnect
+
+        token = websocket.query_params.get("token", "")
+        if verifier is None:
+            await websocket.close(code=4401, reason="Auth not configured")
+            return
+        try:
+            verified = verifier.verify(token)
+            user_id = getattr(verified, "user_id", None)
+            if not user_id:
+                raise ValueError("no subject")
+        except Exception:  # noqa: BLE001 - any verification failure closes as unauthorized
+            await websocket.close(code=4401, reason="Invalid token")
+            return
+        await websocket.accept()
+        realtime.connect(websocket)
+        try:
+            await realtime.send_hello(websocket)
+            while True:
+                message = await websocket.receive_text()
+                if message == "ping":
+                    await websocket.send_text("pong")
+        except (WebSocketDisconnect, RuntimeError):
+            realtime.disconnect(websocket)
+
     return app

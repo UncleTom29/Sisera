@@ -22,3 +22,9 @@ uv.lock.bak
 *.key
 *.pem
 secrets.env
+
+# JavaScript / TypeScript
+node_modules/
+.next/
+dist/
+build/

@@ -137,15 +137,15 @@ OpenTelemetry traces/metrics, structured JSON logs, correlation IDs
 | 12 — Institutional controls | ✅ Approvals, kill switches, RBAC (+persistence), reconciliation, intent compiler, notifications (domain) |
 | 13 — Institutional analytics | ✅ TCA, model governance, differential intelligence, intelligence graph, opportunity engine, market memory (domain); backtesting harness |
 | 7 — Multi-venue | ✅ Bybit · Hyperliquid · 2nd CEX (CCXT/Binance) · EVM DEX · Solana DEX · Prediction (Polymarket) — all §70 (built, mocked, tested, disabled; credentials later) |
-| 8/9 — AI + Agents | 🚧 Copilot (evidence-grounded, mock LLM) ✅ · Agent runtime ✅ (paper, autonomy/lifecycle enforced) · Live LLM provider pending |
+| 8/9 — AI + Agents | ✅ Copilot (evidence-grounded) + OpenRouter provider (env-gated) · Agent runtime ✅ (paper, autonomy/lifecycle enforced) |
+| 12 — Auth | ✅ RBAC (+persistence) + Privy JWT verifier (email/Google) + docs; frontend SDK pending |
 | Observability (§47) | 🚧 Correlation IDs + JSON logging + metrics primitives ✅ · OTel exporters pending |
 | Workers | ✅ Risk-monitor · Settlement (fills/payouts→ledger) · Reconciliation (venue-vs-ledger) · Agent runtime (services/agents); scanner/analytics pending |
 | 3 — Market-data platform | 🚧 Canonical events + normalization + Bybit connector; realtime/historical storage pending |
 | Persistence (Postgres) | 🚧 Ledger ✅ · OMS ✅ · Decision ✅ · Instruments ✅ · Portfolio ✅ · Auth ✅ |
 | API (§45) | 🚧 Versioned `/api/v1` (instruments/orders/ledger/portfolio) over repositories |
-| 6 — Web terminal | ⏳ Pending (rebuild `apps/web`) |
-| 8 — AI | ⏳ Pending (copilot runtime; intent schema done) |
-| 11 — Mobile | ⏳ Pending |
+| 6 — Web terminal | 🚧 Next.js shell + terminal layout + Dashboard/Trade/Portfolio + shared client; `npm install` + backend to run |
+| 11 — Mobile | 🚧 Expo tabs (7 screens) + shared client; `npm install` + backend to run |
 
 Phase gates (spec §65): format, lint, typecheck, test, security checks, docs, migrations
 from clean state, local boot, descriptive commit.

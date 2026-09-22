@@ -18,6 +18,14 @@ from sisera_domain.agent import (
     StrategyManifest,
     validate_lifecycle_transition,
 )
+from sisera_domain.approval import (
+    Approval,
+    ApprovalEngine,
+    ApprovalPolicy,
+    ApprovalRequest,
+    ApprovalRule,
+)
+from sisera_domain.circuit import CircuitBreaker, EmergencyMode, KillScope, KillSwitch
 from sisera_domain.decision import Decision, DecisionKind, DecisionLedger, SignalComponent
 from sisera_domain.execution import PaperExecutionEngine, PaperFill, VenueAdapter, VenueCapabilities
 from sisera_domain.instrument import (
@@ -30,6 +38,14 @@ from sisera_domain.instrument import (
     OptionType,
     SymbolResolver,
     VenueInstrument,
+)
+from sisera_domain.intent import (
+    IntentAction,
+    InvalidIntent,
+    TradeIntent,
+    TradeTrigger,
+    TriggerType,
+    compile_intent,
 )
 from sisera_domain.ledger import EntryType, Ledger, LedgerEntry, Posting
 from sisera_domain.money import (
@@ -64,6 +80,7 @@ from sisera_domain.prediction import (
     ResolutionRule,
     settle_position,
 )
+from sisera_domain.reconcile import Discrepancy, DiscrepancySeverity, Reconciler
 from sisera_domain.risk import RiskCheckResult, RiskEngine, RiskPolicy, RiskReason
 from sisera_domain.routing import (
     CostBreakdown,
@@ -150,4 +167,22 @@ __all__ = [
     "DecisionKind",
     "DecisionLedger",
     "SignalComponent",
+    "Approval",
+    "ApprovalEngine",
+    "ApprovalPolicy",
+    "ApprovalRequest",
+    "ApprovalRule",
+    "CircuitBreaker",
+    "EmergencyMode",
+    "KillScope",
+    "KillSwitch",
+    "Discrepancy",
+    "DiscrepancySeverity",
+    "Reconciler",
+    "IntentAction",
+    "InvalidIntent",
+    "TradeIntent",
+    "TradeTrigger",
+    "TriggerType",
+    "compile_intent",
 ]

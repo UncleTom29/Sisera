@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Sisera",
+    "slug": "sisera",
+    "version": "0.1.0",
+    "scheme": "sisera",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0a0e14"
+      }
+    },
+    "plugins": ["expo-router"]
+  }
+}

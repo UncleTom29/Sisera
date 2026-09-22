@@ -28,6 +28,7 @@ dependencies = [
     "sisera-db",
     "sisera-oms",
     "sisera-instruments",
+    "sisera-portfolio",
 ]
 
 [project.scripts]
@@ -53,6 +54,7 @@ members = [
     "services/ledger",
     "services/oms",
     "services/instrument-master",
+    "services/portfolio",
 ]
 
 [tool.uv.sources]
@@ -64,6 +66,7 @@ sisera-ledger = { workspace = true }
 sisera-db = { workspace = true }
 sisera-oms = { workspace = true }
 sisera-instruments = { workspace = true }
+sisera-portfolio = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "services"]

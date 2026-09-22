@@ -106,7 +106,7 @@ over-fill), applied against instrument tick/lot metadata.
   `Notification` with dedup keys; `NotificationService` fan-out with time-window
   deduplication; in-memory and log backends.
 
-## Intelligence (`sisera_domain.governance`, `.differential`, `.graph`, `.opportunity`)
+## Intelligence (`sisera_domain.governance`, `.differential`, `.graph`, `.opportunity`, `.memory`)
 
 - **Model governance** — `ModelRegistry` with versioning + lifecycle, deterministic
   Champion/Challenger promotion, `DriftMonitor` for calibration drift.
@@ -116,6 +116,8 @@ over-fill), applied against instrument tick/lot metadata.
   factor shock; unsupported causal claims queryable.
 - **Opportunity engine** — `MarketView` → multiple `Opportunity` structures
   (directional/relative-value/hedge) or explicit `NO_TRADE`.
+- **Market memory** — `MarketState` snapshots + nearest-neighbor analog retrieval with
+  outcome stats (median return, win rate, drawdown).
 
 ## Event schemas (`packages/schemas`)
 

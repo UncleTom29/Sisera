@@ -52,6 +52,7 @@ from sisera_domain.routing import (
     VenueHealth,
     VenueQuote,
 )
+from sisera_domain.tca import FillRecord, FillTCA, TCAEngine
 
 __all__ = [
     "Asset",
@@ -99,4 +100,7 @@ __all__ = [
     "SmartOrderRouter",
     "VenueHealth",
     "VenueQuote",
+    "FillRecord",
+    "FillTCA",
+    "TCAEngine",
 ]

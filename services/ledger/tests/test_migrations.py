@@ -26,7 +26,7 @@ def test_migrations_apply_from_clean_state(tmp_path: Path) -> None:
     engine = create_engine(url)
     tables = set(inspect(engine).get_table_names())
     assert {"ledger_entries", "ledger_postings"} <= tables
-    assert "alembic_version" in tables
+    assert "alembic_version_ledger" in tables
 
 
 def test_migrations_downgrade_and_upgrade(tmp_path: Path) -> None:

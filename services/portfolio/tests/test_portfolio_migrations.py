@@ -24,4 +24,4 @@ def test_migrations_apply_from_clean_state(tmp_path: Path) -> None:
 
     engine = create_engine(url)
     tables = set(inspect(engine).get_table_names())
-    assert {"portfolios", "portfolio_cash", "positions", "alembic_version"} <= tables
+    assert {"portfolios", "portfolio_cash", "positions", "alembic_version_portfolio"} <= tables

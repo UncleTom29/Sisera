@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
-from fixtures import FakeHyperliquidClient
+from hl_fixtures import FakeHyperliquidClient
 from sisera_domain import Asset, Order, OrderSide, OrderType
 from sisera_hyperliquid import (
     ConnectorStatus,

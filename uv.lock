@@ -25,6 +25,7 @@ members = [
     "sisera-ledger",
     "sisera-marketdata",
     "sisera-oms",
+    "sisera-polymarket",
     "sisera-portfolio",
     "sisera-quant",
     "sisera-risk-monitor",
@@ -1648,6 +1649,7 @@ dependencies = [
     { name = "sisera-ledger" },
     { name = "sisera-marketdata" },
     { name = "sisera-oms" },
+    { name = "sisera-polymarket" },
     { name = "sisera-portfolio" },
     { name = "sisera-quant" },
     { name = "sisera-risk-monitor" },
@@ -1690,6 +1692,7 @@ requires-dist = [
     { name = "sisera-ledger", editable = "services/ledger" },
     { name = "sisera-marketdata", editable = "services/market-data" },
     { name = "sisera-oms", editable = "services/oms" },
+    { name = "sisera-polymarket", editable = "connectors/prediction/polymarket" },
     { name = "sisera-portfolio", editable = "services/portfolio" },
     { name = "sisera-quant", editable = "quant/backtesting" },
     { name = "sisera-risk-monitor", editable = "workers/risk-monitor" },
@@ -1943,6 +1946,27 @@ requires-dist = [
     { name = "sisera-db", editable = "packages/db" },
     { name = "sisera-domain", editable = "packages/domain" },
     { name = "sqlalchemy", specifier = ">=2.0" },
+]
+
+[[package]]
+name = "sisera-polymarket"
+version = "0.1.0"
+source = { editable = "connectors/prediction/polymarket" }
+dependencies = [
+    { name = "requests" },
+    { name = "sisera-config" },
+    { name = "sisera-domain" },
+    { name = "sisera-schemas" },
+    { name = "tenacity" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "requests", specifier = ">=2.32" },
+    { name = "sisera-config", editable = "packages/config" },
+    { name = "sisera-domain", editable = "packages/domain" },
+    { name = "sisera-schemas", editable = "packages/schemas" },
+    { name = "tenacity", specifier = ">=9.0" },
 ]
 
 [[package]]

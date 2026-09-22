@@ -88,6 +88,18 @@ over-fill), applied against instrument tick/lot metadata.
   (`DRAFT`…`LIVE` with `DRAFT→LIVE` gated), `AgentCapital` limits, `StrategyManifest`
   (versioned, immutable), `Agent`.
 
+## Institutional controls (`sisera_domain.approval`, `.circuit`, `.reconcile`, `.intent`, `.auth`)
+
+- **Approvals** — `ApprovalPolicy`/`ApprovalRule` (four-eyes, role/count), auditable
+  `Approval` records, `ApprovalEngine` evaluation.
+- **Kill switches** — `CircuitBreaker` with hierarchical `KillScope` and `EmergencyMode`;
+  global trips block all.
+- **Reconciliation** — `Reconciler` venue-vs-ledger discrepancy events (never silently fixes).
+- **Intent compiler** — `TradeIntent` schema + `compile_intent` validation; data only,
+  no execution authority.
+- **RBAC** — `Organization`/`Desk`/`User`/`Membership`, `Role`/`Permission` map,
+  deterministic `AccessPolicy`.
+
 ## Event schemas (`packages/schemas`)
 
 - `EventHeader` (timestamps, source, instrument, `DataQuality`, sequence, correlation id)

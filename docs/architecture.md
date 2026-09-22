@@ -134,12 +134,13 @@ OpenTelemetry traces/metrics, structured JSON logs, correlation IDs
 | 5 — Risk / Portfolio / Ledger | ✅ Portfolio, deterministic risk, stress testing (domain cores) |
 | 7/13 — Routing / Analytics | ✅ Smart Order Router, TCA (domain cores) |
 | 9/10 — Agents / Prediction | ✅ Autonomy levels, manifests, prediction-market domain |
-| 3 — Market-data platform | 🚧 Canonical event schemas + normalization done; Bybit realtime/historical storage pending |
-| Persistence (Postgres) | 🚧 Financial ledger ✅ · OMS/orders ✅ · Decision ledger ✅ · Portfolio/instrument master pending |
+| 12 — Institutional controls | ✅ Approvals, kill switches, RBAC, reconciliation, intent compiler (domain) |
+| 3 — Market-data platform | 🚧 Canonical events + normalization + Bybit connector; realtime/historical storage pending |
+| Persistence (Postgres) | 🚧 Ledger ✅ · OMS ✅ · Decision ✅ · Instruments ✅ · Portfolio ✅ |
+| API (§45) | 🚧 Versioned `/api/v1` (instruments/orders/ledger/portfolio) over repositories |
 | 6 — Web terminal | ⏳ Pending (rebuild `apps/web`) |
-| 8 — AI | ⏳ Pending (copilot, intent compiler) |
+| 8 — AI | ⏳ Pending (copilot runtime; intent schema done) |
 | 11 — Mobile | ⏳ Pending |
-| 12 — Institutional controls | ⏳ Pending (auth/RBAC/approvals/SSO) |
 
 Phase gates (spec §65): format, lint, typecheck, test, security checks, docs, migrations
 from clean state, local boot, descriptive commit.

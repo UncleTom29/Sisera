@@ -37,6 +37,7 @@ dependencies = [
     "sisera-quant",
     "sisera-risk-monitor",
     "sisera-agents",
+    "sisera-intelligence",
 ]
 
 [project.scripts]
@@ -66,6 +67,7 @@ members = [
     "services/api",
     "services/auth",
     "services/agents",
+    "services/intelligence",
     "quant/backtesting",
     "workers/risk-monitor",
     "connectors/exchanges/bybit",
@@ -91,6 +93,7 @@ sisera-risk-monitor = { workspace = true }
 sisera-agents = { workspace = true }
 sisera-hyperliquid = { workspace = true }
 sisera-polymarket = { workspace = true }
+sisera-intelligence = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "services", "connectors", "quant", "workers"]

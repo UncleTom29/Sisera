@@ -22,6 +22,7 @@ members = [
     "sisera-domain",
     "sisera-hyperliquid",
     "sisera-instruments",
+    "sisera-intelligence",
     "sisera-ledger",
     "sisera-marketdata",
     "sisera-oms",
@@ -1646,6 +1647,7 @@ dependencies = [
     { name = "sisera-domain" },
     { name = "sisera-hyperliquid" },
     { name = "sisera-instruments" },
+    { name = "sisera-intelligence" },
     { name = "sisera-ledger" },
     { name = "sisera-marketdata" },
     { name = "sisera-oms" },
@@ -1689,6 +1691,7 @@ requires-dist = [
     { name = "sisera-domain", editable = "packages/domain" },
     { name = "sisera-hyperliquid", editable = "connectors/exchanges/hyperliquid" },
     { name = "sisera-instruments", editable = "services/instrument-master" },
+    { name = "sisera-intelligence", editable = "services/intelligence" },
     { name = "sisera-ledger", editable = "services/ledger" },
     { name = "sisera-marketdata", editable = "services/market-data" },
     { name = "sisera-oms", editable = "services/oms" },
@@ -1883,6 +1886,23 @@ requires-dist = [
     { name = "sisera-db", editable = "packages/db" },
     { name = "sisera-domain", editable = "packages/domain" },
     { name = "sqlalchemy", specifier = ">=2.0" },
+]
+
+[[package]]
+name = "sisera-intelligence"
+version = "0.1.0"
+source = { editable = "services/intelligence" }
+dependencies = [
+    { name = "sisera-config" },
+    { name = "sisera-domain" },
+    { name = "sisera-schemas" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "sisera-config", editable = "packages/config" },
+    { name = "sisera-domain", editable = "packages/domain" },
+    { name = "sisera-schemas", editable = "packages/schemas" },
 ]
 
 [[package]]

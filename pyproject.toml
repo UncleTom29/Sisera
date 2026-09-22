@@ -30,6 +30,7 @@ dependencies = [
     "sisera-instruments",
     "sisera-portfolio",
     "sisera-bybit",
+    "sisera-hyperliquid",
     "sisera-api",
     "sisera-auth",
     "sisera-quant",
@@ -67,6 +68,7 @@ members = [
     "quant/backtesting",
     "workers/risk-monitor",
     "connectors/exchanges/bybit",
+    "connectors/exchanges/hyperliquid",
 ]
 
 [tool.uv.sources]
@@ -85,6 +87,7 @@ sisera-auth = { workspace = true }
 sisera-quant = { workspace = true }
 sisera-risk-monitor = { workspace = true }
 sisera-agents = { workspace = true }
+sisera-hyperliquid = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "services", "connectors", "quant", "workers"]

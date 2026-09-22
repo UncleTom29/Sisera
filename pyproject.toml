@@ -33,6 +33,8 @@ dependencies = [
     "sisera-hyperliquid",
     "sisera-polymarket",
     "sisera-ccxt",
+    "sisera-dex-evm",
+    "sisera-dex-solana",
     "sisera-api",
     "sisera-auth",
     "sisera-quant",
@@ -76,6 +78,8 @@ members = [
     "connectors/exchanges/bybit",
     "connectors/exchanges/hyperliquid",
     "connectors/exchanges/ccxt",
+    "connectors/dex/evm",
+    "connectors/dex/solana",
     "connectors/prediction/polymarket",
 ]
 
@@ -100,6 +104,8 @@ sisera-polymarket = { workspace = true }
 sisera-intelligence = { workspace = true }
 sisera-observability = { workspace = true }
 sisera-ccxt = { workspace = true }
+sisera-dex-evm = { workspace = true }
+sisera-dex-solana = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "services", "connectors", "quant", "workers"]

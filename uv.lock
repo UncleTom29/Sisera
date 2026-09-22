@@ -20,6 +20,8 @@ members = [
     "sisera-ccxt",
     "sisera-config",
     "sisera-db",
+    "sisera-dex-evm",
+    "sisera-dex-solana",
     "sisera-domain",
     "sisera-hyperliquid",
     "sisera-instruments",
@@ -1647,6 +1649,8 @@ dependencies = [
     { name = "sisera-ccxt" },
     { name = "sisera-config" },
     { name = "sisera-db" },
+    { name = "sisera-dex-evm" },
+    { name = "sisera-dex-solana" },
     { name = "sisera-domain" },
     { name = "sisera-hyperliquid" },
     { name = "sisera-instruments" },
@@ -1693,6 +1697,8 @@ requires-dist = [
     { name = "sisera-ccxt", editable = "connectors/exchanges/ccxt" },
     { name = "sisera-config", editable = "packages/config" },
     { name = "sisera-db", editable = "packages/db" },
+    { name = "sisera-dex-evm", editable = "connectors/dex/evm" },
+    { name = "sisera-dex-solana", editable = "connectors/dex/solana" },
     { name = "sisera-domain", editable = "packages/domain" },
     { name = "sisera-hyperliquid", editable = "connectors/exchanges/hyperliquid" },
     { name = "sisera-instruments", editable = "services/instrument-master" },
@@ -1855,6 +1861,40 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "sqlalchemy", specifier = ">=2.0" }]
+
+[[package]]
+name = "sisera-dex-evm"
+version = "0.1.0"
+source = { editable = "connectors/dex/evm" }
+dependencies = [
+    { name = "requests" },
+    { name = "sisera-domain" },
+    { name = "tenacity" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "requests", specifier = ">=2.32" },
+    { name = "sisera-domain", editable = "packages/domain" },
+    { name = "tenacity", specifier = ">=9.0" },
+]
+
+[[package]]
+name = "sisera-dex-solana"
+version = "0.1.0"
+source = { editable = "connectors/dex/solana" }
+dependencies = [
+    { name = "requests" },
+    { name = "sisera-domain" },
+    { name = "tenacity" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "requests", specifier = ">=2.32" },
+    { name = "sisera-domain", editable = "packages/domain" },
+    { name = "tenacity", specifier = ">=9.0" },
+]
 
 [[package]]
 name = "sisera-domain"

@@ -24,6 +24,7 @@ dependencies = [
     "sisera-config",
     "sisera-schemas",
     "sisera-marketdata",
+    "sisera-ledger",
 ]
 
 [project.scripts]
@@ -40,13 +41,20 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["packages/domain", "packages/config", "packages/schemas", "services/market-data"]
+members = [
+    "packages/domain",
+    "packages/config",
+    "packages/schemas",
+    "services/market-data",
+    "services/ledger",
+]
 
 [tool.uv.sources]
 sisera-domain = { workspace = true }
 sisera-config = { workspace = true }
 sisera-schemas = { workspace = true }
 sisera-marketdata = { workspace = true }
+sisera-ledger = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "services"]

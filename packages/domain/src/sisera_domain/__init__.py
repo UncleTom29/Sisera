@@ -36,6 +36,13 @@ from sisera_domain.auth import (
 )
 from sisera_domain.circuit import CircuitBreaker, EmergencyMode, KillScope, KillSwitch
 from sisera_domain.decision import Decision, DecisionKind, DecisionLedger, SignalComponent
+from sisera_domain.differential import (
+    DifferentialEngine,
+    FactorDirection,
+    FactorReading,
+    MarketDiff,
+    MarketFactor,
+)
 from sisera_domain.execution import PaperExecutionEngine, PaperFill, VenueAdapter, VenueCapabilities
 from sisera_domain.governance import (
     DriftMonitor,
@@ -233,4 +240,9 @@ __all__ = [
     "ModelStatus",
     "ModelVersion",
     "PromotionDenied",
+    "DifferentialEngine",
+    "FactorDirection",
+    "FactorReading",
+    "MarketDiff",
+    "MarketFactor",
 ]

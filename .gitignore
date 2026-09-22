@@ -2,7 +2,23 @@ __pycache__/
 *.pyc
 .venv/
 .env
+.env.*
+!.env.example
 *.db
+*.db-wal
+*.db-shm
 .pytest_cache/
 .ruff_cache/
 uv.lock.bak
+
+# OS
+.DS_Store
+
+# Telegram / auth session artifacts (revoke any that were ever committed)
+*.session
+*.session-journal
+
+# Secrets — never commit keys, wallets, cookies, sessions, or databases
+*.key
+*.pem
+secrets.env

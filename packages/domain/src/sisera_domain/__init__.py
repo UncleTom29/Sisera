@@ -66,6 +66,16 @@ from sisera_domain.money import (
     quantize_to_step,
     round_quantity_to_lot,
 )
+from sisera_domain.notifications import (
+    Category,
+    Channel,
+    InMemoryNotifier,
+    LogNotifier,
+    Notification,
+    NotificationService,
+    Notifier,
+    Severity,
+)
 from sisera_domain.oms import OrderManager
 from sisera_domain.order import (
     InvalidStateTransition,
@@ -201,4 +211,12 @@ __all__ = [
     "Permission",
     "Role",
     "User",
+    "Category",
+    "Channel",
+    "InMemoryNotifier",
+    "LogNotifier",
+    "Notification",
+    "NotificationService",
+    "Notifier",
+    "Severity",
 ]

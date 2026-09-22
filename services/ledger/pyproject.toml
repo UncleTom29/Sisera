@@ -9,6 +9,7 @@ dependencies = [
     "psycopg[binary]>=3.1",
     "sisera-domain",
     "sisera-config",
+    "sisera-db",
 ]
 
 [build-system]

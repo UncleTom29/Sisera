@@ -9,6 +9,7 @@ These value objects are the shared vocabulary the rest of Sisera operates on —
 specific objects must never leak past the connector boundary (ADR-005).
 """
 
+from sisera_domain.execution import PaperExecutionEngine, PaperFill, VenueAdapter, VenueCapabilities
 from sisera_domain.instrument import (
     CanonicalAsset,
     FundingModel,
@@ -29,6 +30,16 @@ from sisera_domain.money import (
     Quantity,
     quantize_to_step,
     round_quantity_to_lot,
+)
+from sisera_domain.oms import OrderManager
+from sisera_domain.order import (
+    InvalidStateTransition,
+    Order,
+    OrderSide,
+    OrderState,
+    OrderStateMachine,
+    OrderType,
+    TimeInForce,
 )
 
 __all__ = [
@@ -52,4 +63,16 @@ __all__ = [
     "Ledger",
     "LedgerEntry",
     "Posting",
+    "Order",
+    "OrderSide",
+    "OrderState",
+    "OrderStateMachine",
+    "OrderType",
+    "TimeInForce",
+    "InvalidStateTransition",
+    "OrderManager",
+    "PaperExecutionEngine",
+    "PaperFill",
+    "VenueAdapter",
+    "VenueCapabilities",
 ]

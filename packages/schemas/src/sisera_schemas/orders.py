@@ -1,30 +1,26 @@
-"""Canonical order lifecycle events (ADR-006, spec §12)."""
+"""Canonical order lifecycle events (ADR-006, spec §12).
+
+`OrderState` is the canonical enum from `sisera_domain`; this module defines the event
+DTOs published on the bus as an order moves through its lifecycle.
+"""
 
 from __future__ import annotations
 
 from decimal import Decimal
-from enum import StrEnum
+
+from sisera_domain.order import OrderState
 
 from sisera_schemas.common import EventHeader
 
-
-class OrderState(StrEnum):
-    CREATED = "CREATED"
-    VALIDATING = "VALIDATING"
-    RISK_CHECK = "RISK_CHECK"
-    RISK_REJECTED = "RISK_REJECTED"
-    APPROVAL_PENDING = "APPROVAL_PENDING"
-    APPROVED = "APPROVED"
-    ROUTING = "ROUTING"
-    SUBMITTING = "SUBMITTING"
-    ACKNOWLEDGED = "ACKNOWLEDGED"
-    PARTIALLY_FILLED = "PARTIALLY_FILLED"
-    FILLED = "FILLED"
-    CANCEL_PENDING = "CANCEL_PENDING"
-    CANCELLED = "CANCELLED"
-    REJECTED = "REJECTED"
-    EXPIRED = "EXPIRED"
-    UNKNOWN = "UNKNOWN"
+__all__ = [
+    "OrderState",
+    "OrderCreated",
+    "OrderSubmitted",
+    "OrderAcknowledged",
+    "FillEvent",
+    "OrderCancelled",
+    "OrderRejected",
+]
 
 
 class OrderCreated(EventHeader):

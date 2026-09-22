@@ -1491,10 +1491,14 @@ version = "0.1.0"
 source = { editable = "packages/schemas" }
 dependencies = [
     { name = "pydantic" },
+    { name = "sisera-domain" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "pydantic", specifier = ">=2.9" }]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.9" },
+    { name = "sisera-domain", editable = "packages/domain" },
+]
 
 [[package]]
 name = "six"

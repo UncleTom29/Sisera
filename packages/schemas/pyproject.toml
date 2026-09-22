@@ -5,6 +5,7 @@ description = "Sisera canonical typed event schemas (market data + order lifecyc
 requires-python = ">=3.12"
 dependencies = [
     "pydantic>=2.9",
+    "sisera-domain",
 ]
 
 [build-system]

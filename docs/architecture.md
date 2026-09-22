@@ -136,6 +136,9 @@ OpenTelemetry traces/metrics, structured JSON logs, correlation IDs
 | 9/10 — Agents / Prediction | ✅ Autonomy levels, manifests, prediction-market domain |
 | 12 — Institutional controls | ✅ Approvals, kill switches, RBAC (+persistence), reconciliation, intent compiler, notifications (domain) |
 | 13 — Institutional analytics | ✅ TCA, model governance, differential intelligence, intelligence graph, opportunity engine, market memory (domain); backtesting harness |
+| 7 — Multi-venue | 🚧 Bybit ✅ · Hyperliquid ✅ (client + adapter + mocks, disabled) · Prediction (Polymarket ✅) · 2nd CEX/DEX pending |
+| 8/9 — AI + Agents | 🚧 Copilot (evidence-grounded, mock LLM) ✅ · Agent runtime ✅ (paper, autonomy/lifecycle enforced) · Live LLM provider pending |
+| Observability (§47) | 🚧 Correlation IDs + JSON logging + metrics primitives ✅ · OTel exporters pending |
 | Workers | 🚧 Risk-monitor ✅ (portfolio surveillance + kill switches + alerts); scanner/settlement/analytics pending |
 | 3 — Market-data platform | 🚧 Canonical events + normalization + Bybit connector; realtime/historical storage pending |
 | Persistence (Postgres) | 🚧 Ledger ✅ · OMS ✅ · Decision ✅ · Instruments ✅ · Portfolio ✅ · Auth ✅ |

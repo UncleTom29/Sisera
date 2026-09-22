@@ -13,6 +13,7 @@ resolution-markers = [
 [manifest]
 members = [
     "sisera",
+    "sisera-agents",
     "sisera-api",
     "sisera-auth",
     "sisera-bybit",
@@ -1634,6 +1635,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
+    { name = "sisera-agents" },
     { name = "sisera-api" },
     { name = "sisera-auth" },
     { name = "sisera-bybit" },
@@ -1674,6 +1676,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.9" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "requests", specifier = ">=2.32" },
+    { name = "sisera-agents", editable = "services/agents" },
     { name = "sisera-api", editable = "services/api" },
     { name = "sisera-auth", editable = "services/auth" },
     { name = "sisera-bybit", editable = "connectors/exchanges/bybit" },
@@ -1704,6 +1707,17 @@ dev = [
     { name = "responses", specifier = ">=0.25" },
     { name = "ruff", specifier = ">=0.16" },
 ]
+
+[[package]]
+name = "sisera-agents"
+version = "0.1.0"
+source = { editable = "services/agents" }
+dependencies = [
+    { name = "sisera-domain" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "sisera-domain", editable = "packages/domain" }]
 
 [[package]]
 name = "sisera-api"

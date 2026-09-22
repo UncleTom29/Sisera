@@ -40,6 +40,7 @@ dependencies = [
     "sisera-quant",
     "sisera-risk-monitor",
     "sisera-settlement",
+    "sisera-reconciliation",
     "sisera-agents",
     "sisera-intelligence",
     "sisera-observability",
@@ -77,6 +78,7 @@ members = [
     "quant/backtesting",
     "workers/risk-monitor",
     "workers/settlement",
+    "workers/reconciliation",
     "connectors/exchanges/bybit",
     "connectors/exchanges/hyperliquid",
     "connectors/exchanges/ccxt",
@@ -109,6 +111,7 @@ sisera-ccxt = { workspace = true }
 sisera-dex-evm = { workspace = true }
 sisera-dex-solana = { workspace = true }
 sisera-settlement = { workspace = true }
+sisera-reconciliation = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "services", "connectors", "quant", "workers"]

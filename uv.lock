@@ -33,6 +33,7 @@ members = [
     "sisera-polymarket",
     "sisera-portfolio",
     "sisera-quant",
+    "sisera-reconciliation",
     "sisera-risk-monitor",
     "sisera-schemas",
     "sisera-settlement",
@@ -1663,6 +1664,7 @@ dependencies = [
     { name = "sisera-polymarket" },
     { name = "sisera-portfolio" },
     { name = "sisera-quant" },
+    { name = "sisera-reconciliation" },
     { name = "sisera-risk-monitor" },
     { name = "sisera-schemas" },
     { name = "sisera-settlement" },
@@ -1712,6 +1714,7 @@ requires-dist = [
     { name = "sisera-polymarket", editable = "connectors/prediction/polymarket" },
     { name = "sisera-portfolio", editable = "services/portfolio" },
     { name = "sisera-quant", editable = "quant/backtesting" },
+    { name = "sisera-reconciliation", editable = "workers/reconciliation" },
     { name = "sisera-risk-monitor", editable = "workers/risk-monitor" },
     { name = "sisera-schemas", editable = "packages/schemas" },
     { name = "sisera-settlement", editable = "workers/settlement" },
@@ -2095,6 +2098,21 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "sisera-domain", editable = "packages/domain" }]
+
+[[package]]
+name = "sisera-reconciliation"
+version = "0.1.0"
+source = { editable = "workers/reconciliation" }
+dependencies = [
+    { name = "sisera-domain" },
+    { name = "sisera-ledger" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "sisera-domain", editable = "packages/domain" },
+    { name = "sisera-ledger", editable = "services/ledger" },
+]
 
 [[package]]
 name = "sisera-risk-monitor"

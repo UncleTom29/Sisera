@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     bybit_api_key: SecretStr = SecretStr("")
     bybit_api_secret: SecretStr = SecretStr("")
 
+    # --- LLM (OpenRouter; opt-in, paid; off unless key + explicit enable) ---
+    openrouter_api_key: SecretStr = SecretStr("")
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_model: str = "openai/gpt-5.6-luna"
+    copilot_llm_enabled: bool = False
+
     @field_validator("environment", mode="before")
     @classmethod
     def _lower_environment(cls, v: object) -> object:
@@ -61,7 +67,7 @@ class Settings(BaseSettings):
             return v.lower()
         return v
 
-    @field_validator("live_trading_enabled", "use_testnet", mode="before")
+    @field_validator("live_trading_enabled", "use_testnet", "copilot_llm_enabled", mode="before")
     @classmethod
     def _parse_bool(cls, v: object) -> object:
         if isinstance(v, str):
@@ -79,6 +85,8 @@ class Settings(BaseSettings):
             "nats_url": self.nats_url,
             "bybit_api_key_set": bool(self.bybit_api_key.get_secret_value()),
             "bybit_api_secret_set": bool(self.bybit_api_secret.get_secret_value()),
+            "openrouter_api_key_set": bool(self.openrouter_api_key.get_secret_value()),
+            "copilot_llm_enabled": self.copilot_llm_enabled,
         }
 
 

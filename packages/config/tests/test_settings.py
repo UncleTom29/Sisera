@@ -68,3 +68,20 @@ def test_guard_is_paper_when_disabled() -> None:
         LiveTradingGuard(_settings(live_trading_enabled=True, environment="prod")).is_paper_or_testnet()
         is False
     )
+
+
+def test_openrouter_defaults_off() -> None:
+    # Explicit empty values: the full suite may have loaded a real .env into
+    # os.environ via legacy sisera.config.load_dotenv(), and pydantic-settings reads
+    # environ even with _env_file=None. Explicit kwargs take precedence.
+    s = _settings(openrouter_api_key="", copilot_llm_enabled=False)
+    assert s.openrouter_api_key.get_secret_value() == ""
+    assert s.copilot_llm_enabled is False
+    assert s.redacted()["openrouter_api_key_set"] is False
+
+
+def test_openrouter_key_masked() -> None:
+    s = _settings(openrouter_api_key="sk-secret", copilot_llm_enabled="true")
+    assert s.copilot_llm_enabled is True
+    assert "sk-secret" not in str(s.redacted())
+    assert s.redacted()["openrouter_api_key_set"] is True

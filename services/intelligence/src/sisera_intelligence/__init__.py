@@ -10,6 +10,7 @@ from sisera_intelligence.copilot import (
     MockLLMProvider,
     PortfolioSnapshot,
 )
+from sisera_intelligence.openrouter import OpenRouterNotConfigured, OpenRouterProvider
 
 __all__ = [
     "Copilot",
@@ -20,4 +21,6 @@ __all__ = [
     "MarketSnapshot",
     "MockLLMProvider",
     "PortfolioSnapshot",
+    "OpenRouterNotConfigured",
+    "OpenRouterProvider",
 ]

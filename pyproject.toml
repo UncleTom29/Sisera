@@ -33,6 +33,7 @@ dependencies = [
     "sisera-api",
     "sisera-auth",
     "sisera-quant",
+    "sisera-risk-monitor",
 ]
 
 [project.scripts]
@@ -62,6 +63,7 @@ members = [
     "services/api",
     "services/auth",
     "quant/backtesting",
+    "workers/risk-monitor",
     "connectors/exchanges/bybit",
 ]
 
@@ -79,9 +81,10 @@ sisera-bybit = { workspace = true }
 sisera-api = { workspace = true }
 sisera-auth = { workspace = true }
 sisera-quant = { workspace = true }
+sisera-risk-monitor = { workspace = true }
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "packages", "services", "connectors", "quant"]
+testpaths = ["tests", "packages", "services", "connectors", "quant", "workers"]
 
 [tool.ruff]
 line-length = 105

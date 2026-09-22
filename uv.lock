@@ -25,6 +25,7 @@ members = [
     "sisera-oms",
     "sisera-portfolio",
     "sisera-quant",
+    "sisera-risk-monitor",
     "sisera-schemas",
 ]
 
@@ -1645,6 +1646,7 @@ dependencies = [
     { name = "sisera-oms" },
     { name = "sisera-portfolio" },
     { name = "sisera-quant" },
+    { name = "sisera-risk-monitor" },
     { name = "sisera-schemas" },
     { name = "telethon" },
     { name = "tenacity" },
@@ -1684,6 +1686,7 @@ requires-dist = [
     { name = "sisera-oms", editable = "services/oms" },
     { name = "sisera-portfolio", editable = "services/portfolio" },
     { name = "sisera-quant", editable = "quant/backtesting" },
+    { name = "sisera-risk-monitor", editable = "workers/risk-monitor" },
     { name = "sisera-schemas", editable = "packages/schemas" },
     { name = "telethon", specifier = ">=1.36" },
     { name = "tenacity", specifier = ">=9.0" },
@@ -1935,6 +1938,21 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "sisera-domain", editable = "packages/domain" }]
+
+[[package]]
+name = "sisera-risk-monitor"
+version = "0.1.0"
+source = { editable = "workers/risk-monitor" }
+dependencies = [
+    { name = "sisera-domain" },
+    { name = "sisera-portfolio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "sisera-domain", editable = "packages/domain" },
+    { name = "sisera-portfolio", editable = "services/portfolio" },
+]
 
 [[package]]
 name = "sisera-schemas"

@@ -43,6 +43,15 @@ from sisera_domain.order import (
 )
 from sisera_domain.portfolio import Portfolio, Position
 from sisera_domain.risk import RiskCheckResult, RiskEngine, RiskPolicy, RiskReason
+from sisera_domain.routing import (
+    CostBreakdown,
+    RouteConstraints,
+    RouteLeg,
+    RoutePlan,
+    SmartOrderRouter,
+    VenueHealth,
+    VenueQuote,
+)
 
 __all__ = [
     "Asset",
@@ -83,4 +92,11 @@ __all__ = [
     "RiskEngine",
     "RiskPolicy",
     "RiskReason",
+    "CostBreakdown",
+    "RouteConstraints",
+    "RouteLeg",
+    "RoutePlan",
+    "SmartOrderRouter",
+    "VenueHealth",
+    "VenueQuote",
 ]

@@ -7,7 +7,6 @@ crowding, and automated plain-language macroeconomic theses based on live market
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass
@@ -50,8 +49,10 @@ class MarketIntelligenceEngine:
             appetite = "RISK_OFF"
             crowd = "ELEVATED"
             thesis = (
-                f"Market regime in transition around ${btc_ticker_price:,.0f} (stability {stability*100:.0f}%). "
-                "Elevated epistemic uncertainty across macro and derivatives indicators; selective gating enforced."
+                f"Market regime in transition around ${btc_ticker_price:,.0f} "
+                f"(stability {stability * 100:.0f}%). "
+                "Elevated epistemic uncertainty across macro and derivatives "
+                "indicators; selective gating enforced."
             )
         elif btc_regime_type == "MEAN_REVERTING":
             regime_label = "CONSOLIDATION (Range-Bound)"
@@ -59,16 +60,24 @@ class MarketIntelligenceEngine:
             crowd = "LOW"
             thesis = (
                 f"Range-bound consolidation across top assets at ${btc_ticker_price:,.0f}. "
-                f"Market breadth at {market_breadth_pct:.0f}% with neutral funding ({avg_funding*100:+.4f}%/8h). "
-                "Selective mean-reversion at structural liquidity bands offers superior risk-reward."
+                f"Market breadth at {market_breadth_pct:.0f}% with neutral funding "
+                f"({avg_funding * 100:+.4f}%/8h). "
+                "Selective mean-reversion at structural liquidity bands offers "
+                "superior risk-reward."
             )
         elif btc_regime_type == "TRENDING" or btc_change_24h_pct >= 1.0:
-            regime_label = "TRENDING ↑ (Bullish Continuation)" if btc_change_24h_pct >= 0 else "TRENDING ↓ (Bearish)"
+            regime_label = (
+                "TRENDING ↑ (Bullish Continuation)"
+                if btc_change_24h_pct >= 0
+                else "TRENDING ↓ (Bearish)"
+            )
             appetite = "MODERATELY HIGH"
             crowd = "LOW"
             thesis = (
-                f"BTC-led bullish continuation at ${btc_ticker_price:,.0f} with {market_breadth_pct:.0f}% market breadth. "
-                "Long trend-following setups maintain positive statistical expectancy (+0.65R+); aggressive counter-trend shorting is suppressed."
+                f"BTC-led bullish continuation at ${btc_ticker_price:,.0f} "
+                f"with {market_breadth_pct:.0f}% market breadth. "
+                "Long trend-following setups maintain positive statistical "
+                "expectancy (+0.65R+); aggressive counter-trend shorting is suppressed."
             )
         else:
             regime_label = "CONSOLIDATION (Range-Bound)"
@@ -76,12 +85,15 @@ class MarketIntelligenceEngine:
             crowd = "LOW"
             thesis = (
                 f"Consolidation regime at ${btc_ticker_price:,.0f}. "
-                f"Market breadth at {market_breadth_pct:.0f}% with neutral funding ({avg_funding*100:+.4f}%/8h)."
+                f"Market breadth at {market_breadth_pct:.0f}% with neutral funding "
+                f"({avg_funding * 100:+.4f}%/8h)."
             )
 
         vol_state = "EXPANDING" if dvol > 50.0 else "COMPRESSING"
         funding_str = (
-            "NEUTRAL+" if 0.0 <= avg_funding < 0.00015 else ("OVERHEATED_LONGS" if avg_funding >= 0.00015 else "OVERCROWDED_SHORTS")
+            "NEUTRAL+"
+            if 0.0 <= avg_funding < 0.00015
+            else ("OVERHEATED_LONGS" if avg_funding >= 0.00015 else "OVERCROWDED_SHORTS")
         )
 
         # Real OI trend when a cycle-over-cycle comparison is available (caller caches the

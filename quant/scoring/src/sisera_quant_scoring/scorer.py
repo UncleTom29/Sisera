@@ -10,11 +10,11 @@ import math
 import zlib
 
 import numpy as np
-
-from sisera.data.models import CoinMarketData, OrderBook, Ticker, UniversePair
 from sisera_quant_indicators.base import IndicatorResult
 from sisera_quant_indicators.composite import StabilityState
 from sisera_quant_indicators.engine import EngineOutput
+
+from sisera.data.models import CoinMarketData, OrderBook, Ticker, UniversePair
 from sisera_quant_scoring.calibration import (
     ConformalPredictor,
     IsotonicCalibrator,
@@ -192,9 +192,7 @@ class ScoringEngine:
         # 4. Data Confidence Score (§3)
         diverged = universe_pair.market_cap_diverged if universe_pair else False
         agreement_factor = 0.5 if diverged else 1.0
-        data_conf = (
-            0.4 * engine_output.coverage_ratio + 0.3 * agreement_factor + 0.3 * 1.0
-        )
+        data_conf = 0.4 * engine_output.coverage_ratio + 0.3 * agreement_factor + 0.3 * 1.0
 
         # 5. Calibrated Probability Score
         raw_prob_input = self._raw_prob_input(net_score, disagreement, regime_state.stability_score)
@@ -268,11 +266,13 @@ class ScoringEngine:
         # EV_R = P(win) * avg_win_R - (1 - P(win)) * avg_loss_R - friction_R
         spread_bps = 2.0
         if order_book and order_book.best_bid and order_book.best_ask and order_book.mid_price:
-            spread_bps = max(1.0, ((order_book.best_ask - order_book.best_bid) / order_book.mid_price) * 10000.0)
-        
+            spread_bps = max(
+                1.0, ((order_book.best_ask - order_book.best_bid) / order_book.mid_price) * 10000.0
+            )
+
         friction_r = (spread_bps / 100.0 * 0.05) + (abs(ticker.funding_rate) * 50.0 if ticker else 0.02)
         win_payoff_r = avg_win_payoff * (0.9 + 0.2 * regime_state.stability_score)
-        
+
         expected_value_r = p_win * win_payoff_r - (1.0 - p_win) * avg_loss_payoff - friction_r
 
         # 8. Reason Codes

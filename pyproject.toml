@@ -48,6 +48,7 @@ dependencies = [
     "sisera-agents",
     "sisera-intelligence",
     "sisera-observability",
+    "pyjwt>=2.14.0",
 ]
 
 [project.scripts]

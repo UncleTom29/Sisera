@@ -63,9 +63,7 @@ class DecisionPolicy:
         is_long = opportunity.direction == TradeDirection.LONG
         effective_p_win = opportunity.p_win if is_long else 1.0 - opportunity.p_win
 
-        expected_utility = (
-            ev_val - unc_drag - exec_drag - tail_drag - portfolio_penalty
-        )
+        expected_utility = ev_val - unc_drag - exec_drag - tail_drag - portfolio_penalty
 
         # Check individual gating hurdles
         passes_ev = ev_val >= self.min_ev_r
@@ -112,7 +110,8 @@ class DecisionPolicy:
             size_pct = 0.0
             exec_tier = ExecutionTier.WAIT_LIQUIDITY.value
             rationale = (
-                f"WAIT for {opportunity.symbol}: positive EV (+{ev_val:.2f}R) but execution quality ({opportunity.execution_quality*100:.0f}/100) "
+                f"WAIT for {opportunity.symbol}: positive EV (+{ev_val:.2f}R) "
+                f"but execution quality ({opportunity.execution_quality * 100:.0f}/100) "
                 f"sub-optimal. Monitoring for orderbook liquidity improvement."
             )
         elif ev_val < min_ev_floor or (expected_utility < 0 and ev_val < 0.20):
@@ -134,9 +133,10 @@ class DecisionPolicy:
             size_pct = 1.0
             exec_tier = ExecutionTier.FULL.value
             rationale = (
-                f"FULL TRADE approved (100% size) for {opportunity.symbol} {opportunity.direction.value}: "
+                f"FULL TRADE approved (100% size) for {opportunity.symbol} "
+                f"{opportunity.direction.value}: "
                 f"High EV (+{ev_val:.2f}R), P(win)={effective_p_win:.1%}, "
-                f"ExecQuality={opportunity.execution_quality*100:.0f}/100"
+                f"ExecQuality={opportunity.execution_quality * 100:.0f}/100"
             )
         elif (
             ev_val >= 0.55
@@ -151,7 +151,7 @@ class DecisionPolicy:
             rationale = (
                 f"TRADE approved (75% size) for {opportunity.symbol} {opportunity.direction.value}: "
                 f"EV=+{ev_val:.2f}R, P(win)={effective_p_win:.1%}, "
-                f"ExecQuality={opportunity.execution_quality*100:.0f}/100"
+                f"ExecQuality={opportunity.execution_quality * 100:.0f}/100"
             )
         elif ev_val >= 0.40 and effective_p_win >= 0.40 and opportunity.execution_quality >= 0.65:
             # Tier 3: Good Payoff Asymmetry Opportunity (REDUCED 50%)
@@ -161,7 +161,7 @@ class DecisionPolicy:
             rationale = (
                 f"TRADE approved (50% size) for {opportunity.symbol} {opportunity.direction.value}: "
                 f"EV=+{ev_val:.2f}R, P(win)={effective_p_win:.1%}, "
-                f"ExecQuality={opportunity.execution_quality*100:.0f}/100"
+                f"ExecQuality={opportunity.execution_quality * 100:.0f}/100"
             )
         elif ev_val >= 0.25 and effective_p_win >= 0.38 and opportunity.execution_quality >= 0.60:
             # Tier 4: Asymmetric Probe Position (PROBE 25%)
@@ -171,7 +171,7 @@ class DecisionPolicy:
             rationale = (
                 f"PROBE approved (25% size) for {opportunity.symbol} {opportunity.direction.value}: "
                 f"Positive EV (+{ev_val:.2f}R), P(win)={effective_p_win:.1%}, "
-                f"ExecQuality={opportunity.execution_quality*100:.0f}/100"
+                f"ExecQuality={opportunity.execution_quality * 100:.0f}/100"
             )
         elif passes_ev and passes_pwin and passes_exec and passes_regime and passes_utility:
             decision = DecisionType.TRADE
@@ -180,7 +180,7 @@ class DecisionPolicy:
             rationale = (
                 f"TRADE approved (50% size) for {opportunity.symbol} {opportunity.direction.value}: "
                 f"EV=+{ev_val:.2f}R, P(win)={effective_p_win:.1%}, "
-                f"ExecQuality={opportunity.execution_quality*100:.0f}/100"
+                f"ExecQuality={opportunity.execution_quality * 100:.0f}/100"
             )
         else:
             decision = DecisionType.NO_TRADE

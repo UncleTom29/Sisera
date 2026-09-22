@@ -102,15 +102,19 @@ class SeenNewsStore:
             conn.execute(
                 "DELETE FROM seen_news_items WHERE seen_at_ms < ?", (now_ms - self._retention_ms,)
             )
-            existing_ids = {
-                row[0]
-                for row in conn.execute(
-                    "SELECT item_id FROM seen_news_items WHERE item_id IN ({})".format(
-                        ",".join("?" * len(items))
-                    ),
-                    [it.item_id for it in items],
-                )
-            } if items else set()
+            existing_ids = (
+                {
+                    row[0]
+                    for row in conn.execute(
+                        "SELECT item_id FROM seen_news_items WHERE item_id IN ({})".format(
+                            ",".join("?" * len(items))
+                        ),
+                        [it.item_id for it in items],
+                    )
+                }
+                if items
+                else set()
+            )
 
             unseen = [it for it in items if it.item_id not in existing_ids]
 
@@ -171,7 +175,8 @@ class CorroborationTracker:
         key = source_key(item.source_type, item.source_name)
         with self._connect() as conn:
             conn.execute(
-                "DELETE FROM news_corroboration_matches WHERE matched_at_ms < ?", (now - self._window_ms,)
+                "DELETE FROM news_corroboration_matches WHERE matched_at_ms < ?",
+                (now - self._window_ms,),
             )
             conn.execute(
                 """

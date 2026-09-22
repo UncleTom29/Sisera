@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass
@@ -80,7 +79,10 @@ class DifferentialIntelligenceEngine:
         delta_items = [
             {
                 "label": "BTC Regime Stability",
-                "delta": f"{stability*100:.0f}% ({stability_label} {stability_sign}{stability_delta_pts:.0f}%)",
+                "delta": (
+                    f"{stability * 100:.0f}% ({stability_label} "
+                    f"{stability_sign}{stability_delta_pts:.0f}%)"
+                ),
                 "direction": "up" if stability_delta_pts >= 0 else "down",
                 "color": "#00F29D" if stability >= 0.6 else "#FFB800",
             },
@@ -92,7 +94,7 @@ class DifferentialIntelligenceEngine:
             },
             {
                 "label": "Funding Crowding",
-                "delta": f"{fund_sign}{funding_delta_pct:.1f}% (+{current_funding*100:.4f}%/8h)",
+                "delta": f"{fund_sign}{funding_delta_pct:.1f}% (+{current_funding * 100:.4f}%/8h)",
                 "direction": "up" if funding_delta_pct >= 0 else "down",
                 "color": "#FFB800" if funding_delta_pct >= 0 else "#00F29D",
             },
@@ -117,8 +119,10 @@ class DifferentialIntelligenceEngine:
         ]
 
         summary = (
-            f"BTC regime stability at {stability*100:.0f}% with spot moving {btc_sign}{btc_delta_pct:.2f}% to ${current_btc_price:,.0f} "
-            f"and funding at {current_funding*100:+.4f}%/8h. Active thesis health is at {avg_position_health:.0f}%, "
+            f"BTC regime stability at {stability * 100:.0f}% with spot moving "
+            f"{btc_sign}{btc_delta_pct:.2f}% to ${current_btc_price:,.0f} "
+            f"and funding at {current_funding * 100:+.4f}%/8h. "
+            f"Active thesis health is at {avg_position_health:.0f}%, "
             f"and aggregate portfolio EV is {current_book_ev:+.2f}R."
         )
 

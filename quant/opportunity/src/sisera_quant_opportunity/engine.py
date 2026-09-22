@@ -10,6 +10,8 @@ from __future__ import annotations
 import math
 import uuid
 
+from sisera_quant_scoring.models import RankedCandidate
+
 from sisera.data.models import OrderBook, Ticker
 from sisera_quant_opportunity.models import (
     ExecutionTier,
@@ -17,7 +19,6 @@ from sisera_quant_opportunity.models import (
     Opportunity,
     TradeDirection,
 )
-from sisera_quant_scoring.models import RankedCandidate
 
 
 class OpportunityEngine:
@@ -195,7 +196,9 @@ class OpportunityEngine:
         opt_score = fam_dict.get("options", None)
 
         disagreement = primary_score.family_breakdown.cross_family_disagreement
-        evidence_pct = round(min(98.0, max(30.0, (abs(primary_score.confidence - 0.5) * 160.0 + 40.0))), 1)
+        evidence_pct = round(
+            min(98.0, max(30.0, (abs(primary_score.confidence - 0.5) * 160.0 + 40.0))), 1
+        )
         regime_fit_pct = round(primary_score.regime_state.stability_score * 100.0, 1)
         signal_consensus_pct = round(max(10.0, (1.0 - disagreement) * 100.0), 1)
         data_quality_pct = round(primary_score.data_confidence * 100.0, 1)
@@ -234,12 +237,16 @@ class OpportunityEngine:
             if ticker and ticker.funding_rate > 0.0003:
                 risk_catalysts.append("Funding rate moderately elevated on longs")
             if primary_score.epistemic_uncertainty > 0.20:
-                risk_catalysts.append(f"Prediction interval wide (±{primary_score.epistemic_uncertainty:.1%})")
+                risk_catalysts.append(
+                    f"Prediction interval wide (±{primary_score.epistemic_uncertainty:.1%})"
+                )
             if primary_score.regime_state.stability_score < 0.60:
                 risk_catalysts.append("Market regime stability transitioning")
         else:
             if tech_score and tech_score.score < -0.2:
-                thesis_catalysts.append(f"{tf} Bearish breakdown & momentum weakness ({tech_score.score:.2f})")
+                thesis_catalysts.append(
+                    f"{tf} Bearish breakdown & momentum weakness ({tech_score.score:.2f})"
+                )
             if deriv_score and deriv_score.score < -0.15:
                 thesis_catalysts.append("Derivatives short-side liquidation asymmetry")
             if ticker and ticker.funding_rate > -0.0001:
@@ -248,7 +255,9 @@ class OpportunityEngine:
                 thesis_catalysts.append(f"Deep order book depth (${near_depth:,.0f}) & tight spread")
 
             if primary_score.epistemic_uncertainty > 0.20:
-                risk_catalysts.append(f"Prediction interval wide (±{primary_score.epistemic_uncertainty:.1%})")
+                risk_catalysts.append(
+                    f"Prediction interval wide (±{primary_score.epistemic_uncertainty:.1%})"
+                )
             if primary_score.regime_state.stability_score < 0.60:
                 risk_catalysts.append("Market regime stability transitioning")
 
@@ -260,10 +269,12 @@ class OpportunityEngine:
         # 11. "Why Now?" Actionable Transition Triggers
         why_now_triggers = [
             f"1. EV ({ev_r:+.2f}R) crossed required hurdle threshold",
-            f"2. Execution quality ({exec_quality*100:.0f}/100) confirmed in active orderbook",
-            f"3. Regime compatibility aligned ({primary_score.regime_state.regime_type.value} {regime_fit_pct:.0f}%)",
-            f"4. Funding positioning uncrowded ({ticker.funding_rate*100:+.4f}%/8h)",
-            f"5. Incremental book EV increases portfolio to +{post_book_ev:.2f}R (+{incremental_ev:.2f}R net)",
+            f"2. Execution quality ({exec_quality * 100:.0f}/100) confirmed in active orderbook",
+            f"3. Regime compatibility aligned ({primary_score.regime_state.regime_type.value} "
+            f"{regime_fit_pct:.0f}%)",
+            f"4. Funding positioning uncrowded ({ticker.funding_rate * 100:+.4f}%/8h)",
+            f"5. Incremental book EV increases portfolio to +{post_book_ev:.2f}R "
+            f"(+{incremental_ev:.2f}R net)",
         ]
 
         # 12. Hierarchical Reasoning Tree for Visual Map
@@ -274,12 +285,32 @@ class OpportunityEngine:
             "ev_r": ev_r,
             "execution_quality": exec_quality,
             "nodes": [
-                {"name": "Technical", "score": tech_score.score if tech_score else 0.0, "weight": tech_score.weight if tech_score else 0.25},
-                {"name": "Derivatives", "score": deriv_score.score if deriv_score else 0.0, "weight": deriv_score.weight if deriv_score else 0.25},
-                {"name": "Fundamental", "score": fund_score.score if fund_score else 0.0, "weight": fund_score.weight if fund_score else 0.15},
-                {"name": "Cross-Venue & Composite", "score": cross_score.score if cross_score else 0.0, "weight": cross_score.weight if cross_score else 0.20},
-                {"name": "Options & Vol", "score": opt_score.score if opt_score else 0.0, "weight": opt_score.weight if opt_score else 0.15},
-            ]
+                {
+                    "name": "Technical",
+                    "score": tech_score.score if tech_score else 0.0,
+                    "weight": tech_score.weight if tech_score else 0.25,
+                },
+                {
+                    "name": "Derivatives",
+                    "score": deriv_score.score if deriv_score else 0.0,
+                    "weight": deriv_score.weight if deriv_score else 0.25,
+                },
+                {
+                    "name": "Fundamental",
+                    "score": fund_score.score if fund_score else 0.0,
+                    "weight": fund_score.weight if fund_score else 0.15,
+                },
+                {
+                    "name": "Cross-Venue & Composite",
+                    "score": cross_score.score if cross_score else 0.0,
+                    "weight": cross_score.weight if cross_score else 0.20,
+                },
+                {
+                    "name": "Options & Vol",
+                    "score": opt_score.score if opt_score else 0.0,
+                    "weight": opt_score.weight if opt_score else 0.15,
+                },
+            ],
         }
 
         # 13. Decision Provenance Snapshot
@@ -291,7 +322,7 @@ class OpportunityEngine:
             "expected_value": primary_score.expected_value,
             "ev_r": ev_r,
             "epistemic_uncertainty": primary_score.epistemic_uncertainty,
-            "prediction_interval": f"{pred_low*100:.1f}% - {pred_high*100:.1f}%",
+            "prediction_interval": f"{pred_low * 100:.1f}% - {pred_high * 100:.1f}%",
             "regime": primary_score.regime_state.regime_type.value,
             "stability_score": primary_score.regime_state.stability_score,
             "family_breakdown": primary_score.family_breakdown.model_dump(),

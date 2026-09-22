@@ -14,8 +14,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from sisera.config import config
 from sisera_quant_opportunity.models import Opportunity
+
+from sisera.config import config
 from sisera.risk.models import Position
 
 
@@ -57,12 +58,12 @@ class PositionIntelligenceEngine:
     ) -> PositionIntelligence:
         try:
             entry_p = float(position.entry_price)
-        except Exception:
+        except (ValueError, TypeError):
             entry_p = 10.0
 
         try:
             current_market_price = float(current_market_price)
-        except Exception:
+        except (ValueError, TypeError):
             current_market_price = entry_p
 
         is_long = (
@@ -131,7 +132,7 @@ class PositionIntelligenceEngine:
             status = "Weakening"
             action = "TRIM 25%"
             rationale = (
-                f"Momentum decaying; P(win) drifted to {curr_pwin*100:.1f}%. "
+                f"Momentum decaying; P(win) drifted to {curr_pwin * 100:.1f}%. "
                 f"Trimming 25% preserves capital and lowers portfolio correlation."
             )
             risk = "Medium"
@@ -154,7 +155,7 @@ class PositionIntelligenceEngine:
         if current_funding_rate is not None:
             adverse_funding = current_funding_rate if is_long else -current_funding_rate
             funding_triggered = adverse_funding > funding_threshold
-            funding_value_str = f"{current_funding_rate*100:+.4f}%/8h"
+            funding_value_str = f"{current_funding_rate * 100:+.4f}%/8h"
         else:
             funding_triggered = False
             funding_value_str = "not tracked this cycle"
@@ -185,7 +186,7 @@ class PositionIntelligenceEngine:
             {
                 "condition": "Calibrated P(win) < 48.0%",
                 "triggered": curr_pwin < 0.48,
-                "current_value": f"{curr_pwin*100:.1f}%",
+                "current_value": f"{curr_pwin * 100:.1f}%",
                 "threshold": "< 48.0%",
             },
             {
@@ -198,7 +199,7 @@ class PositionIntelligenceEngine:
                 "condition": "Funding Crowding Spike",
                 "triggered": funding_triggered,
                 "current_value": funding_value_str,
-                "threshold": f"> +{funding_threshold*100:.4f}%/8h adverse",
+                "threshold": f"> +{funding_threshold * 100:.4f}%/8h adverse",
             },
             {
                 "condition": "Open Interest Reversal > 8%",
@@ -215,7 +216,9 @@ class PositionIntelligenceEngine:
         stop_dist_pct = abs(entry_p - position.stop_loss_price) / entry_p * 100.0 if entry_p > 0 else 1.5
         atr_pct = round(stop_dist_pct / max(config.atr_stop_multiplier, 0.1), 2)
         trail_dist = round(atr_pct * 1.5, 2)
-        dir_str = position.direction.value if hasattr(position.direction, "value") else str(position.direction)
+        dir_str = (
+            position.direction.value if hasattr(position.direction, "value") else str(position.direction)
+        )
 
         return PositionIntelligence(
             symbol=position.symbol,

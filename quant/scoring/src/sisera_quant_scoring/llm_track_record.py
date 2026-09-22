@@ -137,8 +137,15 @@ class LLMTrackRecord:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 """,
                 (
-                    symbol, timeframe, cluster, score, confidence, reasoning,
-                    entry_price, called_ms, resolve_ms,
+                    symbol,
+                    timeframe,
+                    cluster,
+                    score,
+                    confidence,
+                    reasoning,
+                    entry_price,
+                    called_ms,
+                    resolve_ms,
                 ),
             )
 
@@ -247,8 +254,14 @@ class LLMTrackRecord:
             ).fetchall()
         return [
             SettledCall(
-                symbol=r[0], score=r[1], confidence=r[2], entry_price=r[3], exit_price=r[4],
-                forward_return=r[5], called_at_ms=r[6], settled_at_ms=r[7],
+                symbol=r[0],
+                score=r[1],
+                confidence=r[2],
+                entry_price=r[3],
+                exit_price=r[4],
+                forward_return=r[5],
+                called_at_ms=r[6],
+                settled_at_ms=r[7],
             )
             for r in rows
         ]

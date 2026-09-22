@@ -73,7 +73,9 @@ class Opportunity(BaseModel):
     crowding_level: float = 0.2  # 0.0 to 1.0
     data_confidence: float = 0.9  # 0.0 to 1.0
     thesis_quality: float = 0.85  # 0.0 to 1.0
-    thesis_decomposition: dict[str, float] = Field(default_factory=dict)  # Evidence, Regime Fit, Signal Consensus, etc.
+    thesis_decomposition: dict[str, float] = Field(
+        default_factory=dict
+    )  # Evidence, Regime Fit, Signal Consensus, etc.
     portfolio_impact_r: float = 0.15  # Incremental book EV in R
     pre_trade_book_ev_r: float = 1.42  # Current book EV before adding this position
     post_trade_book_ev_r: float = 1.83  # Projected book EV after adding this position
@@ -87,7 +89,8 @@ class Opportunity(BaseModel):
 
 
 class DecisionResult(BaseModel):
-    """Output of Decision Policy: TRADE, PROBE, WAIT, or NO_TRADE with expected utility and reason codes."""
+    """Output of Decision Policy: TRADE, PROBE, WAIT, or NO_TRADE with expected
+    utility and reason codes."""
 
     decision: DecisionType
     opportunity: Opportunity

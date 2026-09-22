@@ -37,7 +37,7 @@ _TABLE = "event_attribution_calls"
 
 
 def source_key(source_type: str, source_name: str) -> str:
-    """"rss:cointelegraph" vs "telegram:cointelegraph" stay distinct tracked identities --
+    """ "rss:cointelegraph" vs "telegram:cointelegraph" stay distinct tracked identities --
     same channel name, different distribution mechanism, potentially different real
     accuracy (e.g. a Telegram channel re-posting a headline faster but less carefully
     edited than the same outlet's own RSS feed)."""
@@ -126,8 +126,15 @@ class EventAttributionEngine:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                 """,
                 (
-                    source_key(source_type, source_name), symbol, event_category, severity,
-                    score, confidence, entry_price, called_ms, resolve_ms,
+                    source_key(source_type, source_name),
+                    symbol,
+                    event_category,
+                    severity,
+                    score,
+                    confidence,
+                    entry_price,
+                    called_ms,
+                    resolve_ms,
                 ),
             )
 

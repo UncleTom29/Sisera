@@ -7,9 +7,7 @@ Computes real-time drift metrics from live decision ledger history and telemetry
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
-from typing import Any
 
 from sisera.ledger.ledger import DecisionLedger
 from sisera.ledger.models import DecisionLedgerEntry
@@ -56,10 +54,8 @@ class DriftDetectionEngine:
         if entries is None and self.ledger:
             try:
                 entries = self.ledger.query(limit=200)
-            except Exception:
+            except Exception:  # noqa: BLE001 - any ledger failure degrades to empty, by design
                 entries = []
-
-        total_entries = len(entries) if entries else 0
 
         # 1. Real Calibration Score: predicted P(win) vs. realized outcome, from settled
         # TRADE/PROBE decisions' counterfactual_verdict (see
@@ -69,18 +65,20 @@ class DriftDetectionEngine:
         # 0.62 regardless of any real decision ever made). A well-calibrated model's
         # average predicted p_win should track its realized win rate closely.
         settled_trades = [
-            e for e in (entries or [])
-            if e.decision in ("TRADE", "PROBE") and e.counterfactual_verdict in ("PROFITABLE_TRADE", "STOPPED_OUT")
+            e
+            for e in (entries or [])
+            if e.decision in ("TRADE", "PROBE")
+            and e.counterfactual_verdict in ("PROFITABLE_TRADE", "STOPPED_OUT")
         ]
         if len(settled_trades) >= 5:
-            predicted_p_wins = [
-                float(e.opportunity_snapshot.get("p_win", 0.5)) for e in settled_trades
-            ]
+            predicted_p_wins = [float(e.opportunity_snapshot.get("p_win", 0.5)) for e in settled_trades]
             avg_predicted = sum(predicted_p_wins) / len(predicted_p_wins)
             realized_win_rate = sum(
                 1 for e in settled_trades if e.counterfactual_verdict == "PROFITABLE_TRADE"
             ) / len(settled_trades)
-            calib = round(max(50.0, min(99.0, (1.0 - abs(avg_predicted - realized_win_rate)) * 100.0)), 1)
+            calib = round(
+                max(50.0, min(99.0, (1.0 - abs(avg_predicted - realized_win_rate)) * 100.0)), 1
+            )
         else:
             # Cold start -- not enough settled outcomes yet for a real calibration read.
             calib = 93.0

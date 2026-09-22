@@ -10,7 +10,6 @@ from dataclasses import field
 from enum import StrEnum
 
 from pydantic import BaseModel
-
 from sisera_quant_indicators.composite import RegimeState
 
 

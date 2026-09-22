@@ -1476,6 +1476,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyjwt"
+version = "2.14.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/af/c3/8a3b59c25070cc61dc517fbdfa5dc0904670c96f605cc69759dc09166b99/pyjwt-2.14.0.tar.gz", hash = "sha256:77283c83fb56ecf566a886c757a714bc83668e38156de2cce8263302f42e0b86", size = 113177, upload-time = "2026-09-11T13:11:54.638Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9c/97/672cb32ce0dfea44b740cb7b4f97038463b9cf7c0ead1aacf595572851d6/pyjwt-2.14.0-py3-none-any.whl", hash = "sha256:ad0cef71c756a56e74863c2919cf0985f72decbcfcb550ee2f422e7c62b5eedc", size = 32896, upload-time = "2026-09-11T13:11:53.409Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1646,6 +1655,7 @@ dependencies = [
     { name = "feedparser" },
     { name = "pandas" },
     { name = "pydantic" },
+    { name = "pyjwt" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "sisera-agents" },
@@ -1700,6 +1710,7 @@ requires-dist = [
     { name = "feedparser", specifier = ">=6.0" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "pydantic", specifier = ">=2.9" },
+    { name = "pyjwt", specifier = ">=2.14.0" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "requests", specifier = ">=2.32" },
     { name = "sisera-agents", editable = "services/agents" },
@@ -1799,7 +1810,9 @@ version = "0.1.0"
 source = { editable = "services/auth" }
 dependencies = [
     { name = "alembic" },
+    { name = "cryptography" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "pyjwt" },
     { name = "sisera-config" },
     { name = "sisera-db" },
     { name = "sisera-domain" },
@@ -1809,7 +1822,9 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.13" },
+    { name = "cryptography", specifier = ">=40.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
+    { name = "pyjwt", specifier = ">=2.10" },
     { name = "sisera-config", editable = "packages/config" },
     { name = "sisera-db", editable = "packages/db" },
     { name = "sisera-domain", editable = "packages/domain" },

@@ -106,6 +106,13 @@ over-fill), applied against instrument tick/lot metadata.
   `Notification` with dedup keys; `NotificationService` fan-out with time-window
   deduplication; in-memory and log backends.
 
+## Intelligence (`sisera_domain.governance`, `.differential`)
+
+- **Model governance** — `ModelRegistry` with versioning + lifecycle, deterministic
+  Champion/Challenger promotion, `DriftMonitor` for calibration drift.
+- **Differential intelligence** — `MarketFactor` (15 factors), structured `MarketDiff`
+  with regime-change flag; templated narratives from real movers only.
+
 ## Event schemas (`packages/schemas`)
 
 - `EventHeader` (timestamps, source, instrument, `DataQuality`, sequence, correlation id)

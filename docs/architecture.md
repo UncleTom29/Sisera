@@ -135,6 +135,7 @@ OpenTelemetry traces/metrics, structured JSON logs, correlation IDs
 | 7/13 — Routing / Analytics | ✅ Smart Order Router, TCA (domain cores) |
 | 9/10 — Agents / Prediction | ✅ Autonomy levels, manifests, prediction-market domain |
 | 12 — Institutional controls | ✅ Approvals, kill switches, RBAC (+persistence), reconciliation, intent compiler, notifications (domain) |
+| 13 — Institutional analytics | ✅ TCA, model governance, differential intelligence (domain); backtesting harness |
 | 3 — Market-data platform | 🚧 Canonical events + normalization + Bybit connector; realtime/historical storage pending |
 | Persistence (Postgres) | 🚧 Ledger ✅ · OMS ✅ · Decision ✅ · Instruments ✅ · Portfolio ✅ · Auth ✅ |
 | API (§45) | 🚧 Versioned `/api/v1` (instruments/orders/ledger/portfolio) over repositories |

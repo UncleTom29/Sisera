@@ -25,6 +25,7 @@ members = [
     "sisera-intelligence",
     "sisera-ledger",
     "sisera-marketdata",
+    "sisera-observability",
     "sisera-oms",
     "sisera-polymarket",
     "sisera-portfolio",
@@ -1650,6 +1651,7 @@ dependencies = [
     { name = "sisera-intelligence" },
     { name = "sisera-ledger" },
     { name = "sisera-marketdata" },
+    { name = "sisera-observability" },
     { name = "sisera-oms" },
     { name = "sisera-polymarket" },
     { name = "sisera-portfolio" },
@@ -1694,6 +1696,7 @@ requires-dist = [
     { name = "sisera-intelligence", editable = "services/intelligence" },
     { name = "sisera-ledger", editable = "services/ledger" },
     { name = "sisera-marketdata", editable = "services/market-data" },
+    { name = "sisera-observability", editable = "packages/observability" },
     { name = "sisera-oms", editable = "services/oms" },
     { name = "sisera-polymarket", editable = "connectors/prediction/polymarket" },
     { name = "sisera-portfolio", editable = "services/portfolio" },
@@ -1944,6 +1947,11 @@ requires-dist = [
     { name = "sisera-domain", editable = "packages/domain" },
     { name = "sisera-schemas", editable = "packages/schemas" },
 ]
+
+[[package]]
+name = "sisera-observability"
+version = "0.1.0"
+source = { editable = "packages/observability" }
 
 [[package]]
 name = "sisera-oms"

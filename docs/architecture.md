@@ -139,7 +139,7 @@ OpenTelemetry traces/metrics, structured JSON logs, correlation IDs
 | 7 — Multi-venue | ✅ Bybit · Hyperliquid · 2nd CEX (CCXT/Binance) · EVM DEX · Solana DEX · Prediction (Polymarket) — all §70 (built, mocked, tested, disabled; credentials later) |
 | 8/9 — AI + Agents | 🚧 Copilot (evidence-grounded, mock LLM) ✅ · Agent runtime ✅ (paper, autonomy/lifecycle enforced) · Live LLM provider pending |
 | Observability (§47) | 🚧 Correlation IDs + JSON logging + metrics primitives ✅ · OTel exporters pending |
-| Workers | 🚧 Risk-monitor ✅ (portfolio surveillance + kill switches + alerts); scanner/settlement/analytics pending |
+| Workers | ✅ Risk-monitor · Settlement (fills/payouts→ledger) · Reconciliation (venue-vs-ledger) · Agent runtime (services/agents); scanner/analytics pending |
 | 3 — Market-data platform | 🚧 Canonical events + normalization + Bybit connector; realtime/historical storage pending |
 | Persistence (Postgres) | 🚧 Ledger ✅ · OMS ✅ · Decision ✅ · Instruments ✅ · Portfolio ✅ · Auth ✅ |
 | API (§45) | 🚧 Versioned `/api/v1` (instruments/orders/ledger/portfolio) over repositories |

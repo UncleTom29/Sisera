@@ -23,6 +23,7 @@ dependencies = [
     "sisera-domain",
     "sisera-config",
     "sisera-schemas",
+    "sisera-marketdata",
 ]
 
 [project.scripts]
@@ -39,15 +40,16 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["packages/domain", "packages/config", "packages/schemas"]
+members = ["packages/domain", "packages/config", "packages/schemas", "services/market-data"]
 
 [tool.uv.sources]
 sisera-domain = { workspace = true }
 sisera-config = { workspace = true }
 sisera-schemas = { workspace = true }
+sisera-marketdata = { workspace = true }
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "packages"]
+testpaths = ["tests", "packages", "services"]
 
 [tool.ruff]
 line-length = 105

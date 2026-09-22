@@ -13,6 +13,7 @@ resolution-markers = [
 [manifest]
 members = [
     "sisera",
+    "sisera-api",
     "sisera-bybit",
     "sisera-config",
     "sisera-db",
@@ -1630,6 +1631,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
+    { name = "sisera-api" },
     { name = "sisera-bybit" },
     { name = "sisera-config" },
     { name = "sisera-db" },
@@ -1666,6 +1668,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.9" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "requests", specifier = ">=2.32" },
+    { name = "sisera-api", editable = "services/api" },
     { name = "sisera-bybit", editable = "connectors/exchanges/bybit" },
     { name = "sisera-config", editable = "packages/config" },
     { name = "sisera-db", editable = "packages/db" },
@@ -1692,6 +1695,41 @@ dev = [
     { name = "responses", specifier = ">=0.25" },
     { name = "ruff", specifier = ">=0.16" },
 ]
+
+[[package]]
+name = "sisera-api"
+version = "0.1.0"
+source = { editable = "services/api" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "sisera-config" },
+    { name = "sisera-domain" },
+    { name = "sisera-instruments" },
+    { name = "sisera-ledger" },
+    { name = "sisera-oms" },
+    { name = "sisera-portfolio" },
+    { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "sisera-config", editable = "packages/config" },
+    { name = "sisera-domain", editable = "packages/domain" },
+    { name = "sisera-instruments", editable = "services/instrument-master" },
+    { name = "sisera-ledger", editable = "services/ledger" },
+    { name = "sisera-oms", editable = "services/oms" },
+    { name = "sisera-portfolio", editable = "services/portfolio" },
+    { name = "uvicorn", specifier = ">=0.30" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "httpx", specifier = ">=0.27" }]
 
 [[package]]
 name = "sisera-bybit"

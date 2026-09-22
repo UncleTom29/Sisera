@@ -30,6 +30,7 @@ dependencies = [
     "sisera-instruments",
     "sisera-portfolio",
     "sisera-bybit",
+    "sisera-api",
 ]
 
 [project.scripts]
@@ -56,6 +57,7 @@ members = [
     "services/oms",
     "services/instrument-master",
     "services/portfolio",
+    "services/api",
     "connectors/exchanges/bybit",
 ]
 
@@ -70,6 +72,7 @@ sisera-oms = { workspace = true }
 sisera-instruments = { workspace = true }
 sisera-portfolio = { workspace = true }
 sisera-bybit = { workspace = true }
+sisera-api = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "services", "connectors"]

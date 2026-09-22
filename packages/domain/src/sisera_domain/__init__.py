@@ -37,6 +37,14 @@ from sisera_domain.auth import (
 from sisera_domain.circuit import CircuitBreaker, EmergencyMode, KillScope, KillSwitch
 from sisera_domain.decision import Decision, DecisionKind, DecisionLedger, SignalComponent
 from sisera_domain.execution import PaperExecutionEngine, PaperFill, VenueAdapter, VenueCapabilities
+from sisera_domain.governance import (
+    DriftMonitor,
+    DriftReport,
+    ModelRegistry,
+    ModelStatus,
+    ModelVersion,
+    PromotionDenied,
+)
 from sisera_domain.instrument import (
     CanonicalAsset,
     FundingModel,
@@ -219,4 +227,10 @@ __all__ = [
     "NotificationService",
     "Notifier",
     "Severity",
+    "DriftMonitor",
+    "DriftReport",
+    "ModelRegistry",
+    "ModelStatus",
+    "ModelVersion",
+    "PromotionDenied",
 ]

@@ -1,0 +1,20 @@
+[project]
+name = "sisera-instruments"
+version = "0.1.0"
+description = "Sisera Instrument Master service: persistence for canonical assets, venue instruments, and instruments"
+requires-python = ">=3.12"
+dependencies = [
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.1",
+    "sisera-domain",
+    "sisera-config",
+    "sisera-db",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sisera_instruments"]

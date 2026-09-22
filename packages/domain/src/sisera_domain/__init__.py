@@ -80,6 +80,7 @@ from sisera_domain.intent import (
     compile_intent,
 )
 from sisera_domain.ledger import EntryType, Ledger, LedgerEntry, Posting
+from sisera_domain.memory import AnalogResult, AnalogStats, MarketMemory, MarketState
 from sisera_domain.money import (
     Asset,
     Money,
@@ -260,6 +261,10 @@ __all__ = [
     "IntelligenceGraph",
     "Node",
     "RelationType",
+    "AnalogResult",
+    "AnalogStats",
+    "MarketMemory",
+    "MarketState",
     "MarketView",
     "Opportunity",
     "OpportunityEngine",

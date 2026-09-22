@@ -1,0 +1,102 @@
+name: sisera
+
+# Local development infrastructure for Sisera V2 (ADR-004).
+#
+# Canonical profile:
+#   Postgres (TimescaleDB for the local time-series profile) + Redis + NATS JetStream
+#   + MinIO (S3-compatible) + Prometheus + Grafana.
+#
+# ClickHouse is production-analytics and is gated behind the `analytics` profile so local
+# `make dev` stays light (per ADR-004). Enable it with `docker compose --profile analytics up`.
+#
+# Credentials below are LOCAL-DEV ONLY. Production uses secrets management (KMS/Vault).
+
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_DB: sisera
+      POSTGRES_USER: sisera
+      POSTGRES_PASSWORD: sisera
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sisera -d sisera"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    profiles: ["analytics"]
+    environment:
+      CLICKHOUSE_DB: sisera
+      CLICKHOUSE_USER: sisera
+      CLICKHOUSE_PASSWORD: sisera
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: sisera
+      MINIO_ROOT_PASSWORD: sisera-local
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  postgres_data:
+  clickhouse_data:
+  redis_data:
+  nats_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:

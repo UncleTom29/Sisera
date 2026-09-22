@@ -100,6 +100,12 @@ from sisera_domain.notifications import (
     Severity,
 )
 from sisera_domain.oms import OrderManager
+from sisera_domain.opportunity import (
+    MarketView,
+    Opportunity,
+    OpportunityEngine,
+    OpportunityStructure,
+)
 from sisera_domain.order import (
     InvalidStateTransition,
     Order,
@@ -254,6 +260,10 @@ __all__ = [
     "IntelligenceGraph",
     "Node",
     "RelationType",
+    "MarketView",
+    "Opportunity",
+    "OpportunityEngine",
+    "OpportunityStructure",
     "DifferentialEngine",
     "FactorDirection",
     "FactorReading",

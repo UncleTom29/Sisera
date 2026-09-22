@@ -24,6 +24,7 @@ members = [
     "sisera-marketdata",
     "sisera-oms",
     "sisera-portfolio",
+    "sisera-quant",
     "sisera-schemas",
 ]
 
@@ -1643,6 +1644,7 @@ dependencies = [
     { name = "sisera-marketdata" },
     { name = "sisera-oms" },
     { name = "sisera-portfolio" },
+    { name = "sisera-quant" },
     { name = "sisera-schemas" },
     { name = "telethon" },
     { name = "tenacity" },
@@ -1681,6 +1683,7 @@ requires-dist = [
     { name = "sisera-marketdata", editable = "services/market-data" },
     { name = "sisera-oms", editable = "services/oms" },
     { name = "sisera-portfolio", editable = "services/portfolio" },
+    { name = "sisera-quant", editable = "quant/backtesting" },
     { name = "sisera-schemas", editable = "packages/schemas" },
     { name = "telethon", specifier = ">=1.36" },
     { name = "tenacity", specifier = ">=9.0" },
@@ -1921,6 +1924,17 @@ requires-dist = [
     { name = "sisera-domain", editable = "packages/domain" },
     { name = "sqlalchemy", specifier = ">=2.0" },
 ]
+
+[[package]]
+name = "sisera-quant"
+version = "0.1.0"
+source = { editable = "quant/backtesting" }
+dependencies = [
+    { name = "sisera-domain" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "sisera-domain", editable = "packages/domain" }]
 
 [[package]]
 name = "sisera-schemas"

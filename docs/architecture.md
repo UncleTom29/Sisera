@@ -128,8 +128,18 @@ OpenTelemetry traces/metrics, structured JSON logs, correlation IDs
 | Phase | Status |
 |---|---|
 | 0 — Audit & security | ✅ Complete (`docs/current-system-audit.md`, credential remediation, ADRs) |
-| 1 — Platform foundation | 🚧 In progress (`packages/domain` + `packages/config` + dev infra done) |
-| 2+ — Canonical domain, market data, OMS, … | ⏳ Pending |
+| 1 — Platform foundation | ✅ `packages/domain` + `packages/config` + `packages/schemas` + dev infra |
+| 2 — Canonical domain | ✅ Instrument Master, financial types, double-entry ledger |
+| 4 — OMS / Execution | ✅ Order state machine, idempotent OMS, venue adapter, paper engine |
+| 5 — Risk / Portfolio / Ledger | ✅ Portfolio, deterministic risk, stress testing (domain cores) |
+| 7/13 — Routing / Analytics | ✅ Smart Order Router, TCA (domain cores) |
+| 9/10 — Agents / Prediction | ✅ Autonomy levels, manifests, prediction-market domain |
+| 3 — Market-data platform | 🚧 Canonical event schemas done; Bybit normalization/migration pending |
+| 6 — Web terminal | ⏳ Pending (rebuild `apps/web`) |
+| 8 — AI | ⏳ Pending (copilot, intent compiler) |
+| 11 — Mobile | ⏳ Pending |
+| 12 — Institutional controls | ⏳ Pending (auth/RBAC/approvals/SSO) |
+| Persistence (Postgres/ClickHouse) | ⏳ Domain cores are in-memory; service persistence pending |
 
 Phase gates (spec §65): format, lint, typecheck, test, security checks, docs, migrations
 from clean state, local boot, descriptive commit.

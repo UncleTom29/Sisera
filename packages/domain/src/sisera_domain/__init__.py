@@ -52,6 +52,14 @@ from sisera_domain.governance import (
     ModelVersion,
     PromotionDenied,
 )
+from sisera_domain.graph import (
+    Edge,
+    EntityType,
+    Exposure,
+    IntelligenceGraph,
+    Node,
+    RelationType,
+)
 from sisera_domain.instrument import (
     CanonicalAsset,
     FundingModel,
@@ -240,6 +248,12 @@ __all__ = [
     "ModelStatus",
     "ModelVersion",
     "PromotionDenied",
+    "Edge",
+    "EntityType",
+    "Exposure",
+    "IntelligenceGraph",
+    "Node",
+    "RelationType",
     "DifferentialEngine",
     "FactorDirection",
     "FactorReading",

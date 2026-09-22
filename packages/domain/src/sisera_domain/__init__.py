@@ -25,6 +25,15 @@ from sisera_domain.approval import (
     ApprovalRequest,
     ApprovalRule,
 )
+from sisera_domain.auth import (
+    AccessPolicy,
+    Desk,
+    Membership,
+    Organization,
+    Permission,
+    Role,
+    User,
+)
 from sisera_domain.circuit import CircuitBreaker, EmergencyMode, KillScope, KillSwitch
 from sisera_domain.decision import Decision, DecisionKind, DecisionLedger, SignalComponent
 from sisera_domain.execution import PaperExecutionEngine, PaperFill, VenueAdapter, VenueCapabilities
@@ -185,4 +194,11 @@ __all__ = [
     "TradeTrigger",
     "TriggerType",
     "compile_intent",
+    "AccessPolicy",
+    "Desk",
+    "Membership",
+    "Organization",
+    "Permission",
+    "Role",
+    "User",
 ]

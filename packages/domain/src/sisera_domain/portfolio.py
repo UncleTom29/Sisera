@@ -28,6 +28,7 @@ class Position(BaseModel):
     margin: Money | None = None
     leverage: Decimal = Decimal("1")
     quote_asset: Asset | None = None
+    beta_map: dict[str, Decimal] = Field(default_factory=lambda: {"BTC": Decimal("1")})
 
     @property
     def notional(self) -> Decimal:

@@ -53,6 +53,7 @@ from sisera_domain.routing import (
     VenueQuote,
 )
 from sisera_domain.tca import FillRecord, FillTCA, TCAEngine
+from sisera_domain.stress import Scenario, StressEngine, StressImpact
 
 __all__ = [
     "Asset",
@@ -103,4 +104,7 @@ __all__ = [
     "FillRecord",
     "FillTCA",
     "TCAEngine",
+    "Scenario",
+    "StressEngine",
+    "StressImpact",
 ]

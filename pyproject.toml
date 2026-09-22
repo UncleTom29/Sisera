@@ -32,6 +32,7 @@ dependencies = [
     "sisera-bybit",
     "sisera-hyperliquid",
     "sisera-polymarket",
+    "sisera-ccxt",
     "sisera-api",
     "sisera-auth",
     "sisera-quant",
@@ -74,6 +75,7 @@ members = [
     "workers/risk-monitor",
     "connectors/exchanges/bybit",
     "connectors/exchanges/hyperliquid",
+    "connectors/exchanges/ccxt",
     "connectors/prediction/polymarket",
 ]
 
@@ -97,6 +99,7 @@ sisera-hyperliquid = { workspace = true }
 sisera-polymarket = { workspace = true }
 sisera-intelligence = { workspace = true }
 sisera-observability = { workspace = true }
+sisera-ccxt = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "services", "connectors", "quant", "workers"]

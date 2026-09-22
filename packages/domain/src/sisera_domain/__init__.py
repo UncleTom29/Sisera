@@ -9,6 +9,17 @@ These value objects are the shared vocabulary the rest of Sisera operates on —
 specific objects must never leak past the connector boundary (ADR-005).
 """
 
+from sisera_domain.instrument import (
+    CanonicalAsset,
+    FundingModel,
+    Instrument,
+    InstrumentStatus,
+    InstrumentType,
+    MarginModel,
+    OptionType,
+    SymbolResolver,
+    VenueInstrument,
+)
 from sisera_domain.money import (
     Asset,
     Money,
@@ -27,4 +38,13 @@ __all__ = [
     "Quantity",
     "quantize_to_step",
     "round_quantity_to_lot",
+    "CanonicalAsset",
+    "FundingModel",
+    "Instrument",
+    "InstrumentStatus",
+    "InstrumentType",
+    "MarginModel",
+    "OptionType",
+    "SymbolResolver",
+    "VenueInstrument",
 ]

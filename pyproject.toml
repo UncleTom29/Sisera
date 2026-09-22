@@ -22,6 +22,7 @@ dependencies = [
     "telethon>=1.36",
     "sisera-domain",
     "sisera-config",
+    "sisera-schemas",
 ]
 
 [project.scripts]
@@ -38,11 +39,12 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["packages/domain", "packages/config"]
+members = ["packages/domain", "packages/config", "packages/schemas"]
 
 [tool.uv.sources]
 sisera-domain = { workspace = true }
 sisera-config = { workspace = true }
+sisera-schemas = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages"]

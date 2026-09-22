@@ -24,6 +24,9 @@ class Asset(BaseModel):
 
     code: str
 
+    def __init__(self, code: str) -> None:
+        super().__init__(code=code)
+
     @field_validator("code")
     @classmethod
     def _normalize(cls, v: str) -> str:

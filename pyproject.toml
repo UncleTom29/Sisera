@@ -38,6 +38,10 @@ dependencies = [
     "sisera-api",
     "sisera-auth",
     "sisera-quant",
+    "sisera-quant-indicators",
+    "sisera-quant-scoring",
+    "sisera-quant-opportunity",
+    "sisera-quant-intelligence",
     "sisera-risk-monitor",
     "sisera-settlement",
     "sisera-reconciliation",
@@ -76,6 +80,10 @@ members = [
     "services/agents",
     "services/intelligence",
     "quant/backtesting",
+    "quant/indicators",
+    "quant/scoring",
+    "quant/opportunity",
+    "quant/intelligence",
     "workers/risk-monitor",
     "workers/settlement",
     "workers/reconciliation",
@@ -112,6 +120,10 @@ sisera-dex-evm = { workspace = true }
 sisera-dex-solana = { workspace = true }
 sisera-settlement = { workspace = true }
 sisera-reconciliation = { workspace = true }
+sisera-quant-indicators = { workspace = true }
+sisera-quant-scoring = { workspace = true }
+sisera-quant-opportunity = { workspace = true }
+sisera-quant-intelligence = { workspace = true }
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "packages", "services", "connectors", "quant", "workers"]

@@ -33,6 +33,10 @@ members = [
     "sisera-polymarket",
     "sisera-portfolio",
     "sisera-quant",
+    "sisera-quant-indicators",
+    "sisera-quant-intelligence",
+    "sisera-quant-opportunity",
+    "sisera-quant-scoring",
     "sisera-reconciliation",
     "sisera-risk-monitor",
     "sisera-schemas",
@@ -1664,6 +1668,10 @@ dependencies = [
     { name = "sisera-polymarket" },
     { name = "sisera-portfolio" },
     { name = "sisera-quant" },
+    { name = "sisera-quant-indicators" },
+    { name = "sisera-quant-intelligence" },
+    { name = "sisera-quant-opportunity" },
+    { name = "sisera-quant-scoring" },
     { name = "sisera-reconciliation" },
     { name = "sisera-risk-monitor" },
     { name = "sisera-schemas" },
@@ -1714,6 +1722,10 @@ requires-dist = [
     { name = "sisera-polymarket", editable = "connectors/prediction/polymarket" },
     { name = "sisera-portfolio", editable = "services/portfolio" },
     { name = "sisera-quant", editable = "quant/backtesting" },
+    { name = "sisera-quant-indicators", editable = "quant/indicators" },
+    { name = "sisera-quant-intelligence", editable = "quant/intelligence" },
+    { name = "sisera-quant-opportunity", editable = "quant/opportunity" },
+    { name = "sisera-quant-scoring", editable = "quant/scoring" },
     { name = "sisera-reconciliation", editable = "workers/reconciliation" },
     { name = "sisera-risk-monitor", editable = "workers/risk-monitor" },
     { name = "sisera-schemas", editable = "packages/schemas" },
@@ -2098,6 +2110,72 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "sisera-domain", editable = "packages/domain" }]
+
+[[package]]
+name = "sisera-quant-indicators"
+version = "0.1.0"
+source = { editable = "quant/indicators" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "pandas", specifier = ">=2.2" },
+    { name = "pydantic", specifier = ">=2.9" },
+]
+
+[[package]]
+name = "sisera-quant-intelligence"
+version = "0.1.0"
+source = { editable = "quant/intelligence" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "sisera-quant-opportunity" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.9" },
+    { name = "sisera-quant-opportunity", editable = "quant/opportunity" },
+]
+
+[[package]]
+name = "sisera-quant-opportunity"
+version = "0.1.0"
+source = { editable = "quant/opportunity" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "sisera-quant-scoring" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.9" },
+    { name = "sisera-quant-scoring", editable = "quant/scoring" },
+]
+
+[[package]]
+name = "sisera-quant-scoring"
+version = "0.1.0"
+source = { editable = "quant/scoring" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "pydantic" },
+    { name = "sisera-quant-indicators" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "pandas", specifier = ">=2.2" },
+    { name = "pydantic", specifier = ">=2.9" },
+    { name = "sisera-quant-indicators", editable = "quant/indicators" },
+]
 
 [[package]]
 name = "sisera-reconciliation"

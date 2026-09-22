@@ -9,6 +9,15 @@ These value objects are the shared vocabulary the rest of Sisera operates on —
 specific objects must never leak past the connector boundary (ADR-005).
 """
 
+from sisera_domain.agent import (
+    Agent,
+    AgentCapital,
+    AutonomyLevel,
+    InvalidLifecycleTransition,
+    LifecycleStage,
+    StrategyManifest,
+    validate_lifecycle_transition,
+)
 from sisera_domain.execution import PaperExecutionEngine, PaperFill, VenueAdapter, VenueCapabilities
 from sisera_domain.instrument import (
     CanonicalAsset,
@@ -42,6 +51,18 @@ from sisera_domain.order import (
     TimeInForce,
 )
 from sisera_domain.portfolio import Portfolio, Position
+from sisera_domain.prediction import (
+    MarketKind,
+    MarketStatus,
+    PredictionEvent,
+    PredictionMarket,
+    PredictionOutcome,
+    PredictionPosition,
+    PredictionSettlement,
+    ResolutionOracle,
+    ResolutionRule,
+    settle_position,
+)
 from sisera_domain.risk import RiskCheckResult, RiskEngine, RiskPolicy, RiskReason
 from sisera_domain.routing import (
     CostBreakdown,
@@ -52,8 +73,8 @@ from sisera_domain.routing import (
     VenueHealth,
     VenueQuote,
 )
-from sisera_domain.tca import FillRecord, FillTCA, TCAEngine
 from sisera_domain.stress import Scenario, StressEngine, StressImpact
+from sisera_domain.tca import FillRecord, FillTCA, TCAEngine
 
 __all__ = [
     "Asset",
@@ -107,4 +128,21 @@ __all__ = [
     "Scenario",
     "StressEngine",
     "StressImpact",
+    "MarketKind",
+    "MarketStatus",
+    "PredictionEvent",
+    "PredictionMarket",
+    "PredictionOutcome",
+    "PredictionPosition",
+    "PredictionSettlement",
+    "ResolutionOracle",
+    "ResolutionRule",
+    "settle_position",
+    "Agent",
+    "AgentCapital",
+    "AutonomyLevel",
+    "InvalidLifecycleTransition",
+    "LifecycleStage",
+    "StrategyManifest",
+    "validate_lifecycle_transition",
 ]

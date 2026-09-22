@@ -29,6 +29,7 @@ dependencies = [
     "sisera-oms",
     "sisera-instruments",
     "sisera-portfolio",
+    "sisera-bybit",
 ]
 
 [project.scripts]
@@ -55,6 +56,7 @@ members = [
     "services/oms",
     "services/instrument-master",
     "services/portfolio",
+    "connectors/exchanges/bybit",
 ]
 
 [tool.uv.sources]
@@ -67,9 +69,10 @@ sisera-db = { workspace = true }
 sisera-oms = { workspace = true }
 sisera-instruments = { workspace = true }
 sisera-portfolio = { workspace = true }
+sisera-bybit = { workspace = true }
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "packages", "services"]
+testpaths = ["tests", "packages", "services", "connectors"]
 
 [tool.ruff]
 line-length = 105

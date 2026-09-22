@@ -13,6 +13,7 @@ resolution-markers = [
 [manifest]
 members = [
     "sisera",
+    "sisera-bybit",
     "sisera-config",
     "sisera-db",
     "sisera-domain",
@@ -1629,6 +1630,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
+    { name = "sisera-bybit" },
     { name = "sisera-config" },
     { name = "sisera-db" },
     { name = "sisera-domain" },
@@ -1664,6 +1666,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.9" },
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "requests", specifier = ">=2.32" },
+    { name = "sisera-bybit", editable = "connectors/exchanges/bybit" },
     { name = "sisera-config", editable = "packages/config" },
     { name = "sisera-db", editable = "packages/db" },
     { name = "sisera-domain", editable = "packages/domain" },
@@ -1688,6 +1691,25 @@ dev = [
     { name = "pytest-mock", specifier = ">=3.14" },
     { name = "responses", specifier = ">=0.25" },
     { name = "ruff", specifier = ">=0.16" },
+]
+
+[[package]]
+name = "sisera-bybit"
+version = "0.1.0"
+source = { editable = "connectors/exchanges/bybit" }
+dependencies = [
+    { name = "sisera-config" },
+    { name = "sisera-domain" },
+    { name = "sisera-marketdata" },
+    { name = "sisera-schemas" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "sisera-config", editable = "packages/config" },
+    { name = "sisera-domain", editable = "packages/domain" },
+    { name = "sisera-marketdata", editable = "services/market-data" },
+    { name = "sisera-schemas", editable = "packages/schemas" },
 ]
 
 [[package]]

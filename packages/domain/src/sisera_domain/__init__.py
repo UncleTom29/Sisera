@@ -41,6 +41,8 @@ from sisera_domain.order import (
     OrderType,
     TimeInForce,
 )
+from sisera_domain.portfolio import Portfolio, Position
+from sisera_domain.risk import RiskCheckResult, RiskEngine, RiskPolicy, RiskReason
 
 __all__ = [
     "Asset",
@@ -75,4 +77,10 @@ __all__ = [
     "PaperFill",
     "VenueAdapter",
     "VenueCapabilities",
+    "Portfolio",
+    "Position",
+    "RiskCheckResult",
+    "RiskEngine",
+    "RiskPolicy",
+    "RiskReason",
 ]

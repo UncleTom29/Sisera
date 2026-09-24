@@ -51,9 +51,7 @@ def test_neighbors_and_correlation() -> None:
 
 def test_exposure_ranking() -> None:
     g = _graph()
-    ranking = g.exposure_ranking(
-        {"btc_perp": Decimal("60000")}, factor_id="cpi", shock=Decimal("0.003")
-    )
+    ranking = g.exposure_ranking({"btc_perp": Decimal("60000")}, factor_id="cpi", shock=Decimal("0.003"))
     assert len(ranking) == 1
     assert ranking[0].impact == Decimal("60000") * Decimal("-0.5") * Decimal("0.003")
     assert ranking[0].sensitivity == Decimal("-0.5")

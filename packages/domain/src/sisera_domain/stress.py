@@ -81,9 +81,7 @@ class StressEngine:
 
         breaches: list[str] = []
         if projected_margin_ratio > self.margin_ratio_breach:
-            breaches.append(
-                f"margin_ratio:{projected_margin_ratio:.2%}>{self.margin_ratio_breach:.0%}"
-            )
+            breaches.append(f"margin_ratio:{projected_margin_ratio:.2%}>{self.margin_ratio_breach:.0%}")
         if portfolio.equity > 0:
             loss = -total_pnl / portfolio.equity
             if loss > self.equity_loss_breach:

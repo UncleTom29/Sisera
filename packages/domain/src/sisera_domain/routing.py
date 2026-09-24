@@ -133,9 +133,7 @@ class SmartOrderRouter:
     def _mid(self, q: VenueQuote) -> Decimal:
         return (q.bid + q.ask) / 2
 
-    def estimate_cost(
-        self, order: Order, quote: VenueQuote, reference_price: Decimal
-    ) -> CostBreakdown:
+    def estimate_cost(self, order: Order, quote: VenueQuote, reference_price: Decimal) -> CostBreakdown:
         buy = order.side == OrderSide.BUY
         mid = self._mid(quote)
         exec_price = quote.ask if buy else quote.bid
@@ -146,9 +144,7 @@ class SmartOrderRouter:
 
         # Price impact: scales with size relative to available liquidity.
         if quote.available_liquidity_notional > 0:
-            impact = self.impact_coefficient * notional * (
-                notional / quote.available_liquidity_notional
-            )
+            impact = self.impact_coefficient * notional * (notional / quote.available_liquidity_notional)
         else:
             impact = Decimal("0")
 

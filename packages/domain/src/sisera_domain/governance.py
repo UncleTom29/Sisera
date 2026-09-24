@@ -77,9 +77,7 @@ class ModelRegistry:
         if challenger is None or challenger.status != ModelStatus.CHALLENGER:
             raise PromotionDenied(f"{model_id}@{challenger_version} is not an active challenger")
         if challenger_samples < min_samples:
-            raise PromotionDenied(
-                f"Insufficient shadow samples ({challenger_samples} < {min_samples})"
-            )
+            raise PromotionDenied(f"Insufficient shadow samples ({challenger_samples} < {min_samples})")
         champion = self.champion(model_id)
         if champion is not None and require_better:
             champ_score = champion.metrics.get(metric)

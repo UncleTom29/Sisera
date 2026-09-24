@@ -64,9 +64,7 @@ class ApprovalEngine:
         self._requests: dict[str, ApprovalRequest] = {}
 
     def evaluate(self, order_id: str, requester_id: str, notional: Decimal) -> ApprovalRequest:
-        triggered = tuple(
-            r.rule_id for r in self._policy.rules if notional >= r.min_notional
-        )
+        triggered = tuple(r.rule_id for r in self._policy.rules if notional >= r.min_notional)
         request = ApprovalRequest(
             request_id=f"apr_{order_id}",
             order_id=order_id,
@@ -78,7 +76,11 @@ class ApprovalEngine:
         return request
 
     def approve(
-        self, request_id: str, approver_id: str, approver_role: str, approved: bool = True,
+        self,
+        request_id: str,
+        approver_id: str,
+        approver_role: str,
+        approved: bool = True,
         note: str | None = None,
     ) -> ApprovalRequest:
         current = self._requests[request_id]
@@ -110,8 +112,7 @@ class ApprovalEngine:
             }
             # Any rejection by an eligible approver blocks.
             rejected = any(
-                (not a.approved) and a.approver_role in rule.required_roles
-                for a in request.approvals
+                (not a.approved) and a.approver_role in rule.required_roles for a in request.approvals
             )
             if rejected or len(valid) < rule.required_approvals:
                 return False

@@ -1,17 +1,21 @@
-# Sisera — one-command local development
+# Sisera — Institutional Multi-Asset Trading OS
+# One-command local development & CI commands
 
-.PHONY: help dev infra-up infra-down test lint typecheck fmt check db-migrate
+.PHONY: help dev dev-v2 infra-up infra-down infra-up-analytics test lint format typecheck check db-migrate
 
 help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
-dev: ## Boot local infra + run the web dashboard (hot reload)
-	@echo "Starting Sisera local infrastructure..."
-	$(MAKE) infra-up
-	@echo "Starting web dashboard on http://localhost:8000"
+dev: ## Boot V2 API Gateway & Next.js Web Terminal
+	@echo "Starting Sisera V2 API Gateway on http://localhost:8000..."
+	SISERA_ENVIRONMENT=dev SISERA_DEV_TOKEN=dev-secret-123 .venv/bin/uvicorn sisera_api.main:app --port 8000 & \
+	echo "Starting Web Terminal on http://localhost:3000..." && \
+	pnpm --filter @sisera/web dev
+
+dev-v1: ## Boot legacy dashboard
 	uv run sisera web --port 8000
 
-infra-up: ## Start dev infrastructure (Postgres/Timescale, Redis, NATS, MinIO, Prometheus, Grafana)
+infra-up: ## Start dev infrastructure (Postgres/Timescale, Redis, NATS)
 	docker compose -f infra/docker/docker-compose.yml up -d
 
 infra-up-analytics: ## Start dev infrastructure including ClickHouse (analytics profile)
@@ -20,19 +24,20 @@ infra-up-analytics: ## Start dev infrastructure including ClickHouse (analytics 
 infra-down: ## Stop dev infrastructure
 	docker compose -f infra/docker/docker-compose.yml down
 
-test: ## Run the full test suite
+test: ## Run full Python test suite
 	uv run pytest
 
-lint: ## Run ruff lint
-	uv run ruff check .
+lint: ## Run ruff lint across all packages and services
+	uv run ruff check packages/ services/ sisera/
 
-format: ## Auto-format and fix lint
-	uv run ruff check . --fix
+format: ## Auto-format and fix linting errors
+	uv run ruff check packages/ services/ sisera/ --fix
+	uv run ruff format packages/ services/ sisera/
 
-typecheck: ## Type-check (placeholder until mypy is wired into CI)
-	@echo "Type-check not yet configured; run 'make lint' in the interim."
+typecheck: ## Type-check across all TypeScript workspaces
+	npm run typecheck
 
-check: lint test ## Lint + test together
+check: lint typecheck test ## Run lint, typecheck, and test together
 
-db-migrate: ## Run Alembic migrations (Postgres must be up)
-	@echo "Alembic migrations are introduced in Phase 2; see docs/architecture.md"
+db-migrate: ## Run Alembic migrations
+	uv run alembic upgrade head

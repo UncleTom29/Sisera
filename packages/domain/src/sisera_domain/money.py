@@ -60,9 +60,7 @@ class Money(BaseModel):
 
     def _require_same_asset(self, other: Money) -> None:
         if self.asset != other.asset:
-            raise ValueError(
-                f"Cannot combine Money across assets: {self.asset} vs {other.asset}"
-            )
+            raise ValueError(f"Cannot combine Money across assets: {self.asset} vs {other.asset}")
 
     def __add__(self, other: Money) -> Money:
         self._require_same_asset(other)
@@ -200,9 +198,7 @@ class Price(BaseModel):
     def __mul__(self, qty: Quantity) -> Money:
         """Price * Quantity(base) -> Money(quote)."""
         if qty.unit != self.base:
-            raise ValueError(
-                f"Quantity unit {qty.unit} does not match price base {self.base}"
-            )
+            raise ValueError(f"Quantity unit {qty.unit} does not match price base {self.base}")
         return Money(self.value * qty.value, self.quote)
 
     __rmul__ = __mul__
@@ -210,11 +206,7 @@ class Price(BaseModel):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Price):
             return NotImplemented
-        return (
-            self.base == other.base
-            and self.quote == other.quote
-            and self.value == other.value
-        )
+        return self.base == other.base and self.quote == other.quote and self.value == other.value
 
     def __lt__(self, other: Price) -> bool:
         self._require_same_pairing(other)
@@ -285,8 +277,6 @@ def quantize_to_step(value: Decimal | int | str, step: Decimal | int | str) -> D
         raise ValueError(f"Could not quantize {value_d} to step {step_d}") from exc
 
 
-def round_quantity_to_lot(
-    value: Decimal | int | str, lot_size: Decimal | int | str
-) -> Decimal:
+def round_quantity_to_lot(value: Decimal | int | str, lot_size: Decimal | int | str) -> Decimal:
     """Alias of `quantize_to_step` for contract/coin lot sizing."""
     return quantize_to_step(value, lot_size)

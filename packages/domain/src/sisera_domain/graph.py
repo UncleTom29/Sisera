@@ -103,16 +103,17 @@ class IntelligenceGraph:
 
     def edges_from(self, node_id: str, relation: RelationType | None = None) -> list[Edge]:
         return [
-            e for e in self._edges
+            e
+            for e in self._edges
             if e.from_id == node_id and (relation is None or e.relation == relation)
         ]
 
     def unsupported_causal_claims(self) -> list[Edge]:
         """Edges asserting causation/correlation without evidence."""
         return [
-            e for e in self._edges
-            if e.relation in {RelationType.AFFECTS, RelationType.CORRELATED_WITH}
-            and not e.evidence
+            e
+            for e in self._edges
+            if e.relation in {RelationType.AFFECTS, RelationType.CORRELATED_WITH} and not e.evidence
         ]
 
     def correlation(self, a_id: str, b_id: str) -> Decimal | None:

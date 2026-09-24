@@ -55,11 +55,17 @@ def test_probability_must_be_in_range() -> None:
 
 def test_settle_position_pays_winner() -> None:
     pos = PredictionPosition(
-        position_id="p1", market_id="m1", outcome_id="yes", quantity=Decimal("100"),
+        position_id="p1",
+        market_id="m1",
+        outcome_id="yes",
+        quantity=Decimal("100"),
         avg_price=Decimal("0.62"),
     )
     settlement = PredictionSettlement(
-        settlement_id="s1", market_id="m1", resolved_outcome_id="yes", settled_price=Decimal("1"),
+        settlement_id="s1",
+        market_id="m1",
+        resolved_outcome_id="yes",
+        settled_price=Decimal("1"),
         timestamp_ms=0,
     )
     assert settle_position(pos, settlement) == Decimal("100")
@@ -67,11 +73,17 @@ def test_settle_position_pays_winner() -> None:
 
 def test_settle_position_pays_zero_for_loser() -> None:
     pos = PredictionPosition(
-        position_id="p1", market_id="m1", outcome_id="no", quantity=Decimal("100"),
+        position_id="p1",
+        market_id="m1",
+        outcome_id="no",
+        quantity=Decimal("100"),
         avg_price=Decimal("0.38"),
     )
     settlement = PredictionSettlement(
-        settlement_id="s1", market_id="m1", resolved_outcome_id="yes", settled_price=Decimal("1"),
+        settlement_id="s1",
+        market_id="m1",
+        resolved_outcome_id="yes",
+        settled_price=Decimal("1"),
         timestamp_ms=0,
     )
     assert settle_position(pos, settlement) == Decimal("0")
@@ -79,12 +91,18 @@ def test_settle_position_pays_zero_for_loser() -> None:
 
 def test_settle_position_mismatched_market_raises() -> None:
     pos = PredictionPosition(
-        position_id="p1", market_id="m1", outcome_id="yes", quantity=Decimal("1"),
+        position_id="p1",
+        market_id="m1",
+        outcome_id="yes",
+        quantity=Decimal("1"),
         avg_price=Decimal("0.5"),
     )
     settlement = PredictionSettlement(
-        settlement_id="s1", market_id="other", resolved_outcome_id="yes",
-        settled_price=Decimal("1"), timestamp_ms=0,
+        settlement_id="s1",
+        market_id="other",
+        resolved_outcome_id="yes",
+        settled_price=Decimal("1"),
+        timestamp_ms=0,
     )
     with pytest.raises(ValueError):
         settle_position(pos, settlement)

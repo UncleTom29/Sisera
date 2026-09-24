@@ -102,9 +102,7 @@ class DifferentialEngine:
                     significant=abs(change) >= self._threshold,
                 )
             )
-        regime_changed = any(
-            r.factor == MarketFactor.PRICE_REGIME and r.significant for r in readings
-        )
+        regime_changed = any(r.factor == MarketFactor.PRICE_REGIME and r.significant for r in readings)
         return MarketDiff(
             instrument_id=instrument_id,
             timestamp_ms=timestamp_ms,

@@ -28,6 +28,44 @@ class JWKSetFetcher(Protocol):
     def get_key(self, key_id: str) -> Any: ...
 
 
+class HttpJWKSetFetcher:
+    """Fetches and caches Privy JWKS public keys over HTTPS."""
+
+    def __init__(self, app_id: str, cache_ttl_sec: int = 3600) -> None:
+        import json
+        import urllib.request
+
+        self._app_id = app_id
+        self._url = f"https://auth.privy.io/api/v1/apps/{app_id}/jwks.json"
+        self._cache_ttl_sec = cache_ttl_sec
+        self._jwks: Any = None
+        self._last_fetched: float = 0
+
+    def _fetch(self) -> None:
+        import json
+        import time
+        import urllib.request
+        from jwt import PyJWKSet
+
+        req = urllib.request.Request(self._url, headers={"User-Agent": "Sisera/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        self._jwks = PyJWKSet.from_dict(data)
+        self._last_fetched = time.time()
+
+    def get_key(self, key_id: str) -> Any:
+        import time
+
+        if self._jwks is None or (time.time() - self._last_fetched > self._cache_ttl_sec):
+            self._fetch()
+        try:
+            return self._jwks[key_id].key
+        except KeyError:
+            # Refresh once in case of key rotation
+            self._fetch()
+            return self._jwks[key_id].key
+
+
 class PrivyNotConfigured(RuntimeError):
     pass
 

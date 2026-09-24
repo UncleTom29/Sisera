@@ -118,10 +118,14 @@ class Agent(BaseModel):
 
     @property
     def requires_human_approval(self) -> bool:
-        return self.autonomy_level in {
-            AutonomyLevel.CONFIRM,
-            AutonomyLevel.SUGGEST,
-        } or self.capital.requires_approval
+        return (
+            self.autonomy_level
+            in {
+                AutonomyLevel.CONFIRM,
+                AutonomyLevel.SUGGEST,
+            }
+            or self.capital.requires_approval
+        )
 
     def advance(self, target: LifecycleStage, privileged_override: bool = False) -> Agent:
         validate_lifecycle_transition(self.lifecycle_stage, target, privileged_override)

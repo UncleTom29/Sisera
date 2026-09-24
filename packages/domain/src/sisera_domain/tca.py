@@ -99,16 +99,14 @@ class TCAEngine:
 
         fee_bps = Decimal("0")
         if fill.notional > 0:
-            total_fees = fill.fees.amount + (
-                fill.gas_cost.amount if fill.gas_cost else Decimal("0")
-            ) + (fill.bridge_cost.amount if fill.bridge_cost else Decimal("0"))
+            total_fees = (
+                fill.fees.amount
+                + (fill.gas_cost.amount if fill.gas_cost else Decimal("0"))
+                + (fill.bridge_cost.amount if fill.bridge_cost else Decimal("0"))
+            )
             fee_bps = total_fees / fill.notional
 
-        fill_ratio = (
-            fill.quantity / fill.ordered_quantity
-            if fill.ordered_quantity > 0
-            else Decimal("0")
-        )
+        fill_ratio = fill.quantity / fill.ordered_quantity if fill.ordered_quantity > 0 else Decimal("0")
 
         return FillTCA(
             order_id=fill.order_id,

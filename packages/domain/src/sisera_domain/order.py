@@ -73,9 +73,7 @@ _TRANSITIONS: dict[OrderState, frozenset[OrderState]] = {
     OrderState.APPROVAL_PENDING: frozenset({OrderState.APPROVED, OrderState.REJECTED}),
     OrderState.APPROVED: frozenset({OrderState.ROUTING}),
     OrderState.ROUTING: frozenset({OrderState.SUBMITTING, OrderState.REJECTED}),
-    OrderState.SUBMITTING: frozenset(
-        {OrderState.ACKNOWLEDGED, OrderState.REJECTED, OrderState.UNKNOWN}
-    ),
+    OrderState.SUBMITTING: frozenset({OrderState.ACKNOWLEDGED, OrderState.REJECTED, OrderState.UNKNOWN}),
     OrderState.ACKNOWLEDGED: frozenset(
         {
             OrderState.PARTIALLY_FILLED,

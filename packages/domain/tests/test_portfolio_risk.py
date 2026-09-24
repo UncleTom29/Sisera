@@ -128,9 +128,7 @@ def test_risk_engine_rejects_stale_data() -> None:
         account_id="a",
         portfolio_id="pf_1",
     )
-    result = engine.check_pre_trade(
-        order, _portfolio(), mark_price=Decimal("60000"), data_age_ms=5000
-    )
+    result = engine.check_pre_trade(order, _portfolio(), mark_price=Decimal("60000"), data_age_ms=5000)
     assert result.approved is False
     assert RiskReason.STALE_DATA in result.reason_codes
 

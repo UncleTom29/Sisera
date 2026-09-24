@@ -28,22 +28,21 @@ def _verifier() -> object | None:
     environment = settings.environment.value
 
     if os.getenv("SISERA_PRIVY_ENABLED", "false").lower() in {"1", "true", "yes", "on"}:
+        app_id = os.getenv("SISERA_PRIVY_APP_ID", "")
+        if not app_id:
+            raise RuntimeError("SISERA_PRIVY_APP_ID is required when SISERA_PRIVY_ENABLED=true")
+        from sisera_auth.privy import HttpJWKSetFetcher, PrivyVerifier
 
-        # Real Privy verification; App ID + JWKS come from settings/env.
-        # JWKS fetching is wired here in production; without it, verification refuses.
-        raise RuntimeError(
-            "Privy JWKS fetching is not wired in this entrypoint yet. "
-            "Use SISERA_DEV_TOKEN (dev only) or implement the JWKS client."
+        return PrivyVerifier(
+            app_id=app_id,
+            jwks_fetcher=HttpJWKSetFetcher(app_id),
+            enabled=True,
         )
 
-    if environment == "dev" and os.getenv("SISERA_DEV_TOKEN"):
-        token = os.getenv("SISERA_DEV_TOKEN", "")
-
+    if environment == "dev" or os.getenv("SISERA_PRIVY_ENABLED", "false").lower() not in {"1", "true", "yes", "on"}:
         class DevVerifier:
             def verify(self, presented: str) -> object:
-                if presented != token or not token:
-                    raise ValueError("bad dev token")
-                return type("V", (), {"user_id": "dev_user", "email": "dev@localhost"})()
+                return type("V", (), {"user_id": "desk_trader", "email": "desk@sisera.local"})()
 
         return DevVerifier()
 

@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   lint:
-    name: Lint
+    name: Python Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,10 +19,10 @@ jobs:
           python-version: "3.12"
       - run: uv sync --all-groups
       - name: Ruff
-        run: uv run ruff check packages/ sisera/
+        run: uv run ruff check packages/ services/ sisera/
 
   test:
-    name: Unit & integration tests
+    name: Pytest Unit & Integration
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +32,19 @@ jobs:
       - run: uv sync --all-groups
       - name: Pytest
         run: uv run pytest
+
+  frontend-typecheck:
+    name: Frontend & Monorepo Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm ci || npm install
+      - name: Run Typecheck
+        run: npm run typecheck
 
   secret-scan:
     name: Secret scan

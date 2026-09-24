@@ -103,9 +103,7 @@ class RiskEngine:
             reasons.append(RiskReason.LEVERAGE_LIMIT)
 
         other_notionals = [
-            p.notional
-            for iid, p in portfolio.positions.items()
-            if iid != order.instrument_id
+            p.notional for iid, p in portfolio.positions.items() if iid != order.instrument_id
         ]
         largest_notional = max(
             [*other_notionals, existing_notional + order_notional],

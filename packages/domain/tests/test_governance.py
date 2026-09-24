@@ -68,7 +68,8 @@ def test_drift_detected_on_miscalibration() -> None:
     monitor = DriftMonitor(max_calibration_error=Decimal("0.10"))
     # Predicts 80% but wins 50% -> drifted.
     report = monitor.check(
-        "m", "v1",
+        "m",
+        "v1",
         predicted=[Decimal("0.8")] * 20,
         observed=[True] * 10 + [False] * 10,
     )
@@ -79,7 +80,8 @@ def test_drift_detected_on_miscalibration() -> None:
 def test_no_drift_when_calibrated() -> None:
     monitor = DriftMonitor(max_calibration_error=Decimal("0.10"))
     report = monitor.check(
-        "m", "v1",
+        "m",
+        "v1",
         predicted=[Decimal("0.6")] * 20,
         observed=[True] * 12 + [False] * 8,
     )
@@ -88,5 +90,9 @@ def test_no_drift_when_calibrated() -> None:
 
 def test_status_enum_covers_lifecycle() -> None:
     assert {s.value for s in ModelStatus} == {
-        "CHALLENGER", "SHADOW", "CHAMPION", "DEGRADED", "RETIRED",
+        "CHALLENGER",
+        "SHADOW",
+        "CHAMPION",
+        "DEGRADED",
+        "RETIRED",
     }

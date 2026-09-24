@@ -1,120 +1,118 @@
-# Sisera Deployment Guide
+# SISERA V2 — PRODUCTION DEPLOYMENT GUIDE
 
-This document outlines how to run and deploy Sisera in **Development** and **Production** environments.
-
----
-
-## 1. Prerequisites
-
-- **Python**: `>= 3.12`
-- **Package Manager**: [`uv`](https://github.com/astral-sh/uv) (recommended) or standard `pip`
-
-```bash
-# Clone the repository and install dependencies
-git clone <repo-url>
-cd Sisera
-uv sync
-```
+> **Infrastructure Topology, Containerization, Kubernetes Manifests, Docker Compose, and Zero-Downtime Deployment**
 
 ---
 
-## 2. Development Environment
+## 1. Architecture Overview
 
-In development mode, Sisera runs with simulated **Paper Execution** and does not place real exchange orders.
-
-### Step 1: Set up Environment Variables
-```bash
-cp .env.example .env
-```
-*(No API keys are required for paper simulation mode.)*
-
-### Step 2: Start the Web Dashboard
-```bash
-# Run from repository root (Sisera)
-uv run sisera web --port 8000
-# or alternatively:
-uv run python -m sisera.cli web --port 8000
-```
-Open [http://localhost:8000](http://localhost:8000) to view the real-time glassmorphic terminal.
-
-### Step 3: Run Tests & Verification
-```bash
-uv run pytest -v
-uv run ruff check .
-```
+In production, Sisera is deployed as a resilient, horizontally scalable microservice mesh:
+- **API Gateway (`sisera-api`)**: Horizontally auto-scaled FastAPI pods behind an Ingress controller with TLS termination.
+- **Web Terminal (`sisera-web`)**: Next.js 14 SSR container optimized with static asset CDN caching.
+- **Workers**:
+  - `market-data-worker`: Websocket feed ingestion and L2 book normalization.
+  - `risk-monitor-worker`: Continuous background portfolio margin and drawdown monitoring.
+  - `agent-runtime-worker`: Sandboxed execution of autonomous strategies.
+- **Data Tier**:
+  - PostgreSQL 16 (Patroni HA cluster) with TimescaleDB extension.
+  - ClickHouse cluster for tick/TCA storage.
+  - NATS JetStream 3-node cluster.
+  - Redis 7 Sentinel cluster.
 
 ---
 
-## 3. Production Environment
+## 2. Local Multi-Service Stack (Docker Compose)
 
-### Step 1: Configure Live/Testnet Credentials
-Edit your `.env` file:
-```ini
-# Bybit API Credentials
-SISERA_BYBIT_API_KEY=your_bybit_api_key
-SISERA_BYBIT_API_SECRET=your_bybit_api_secret
-SISERA_USE_TESTNET=false # Set true for Bybit Testnet
+Launch the full Sisera V2 infrastructure stack locally:
 
-# Telegram Notifications & Interactive Bot
-SISERA_TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-SISERA_TELEGRAM_CHAT_ID=your_telegram_chat_id
-SISERA_TELEGRAM_POLLING_ENABLED=true
-
-# Web Dashboard Binding
-SISERA_WEB_HOST=0.0.0.0
-SISERA_WEB_PORT=8000
-```
-
-### Step 2: Run the Full Production Stack
 ```bash
-uv run sisera run
+docker compose -f infra/docker/docker-compose.yml up -d
 ```
-This initializes the universe, starts background 15-minute scan cycles and 5-minute position monitors, launches the Telegram polling worker, and serves the FastAPI web dashboard.
+
+### Services Started:
+- `postgres`: Port 5432 (Database: `sisera`, User: `sisera`)
+- `redis`: Port 6379 (Ephemeral cache & locks)
+- `nats`: Ports 4222, 8222 (JetStream durable event bus)
+- `clickhouse`: Ports 8123, 9000 (Time-series ticks & TCA)
+- `api`: Port 8000 (`uvicorn sisera_api.main:app`)
+- `web`: Port 3000 (`npm run start` in `apps/web`)
 
 ---
 
-## 4. Production Process Management (systemd)
+## 3. Kubernetes Deployment (Helm / K8s Manifests)
 
-For persistent background operation on a Linux server:
+Sisera charts are structured under `infra/helm/sisera/`.
 
-```ini
-# /etc/systemd/system/sisera.service
-[Unit]
-Description=Sisera Quantitative Trading Bot
-After=network.target
+### Deployment Commands
+```bash
+# 1. Add secret values
+kubectl create secret generic sisera-secrets \
+  --from-literal=postgres-url="postgresql://sisera:${POSTGRES_PASS}@postgres-ha:5432/sisera" \
+  --from-literal=privy-verification-key="${PRIVY_KEY}" \
+  --namespace=sisera-prod
 
-[Service]
-Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/Sisera
-ExecStart=/home/ubuntu/.local/bin/uv run sisera run
-Restart=always
-RestartSec=10
-EnvironmentFile=/home/ubuntu/Sisera/.env
+# 2. Deploy via Helm
+helm upgrade --install sisera infra/helm/sisera \
+  --namespace sisera-prod \
+  --values infra/helm/sisera/values-prod.yaml
 
-[Install]
-WantedBy=multi-user.target
+# 3. Verify rollout status
+kubectl rollout status deployment/sisera-api -n sisera-prod
+kubectl rollout status deployment/sisera-web -n sisera-prod
 ```
 
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable sisera
-sudo systemctl start sisera
-sudo journalctl -u sisera -f
+### Zero-Downtime Rolling Update Strategy
+```yaml
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    spec:
+      containers:
+        - name: sisera-api
+          image: ghcr.io/uncletom29/sisera-api:v2.0.0
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
 ```
 
 ---
 
-## 5. Docker Deployment (Optional)
+## 4. Environment Variables Reference
 
-```dockerfile
-FROM python:3.12-slim
-WORKDIR /app
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project
-COPY . .
-RUN uv sync --frozen
-EXPOSE 8000
-CMD ["uv", "run", "sisera", "run"]
-```
+| Variable | Description | Default / Example |
+|---|---|---|
+| `SISERA_ENVIRONMENT` | Environment mode (`dev`, `staging`, `production`) | `dev` |
+| `SISERA_API_URL` | Base URL for the API Gateway | `http://localhost:8000` |
+| `SISERA_POSTGRES_URL` | Canonical PostgreSQL connection string | `postgresql://sisera:pass@localhost:5432/sisera` |
+| `SISERA_CLICKHOUSE_URL` | ClickHouse HTTP interface | `http://localhost:8123` |
+| `SISERA_REDIS_URL` | Redis URL | `redis://localhost:6379/0` |
+| `SISERA_NATS_URL` | NATS JetStream cluster URL | `nats://localhost:4222` |
+| `SISERA_PRIVY_APP_ID` | Privy Application ID for JWT auth | `clq...` |
+| `SISERA_PRIVY_VERIFICATION_KEY` | Public Ed25519 verification key | `-----BEGIN PUBLIC KEY...` |
+| `SISERA_LIVE_TRADING_ENABLED` | Safety switch for live execution | `false` (MUST remain false unless explicitly overridden) |
+| `SISERA_DEV_TOKEN` | Development bearer token bypass | Unset in production |
+
+---
+
+## 5. Backup & Disaster Recovery Procedures
+
+1. **PostgreSQL Automated Backups**:
+   - Continuous WAL archiving to S3 via `pgBackRest`.
+   - Point-in-time recovery (PITR) RPO target: < 1 minute.
+2. **Cold Site Failover**:
+   - Secondary read-replica cluster in alternate cloud region.
+   - Failover procedure detailed in `docs/operations/disaster-recovery.md`.

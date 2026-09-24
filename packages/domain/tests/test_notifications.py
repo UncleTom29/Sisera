@@ -62,6 +62,15 @@ def test_unregistered_channel_is_skipped() -> None:
 
 def test_categories_and_severities_cover_spec() -> None:
     assert {c.value for c in Category} == {
-        "ORDER", "FILL", "RISK", "MARGIN", "LIQUIDATION", "AGENT",
-        "MARKET", "NEWS", "PORTFOLIO", "SYSTEM", "SECURITY",
+        "ORDER",
+        "FILL",
+        "RISK",
+        "MARGIN",
+        "LIQUIDATION",
+        "AGENT",
+        "MARKET",
+        "NEWS",
+        "PORTFOLIO",
+        "SYSTEM",
+        "SECURITY",
     }

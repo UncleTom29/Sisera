@@ -25,6 +25,7 @@ secrets.env
 
 # JavaScript / TypeScript
 node_modules/
+.turbo/
 .next/
 dist/
 build/

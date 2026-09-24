@@ -1,151 +1,44 @@
-# Sisera V2 — Architecture
+# Architecture
 
-> This document describes the **target** architecture that Sisera is migrating toward. The
-> pre-migration baseline is documented in `docs/current-system-audit.md`. Decisions are
-> recorded as ADRs in `docs/adr/`.
+## Boundaries
 
----
-
-## 1. Product
-
-Sisera is an institutional multi-asset trading terminal: market intelligence, deterministic
-execution, quantitative models, cross-asset analysis, institutional risk controls, portfolio
-intelligence, autonomous agents, decision provenance, and execution analytics.
-
-The intelligence philosophy is a single pipeline:
+Sisera is a modular monorepo with independently deployable applications and framework-neutral domain
+packages.
 
 ```text
-Observe → Understand → Predict → Decide → Optimize → Execute → Reassess → Learn
+apps/web  ────────┐
+                  ├── apps/api ──┬── market-data providers
+API clients ──────┘              ├── deterministic risk
+                                 ├── OMS state machine
+agents ── proposals only ────────┤
+                                 └── PostgreSQL decision ledger
 ```
 
-## 2. Critical invariant — LLMs never place trades
+- `apps/web` is the public site and authenticated operator terminal.
+- `apps/api` is the control plane. Identity, authorization, validation, telemetry, and execution
+  policy live at this boundary.
+- `packages/domain` owns versionable trading contracts. Monetary values cross boundaries as decimal
+  strings.
+- `packages/market-data` normalizes provider payloads and attaches explicit quality metadata.
+- `packages/risk` is deterministic and side-effect free. It takes complete snapshots and returns a
+  decision with machine-readable reasons.
+- `packages/oms` owns legal order state transitions. Venue adapters cannot mutate state directly.
+- `packages/copilot` compiles text into research queries or confirmable drafts; it never creates an
+  executable command.
+- `packages/agent-runtime` governs stage transitions and creates proposals only.
+- `packages/db` defines the operational and append-only decision records.
 
-```text
-User / Strategy / Agent
-        ↓
-AI Intent Compiler            (LLM may generate *typed* intents)
-        ↓
-Typed TradeIntent             (schema-validated)
-        ↓
-TradePlan
-        ↓
-Deterministic Policy Engine
-        ↓
-Pre-Trade Risk Engine
-        ↓
-Approval Engine
-        ↓
-OMS
-        ↓
-Execution Engine
-        ↓
-Smart Order Router
-        ↓
-Venue Adapter
-        ↓
-Exchange / DEX / Prediction Venue
-```
+## Core invariants
 
-LLMs may research, summarize, reason, explain, propose strategies, generate typed intents,
-and generate strategy manifests. They may **not** bypass validation, authorization, risk
-rules, approval policies, capital limits, venue permissions, or execution policies
-(ADR-008).
+1. No order routes without an approved risk decision.
+2. No execution uses a delayed, stale, degraded, or unavailable quote.
+3. No LLM response is executable. Only validated domain commands may enter the order workflow.
+4. No agent calls a venue adapter. Agents submit proposals to the control plane.
+5. No missing live data is replaced by generated data.
+6. Every execution decision retains actor, policy, portfolio, quote, and correlation provenance.
 
-## 3. Repository layout (monorepo)
+## Scaling path
 
-```text
-apps/            web (Next.js/TS), mobile (React Native/Expo)
-services/        api, auth, market-data, instrument-master, portfolio, risk, oms,
-                 execution, agents, intelligence, notifications, ledger
-packages/        domain, api-client, schemas, ui, config, observability
-quant/           indicators, intelligence, scoring, opportunity, strategies,
-                 backtesting, attribution, optimization, research
-connectors/      exchanges, dex, prediction, market-data, macro, news, wallets
-workers/         scanner, market-data, risk-monitor, agent-runtime, settlement, analytics
-infra/           docker, terraform, helm, monitoring
-tests/           unit, integration, contract, replay, e2e, security
-docs/            adr, connectors, operations
-```
-
-The existing `sisera/` package is migrated into this layout progressively (§56 of the
-product spec), preserving working tests and backward compatibility where reasonable.
-
-## 4. Technology stack
-
-- **Backend/quant:** Python 3.12, FastAPI, Pydantic, SQLAlchemy 2, Alembic, NumPy,
-  pandas/Polars, scikit-learn/LightGBM (where justified), async where appropriate.
-- **Financial types:** `Decimal` (ADR-002) via `packages/domain` — never binary float for
-  balances, quantities, fees, or ledger amounts.
-- **Web:** TypeScript + Next.js + React + TanStack Query + Zustand + WebSocket +
-  lightweight-charts (no proprietary TradingView library without a license).
-- **Mobile:** React Native + Expo + TypeScript + secure key storage + biometrics + push.
-
-## 5. Data & storage (ADR-004)
-
-| Store | Role |
-|---|---|
-| PostgreSQL (+Timescale local) | Canonical transactional state: orgs, users, accounts, instruments, portfolios, strategies, orders, executions, agents, policies, permissions, audit, **financial ledger**. |
-| ClickHouse (production analytics) | High-volume time-series/events: ticks, OHLCV, order books, liquidations, funding, signals, TCA. |
-| Redis | Ephemeral caches, locks, rate limiting, transient realtime state. Not the ledger. |
-| NATS JetStream (ADR-003) | Durable typed events with correlation IDs. |
-| MinIO / S3 | Historical datasets, model artifacts, backtest artifacts, exports, audit evidence. |
-
-## 6. Domain model
-
-- **Instrument Master (ADR-005):** `CanonicalAsset` vs `VenueInstrument`. Instrument types:
-  `SPOT`, `PERPETUAL`, `FUTURE`, `OPTION`, `TOKENIZED_EQUITY`, `TOKENIZED_FUND`, `RWA`,
-  `FX`, `COMMODITY`, `INDEX`, `PREDICTION_BINARY`, `PREDICTION_MULTI_OUTCOME`,
-  `PREDICTION_SCALAR`. Never infer an instrument from a bare ticker.
-- **OMS (ADR-006):** full order state machine, idempotency, parent/child orders.
-- **Financial Ledger (ADR-007):** append-only double-entry, compensating corrections,
-  reconciliation with discrepancy reports.
-- **Decision Ledger:** queryable provenance (`strategy_version`, `model_version`,
-  `risk_policy_version`, features, EV, confidence, outcome, counterfactual, attribution).
-
-## 7. Risk (deterministic)
-
-Pre-trade checks (max order/position, gross/net exposure, leverage, concentration, margin,
-liquidation buffer, stale-data rejection), realtime monitors (margin utilization,
-liquidation distance, drawdown, correlation clustering, funding), and stress testing.
-
-Kill switches exist at global/org/desk/portfolio/account/strategy/agent/instrument/venue
-levels. Live trading is disabled by default via `SISERA_LIVE_TRADING_ENABLED=false` and is
-gated by `packages/config`'s `LiveTradingGuard`.
-
-## 8. Agents (ADR-009)
-
-Autonomy levels `RESEARCH / SUGGEST / CONFIRM / POLICY_AUTO / AUTONOMOUS /
-EMERGENCY_RISK_ONLY`. Lifecycle `DRAFT → BACKTEST → STRESS TEST → PAPER → SHADOW →
-LIMITED LIVE → LIVE`. Manifests are schema-validated, versioned, immutable after deploy.
-
-## 9. Observability (spec §47)
-
-OpenTelemetry traces/metrics, structured JSON logs, correlation IDs
-(`user action → intent → risk → order → execution → fill → ledger`), Prometheus/Grafana.
-
-## 10. Current migration state
-
-| Phase | Status |
-|---|---|
-| 0 — Audit & security | ✅ Complete (`docs/current-system-audit.md`, credential remediation, ADRs) |
-| 1 — Platform foundation | ✅ `packages/domain` + `packages/config` + `packages/schemas` + dev infra |
-| 2 — Canonical domain | ✅ Instrument Master, financial types, double-entry ledger |
-| 4 — OMS / Execution | ✅ Order state machine, idempotent OMS, venue adapter, paper engine |
-| 5 — Risk / Portfolio / Ledger | ✅ Portfolio, deterministic risk, stress testing (domain cores) |
-| 7/13 — Routing / Analytics | ✅ Smart Order Router, TCA (domain cores) |
-| 9/10 — Agents / Prediction | ✅ Autonomy levels, manifests, prediction-market domain |
-| 12 — Institutional controls | ✅ Approvals, kill switches, RBAC (+persistence), reconciliation, intent compiler, notifications (domain) |
-| 13 — Institutional analytics | ✅ TCA, model governance, differential intelligence, intelligence graph, opportunity engine, market memory (domain); backtesting harness |
-| 7 — Multi-venue | ✅ Bybit · Hyperliquid · 2nd CEX (CCXT/Binance) · EVM DEX · Solana DEX · Prediction (Polymarket) — all §70 (built, mocked, tested, disabled; credentials later) |
-| 8/9 — AI + Agents | ✅ Copilot (evidence-grounded) + OpenRouter provider (env-gated) · Agent runtime ✅ (paper, autonomy/lifecycle enforced) |
-| 12 — Auth | ✅ RBAC (+persistence) + Privy JWT verifier (email/Google) + docs; frontend SDK pending |
-| Observability (§47) | 🚧 Correlation IDs + JSON logging + metrics primitives ✅ · OTel exporters pending |
-| Workers | ✅ Risk-monitor · Settlement (fills/payouts→ledger) · Reconciliation (venue-vs-ledger) · Agent runtime (services/agents); scanner/analytics pending |
-| 3 — Market-data platform | 🚧 Canonical events + normalization + Bybit connector; realtime/historical storage pending |
-| Persistence (Postgres) | 🚧 Ledger ✅ · OMS ✅ · Decision ✅ · Instruments ✅ · Portfolio ✅ · Auth ✅ |
-| API (§45) | 🚧 Versioned `/api/v1` (instruments/orders/ledger/portfolio) over repositories |
-| 6 — Web terminal | 🚧 Next.js shell + terminal layout + Dashboard/Trade/Portfolio + shared client; `npm install` + backend to run |
-| 11 — Mobile | 🚧 Expo tabs (7 screens) + shared client; `npm install` + backend to run |
-
-Phase gates (spec §65): format, lint, typecheck, test, security checks, docs, migrations
-from clean state, local boot, descriptive commit.
+The current API is a modular service, not a premature mesh. Split market ingestion, portfolio
+reconciliation, execution gateways, and agent workers only when independent throughput or regulatory
+boundaries justify it. Preserve contracts and idempotency keys when extracting a module.

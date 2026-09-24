@@ -1,499 +1,317 @@
-"use client";
+import { Button, StatusBadge } from "@sisera/ui";
+import {
+  ArrowRight,
+  Braces,
+  ChartNoAxesCombined,
+  LockKeyhole,
+  Network,
+  ShieldCheck,
+} from "lucide-react";
+import Link from "next/link";
 
-import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { api } from "../lib/api";
-import { useTerminal } from "../lib/store";
-import { formatAmount, formatCompact, formatCurrency, formatPct } from "@sisera/ui";
-import { CandlestickChart } from "./components/CandlestickChart";
-import { OrderBookView } from "./components/OrderBook";
-import { TradeTapeView } from "./components/TradeTape";
-import { TradeTicket } from "./components/TradeTicket";
-import { PositionsDock } from "./components/PositionsDock";
-import { PairIntelligenceDock } from "./components/PairIntelligenceDock";
-import { CopilotDrawer } from "./components/CopilotDrawer";
-import type { OrderSide, OrderType } from "@sisera/api-client";
+const capabilities = [
+  {
+    code: "01",
+    title: "One instrument model",
+    copy: "Spot, perps, options, tokenized assets, FX, commodities, indices, and outcome contracts share one normalized risk vocabulary.",
+  },
+  {
+    code: "02",
+    title: "Risk is in the execution path",
+    copy: "Every manual, API, copilot, and agent-originated order passes the same deterministic pre-trade policy gate.",
+  },
+  {
+    code: "03",
+    title: "Intelligence with provenance",
+    copy: "Research can be probabilistic. Execution cannot. Sisera compiles intent into reviewable drafts and records every decision input.",
+  },
+];
 
-export default function TerminalPage() {
-  const { symbol, setSymbol, portfolioId } = useTerminal();
-  const [chartInterval, setChartInterval] = useState("1h");
-  const [selectedBookPrice, setSelectedBookPrice] = useState<string | undefined>(undefined);
-  const [copilotOpen, setCopilotOpen] = useState(false);
-  const [leftTab, setLeftTab] = useState<"markets" | "signals">("markets");
-  const [bookTab, setBookTab] = useState<"split" | "book" | "tape">("split");
-  const [marketSearch, setMarketSearch] = useState("");
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+const assetClasses = [
+  "Crypto spot",
+  "Perpetuals",
+  "Options",
+  "Tokenized equities",
+  "FX",
+  "Commodities",
+  "Indices",
+  "Prediction markets",
+];
 
-  // Queries wired to API
-  const marketsQuery = useQuery({
-    queryKey: ["markets"],
-    queryFn: () => api.listMarkets(),
-    refetchInterval: 3000,
-  });
-
-  const tickerQuery = useQuery({
-    queryKey: ["ticker", symbol],
-    queryFn: () => api.getTicker(symbol),
-    refetchInterval: 2000,
-  });
-
-  const orderBookQuery = useQuery({
-    queryKey: ["orderbook", symbol],
-    queryFn: () => api.getOrderBook(symbol, 12),
-    refetchInterval: 1500,
-  });
-
-  const tradesQuery = useQuery({
-    queryKey: ["trades", symbol],
-    queryFn: () => api.getTrades(symbol, 25),
-    refetchInterval: 2000,
-  });
-
-  const candlesQuery = useQuery({
-    queryKey: ["candles", symbol, chartInterval],
-    queryFn: () => api.getCandles(symbol, chartInterval, 60),
-    refetchInterval: 10000,
-  });
-
-  const positionsQuery = useQuery({
-    queryKey: ["positions", portfolioId],
-    queryFn: () => api.listPositions(portfolioId),
-    refetchInterval: 3000,
-  });
-
-  const ordersQuery = useQuery({
-    queryKey: ["orders", portfolioId],
-    queryFn: () => api.listOrders(portfolioId),
-    refetchInterval: 3000,
-  });
-
-  const opportunitiesQuery = useQuery({
-    queryKey: ["opportunities"],
-    queryFn: () => api.listOpportunities(),
-    refetchInterval: 15000,
-  });
-
-  const portfolioQuery = useQuery({
-    queryKey: ["portfolio", portfolioId],
-    queryFn: () => api.getPortfolio(portfolioId),
-    refetchInterval: 5000,
-  });
-
-  // Current ticker data
-  const currentTicker = tickerQuery.data || {
-    symbol: symbol || "BTCUSDT",
-    last_price: "63420.50",
-    change_24h_pct: "2.45",
-    volume_24h: "1420500000",
-    funding_rate: "0.0001",
-    open_interest: "854000000",
-    quality_status: "LIVE" as const,
-  };
-
-  const isUp = Number(currentTicker.change_24h_pct) >= 0;
-
-  // Order Submission Mutation
-  const orderMutation = useMutation({
-    mutationFn: async (params: {
-      side: OrderSide;
-      orderType: OrderType;
-      quantity: string;
-      price?: string;
-    }) => {
-      const clientOrderId = `cli_${Date.now()}`;
-      const created = await api.createOrder({
-        client_order_id: clientOrderId,
-        instrument_id: symbol,
-        side: params.side,
-        order_type: params.orderType,
-        quantity: params.quantity,
-        price: params.price,
-        account_id: "desk_main",
-        portfolio_id: portfolioId,
-      });
-
-      const execRes = await api.executeOrder(created.sisera_order_id, {
-        portfolio_id: portfolioId,
-        account_id: "desk_main",
-      });
-      return execRes;
-    },
-    onSuccess: (data) => {
-      setFeedback({
-        type: "success",
-        text: `Filled ${data.fill.filled_quantity} ${symbol} @ $${formatAmount(data.fill.avg_fill_price)} (${data.order.sisera_order_id.slice(0, 10)})`,
-      });
-      positionsQuery.refetch();
-      ordersQuery.refetch();
-      portfolioQuery.refetch();
-      setTimeout(() => setFeedback(null), 6000);
-    },
-    onError: (err: any) => {
-      setFeedback({ type: "error", text: err.message || "Order placement rejected" });
-      setTimeout(() => setFeedback(null), 6000);
-    },
-  });
-
-  const closePositionMutation = useMutation({
-    mutationFn: (instId: string) => api.closePosition(instId),
-    onSuccess: () => {
-      positionsQuery.refetch();
-      ordersQuery.refetch();
-      portfolioQuery.refetch();
-    },
-  });
-
-  const allMarkets = marketsQuery.data || [];
-  const filteredMarkets = allMarkets.filter((m) =>
-    m.symbol.toLowerCase().includes(marketSearch.toLowerCase())
-  );
-
-  const opportunities = opportunitiesQuery.data || [];
-  const positions = positionsQuery.data || [];
-
+export default function LandingPage() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      {/* Market Ribbon Sub-header */}
-      <div className="market-ribbon">
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>
-              {currentTicker.symbol}
-            </span>
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                padding: "2px 5px",
-                borderRadius: 3,
-                background: "rgba(16, 185, 129, 0.15)",
-                color: "var(--bid)",
-              }}
-            >
-              PERP
-            </span>
-          </div>
-
-          <span
-            className="font-mono"
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: isUp ? "var(--bid)" : "var(--ask)",
-            }}
-          >
-            ${formatAmount(currentTicker.last_price)}
-          </span>
+    <main className="min-h-screen overflow-hidden bg-ink">
+      <header className="relative z-20 border-b border-line bg-ink/95">
+        <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between px-5 lg:px-10">
+          <Link href="/" className="flex items-center gap-3" aria-label="Sisera home">
+            <LogoMark />
+            <span className="text-sm font-semibold tracking-[0.22em]">SISERA</span>
+          </Link>
+          <nav className="hidden items-center gap-8 text-[12px] text-slate-400 md:flex">
+            <a href="#system" className="hover:text-white">
+              System
+            </a>
+            <a href="#controls" className="hover:text-white">
+              Controls
+            </a>
+            <a href="#architecture" className="hover:text-white">
+              Architecture
+            </a>
+            <Link href="/sign-in" className="hover:text-white">
+              Operator sign in
+            </Link>
+          </nav>
+          <Button asChild variant="primary" size="sm">
+            <Link href="/terminal">
+              Open terminal <ArrowRight size={14} />
+            </Link>
+          </Button>
         </div>
+      </header>
 
-        <div className="ribbon-stats">
-          <div className="stat-item">
-            <span className="stat-label">24h Change</span>
-            <span
-              className={`stat-value font-mono ${isUp ? "text-bid" : "text-ask"}`}
-            >
-              {formatPct(currentTicker.change_24h_pct)}
-            </span>
-          </div>
-
-          <div className="stat-item">
-            <span className="stat-label">24h Volume</span>
-            <span className="stat-value font-mono">
-              ${formatCompact(currentTicker.volume_24h)}
-            </span>
-          </div>
-
-          <div className="stat-item">
-            <span className="stat-label">Funding (8h)</span>
-            <span className="stat-value font-mono text-bid">
-              {(Number(currentTicker.funding_rate) * 100).toFixed(4)}%
-            </span>
-          </div>
-
-          <div className="stat-item">
-            <span className="stat-label">Open Interest</span>
-            <span className="stat-value font-mono">
-              ${formatCompact(currentTicker.open_interest)}
-            </span>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button
-            onClick={() => setCopilotOpen(true)}
-            className="btn-base btn-subtle"
-            style={{ fontSize: 11, padding: "5px 10px" }}
-          >
-            ✦ Copilot
-          </button>
-        </div>
-      </div>
-
-      {/* Floating feedback message */}
-      {feedback && (
-        <div
-          style={{
-            position: "absolute",
-            top: 90,
-            right: 20,
-            zIndex: 100,
-            padding: "8px 14px",
-            borderRadius: 4,
-            background: feedback.type === "success" ? "rgba(16, 185, 129, 0.9)" : "rgba(244, 63, 94, 0.9)",
-            color: "#ffffff",
-            fontSize: 12,
-            fontWeight: 600,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-          }}
-        >
-          {feedback.text}
-        </div>
-      )}
-
-      {/* Main Terminal 3-Column Layout */}
-      <div className="terminal-layout">
-        {/* Left Column: Markets Watchlist & Opportunity Radar */}
-        <div className="panel-container">
-          <div className="panel-tab-header">
-            <div className="tab-btn-group">
-              <button
-                onClick={() => setLeftTab("markets")}
-                className={`tab-btn ${leftTab === "markets" ? "active" : ""}`}
-              >
-                Markets ({filteredMarkets.length})
-              </button>
-              <button
-                onClick={() => setLeftTab("signals")}
-                className={`tab-btn ${leftTab === "signals" ? "active" : ""}`}
-              >
-                Radar ({opportunities.length})
-              </button>
+      <section className="technical-grid relative border-b border-line">
+        <div className="mx-auto grid max-w-[1440px] lg:min-h-[720px] lg:grid-cols-[1.05fr_.95fr]">
+          <div className="flex flex-col justify-between border-line px-5 py-20 lg:border-r lg:px-10 lg:py-28">
+            <div>
+              <div className="mb-8 flex items-center gap-3">
+                <span className="h-px w-8 bg-cyan-300" />
+                <p className="eyebrow">Institutional multi-asset operating system</p>
+              </div>
+              <h1 className="max-w-4xl text-[clamp(3.6rem,7vw,7.6rem)] font-medium leading-[0.86] tracking-[-0.075em] text-slate-50">
+                Markets move.
+                <br />
+                Risk stays governed.
+              </h1>
+              <p className="mt-10 max-w-xl text-base leading-7 text-slate-400">
+                Research, execute, automate, and supervise portfolios across venues from one
+                exacting control plane.
+              </p>
+              <div className="mt-10 flex flex-wrap items-center gap-3">
+                <Button asChild variant="primary" size="lg">
+                  <Link href="/terminal">
+                    Launch workspace <ArrowRight size={15} />
+                  </Link>
+                </Button>
+                <Button asChild size="lg">
+                  <a href="#architecture">View architecture</a>
+                </Button>
+              </div>
+            </div>
+            <div className="mt-20 grid grid-cols-3 border-y border-line text-xs lg:max-w-2xl">
+              <Metric label="Execution" value="Policy-gated" />
+              <Metric label="Market data" value="Source-labelled" />
+              <Metric label="Automation" value="Human-governed" />
             </div>
           </div>
 
-          {leftTab === "markets" ? (
-            <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-              <div style={{ padding: 6, borderBottom: "1px solid var(--border)" }}>
-                <input
-                  type="text"
-                  placeholder="Search market..."
-                  value={marketSearch}
-                  onChange={(e) => setMarketSearch(e.target.value)}
-                  className="input-field"
-                  style={{ fontSize: 11, padding: "4px 8px" }}
-                />
-              </div>
+          <div className="relative flex items-center px-5 py-16 lg:px-10">
+            <TerminalPreview />
+          </div>
+        </div>
+      </section>
 
-              <div className="table-wrapper">
-                <table className="trade-table">
-                  <thead>
-                    <tr>
-                      <th>Market</th>
-                      <th className="align-right">Price</th>
-                      <th className="align-right">24h</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredMarkets.map((m) => {
-                      const up = Number(m.change_24h_pct) >= 0;
-                      const isSelected = m.symbol === symbol;
-                      return (
-                        <tr
-                          key={m.symbol}
-                          onClick={() => setSymbol(m.symbol)}
-                          style={{
-                            cursor: "pointer",
-                            background: isSelected ? "var(--bg-active)" : undefined,
-                          }}
-                        >
-                          <td style={{ fontWeight: 600 }}>{m.symbol}</td>
-                          <td className="align-right font-mono">${formatAmount(m.last_price)}</td>
-                          <td
-                            className={`align-right font-mono ${up ? "text-bid" : "text-ask"}`}
-                            style={{ fontWeight: 600 }}
-                          >
-                            {formatPct(m.change_24h_pct)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+      <section id="system" className="border-b border-line">
+        <div className="mx-auto max-w-[1440px] px-5 py-24 lg:px-10 lg:py-32">
+          <div className="grid gap-12 lg:grid-cols-[.7fr_1.3fr]">
+            <div>
+              <p className="eyebrow">The system</p>
+              <h2 className="mt-5 max-w-md text-4xl font-medium tracking-[-0.045em] text-white">
+                Built around decisions, not dashboards.
+              </h2>
             </div>
-          ) : (
-            <div className="table-wrapper" style={{ padding: 8 }}>
-              {opportunities.map((opp) => (
-                <div
-                  key={opp.opportunity_id}
-                  onClick={() => setSymbol(opp.symbol)}
-                  style={{
-                    background: "var(--bg-card)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 4,
-                    padding: 8,
-                    marginBottom: 6,
-                    cursor: "pointer",
-                  }}
+            <div className="divide-y divide-line border-y border-line">
+              {capabilities.map((item) => (
+                <article
+                  key={item.code}
+                  className="grid gap-4 py-8 sm:grid-cols-[56px_220px_1fr] sm:gap-8"
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontWeight: 700, fontSize: 11 }}>{opp.symbol}</span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        color: opp.direction === "BUY" ? "var(--bid)" : "var(--ask)",
-                      }}
-                    >
-                      {opp.direction} · {opp.structure}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.3 }}>
-                    {opp.thesis}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginTop: 6,
-                      fontSize: 10,
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    <span>Conf: {(Number(opp.confidence) * 100).toFixed(0)}%</span>
-                    <span className="font-mono text-bid">EV: +{opp.expected_value}</span>
-                  </div>
-                </div>
+                  <span className="data-value text-xs text-cyan-300">{item.code}</span>
+                  <h3 className="font-semibold text-slate-100">{item.title}</h3>
+                  <p className="max-w-2xl text-sm leading-6 text-slate-400">{item.copy}</p>
+                </article>
               ))}
             </div>
-          )}
+          </div>
         </div>
+      </section>
 
-        {/* Column 2: Center Workspace (Interactive Chart + Positions Dock) */}
-        <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", borderRight: "1px solid var(--border)" }}>
-          {/* Top: Interactive Candlestick Chart */}
-          <div style={{ flex: "1 1 60%", minHeight: 320, borderBottom: "1px solid var(--border)" }}>
-            <CandlestickChart
-              symbol={symbol}
-              candles={candlesQuery.data || []}
-              interval={chartInterval}
-              onIntervalChange={setChartInterval}
+      <section id="controls" className="border-b border-line bg-[#070b11]">
+        <div className="mx-auto max-w-[1440px] px-5 py-24 lg:px-10 lg:py-32">
+          <p className="eyebrow">Operating controls</p>
+          <div className="mt-8 grid border-l border-t border-line md:grid-cols-2 xl:grid-cols-4">
+            <Feature
+              icon={ChartNoAxesCombined}
+              title="Portfolio truth"
+              copy="Normalized positions, cash, P&L, margin, and exposure with explicit freshness."
+            />
+            <Feature
+              icon={ShieldCheck}
+              title="Pre-trade policy"
+              copy="Notional, concentration, loss, leverage, and mandate checks run before routing."
+            />
+            <Feature
+              icon={Network}
+              title="Venue abstraction"
+              copy="Adapters isolate exchange quirks without leaking them into portfolio logic."
+            />
+            <Feature
+              icon={LockKeyhole}
+              title="Agent governance"
+              copy="Promotion stages, capital caps, kill switches, and immutable proposal history."
             />
           </div>
-
-          {/* Bottom: Institutional Multi-Pillar Intelligence & Positions Dock */}
-          <div style={{ flex: "1 1 40%", minHeight: 220, overflow: "hidden" }}>
-            <PairIntelligenceDock
-              symbol={symbol}
-              positionsSlot={
-                <PositionsDock
-                  positions={positions}
-                  orders={ordersQuery.data || []}
-                  onClosePosition={(inst) => closePositionMutation.mutate(inst)}
-                  onCancelOrder={() => {}}
-                />
-              }
-            />
-          </div>
         </div>
+      </section>
 
-        {/* Column 3: Dedicated Order Book & Recent Trades Tape */}
-        <div className="panel-container" style={{ borderRight: "1px solid var(--border)" }}>
-          <div className="panel-tab-header">
-            <div className="tab-btn-group">
-              <button
-                onClick={() => setBookTab("split")}
-                className={`tab-btn ${bookTab === "split" ? "active" : ""}`}
-              >
-                Split
-              </button>
-              <button
-                onClick={() => setBookTab("book")}
-                className={`tab-btn ${bookTab === "book" ? "active" : ""}`}
-              >
-                Book (L2)
-              </button>
-              <button
-                onClick={() => setBookTab("tape")}
-                className={`tab-btn ${bookTab === "tape" ? "active" : ""}`}
-              >
-                Trades
-              </button>
+      <section id="architecture" className="border-b border-line">
+        <div className="mx-auto grid max-w-[1440px] gap-16 px-5 py-24 lg:grid-cols-[.85fr_1.15fr] lg:px-10 lg:py-32">
+          <div>
+            <p className="eyebrow">Architecture</p>
+            <h2 className="mt-5 text-4xl font-medium tracking-[-0.045em] text-white">
+              A control plane designed to fail closed.
+            </h2>
+            <p className="mt-6 max-w-lg text-sm leading-7 text-slate-400">
+              When a quote is stale, a mandate is unavailable, or identity cannot be verified, the
+              execution path stops. No silent fallback. No invented market state.
+            </p>
+            <div className="mt-9 flex flex-wrap gap-2">
+              {assetClasses.map((asset) => (
+                <StatusBadge key={asset}>{asset}</StatusBadge>
+              ))}
             </div>
-            <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "monospace" }}>
-              {currentTicker.quality_status || "LIVE"}
-            </span>
           </div>
-
-          {bookTab === "split" && (
-            <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-              <div style={{ flex: "1 1 58%", minHeight: 220, borderBottom: "1px solid var(--border)", overflow: "hidden" }}>
-                <OrderBookView
-                  orderBook={orderBookQuery.data || null}
-                  lastPrice={currentTicker.last_price}
-                  onSelectPrice={setSelectedBookPrice}
-                />
-              </div>
-              <div style={{ flex: "1 1 42%", minHeight: 160, overflow: "hidden" }}>
-                <TradeTapeView lastPrice={currentTicker.last_price} symbol={symbol} trades={tradesQuery.data} />
-              </div>
-            </div>
-          )}
-
-          {bookTab === "book" && (
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              <OrderBookView
-                orderBook={orderBookQuery.data || null}
-                lastPrice={currentTicker.last_price}
-                onSelectPrice={setSelectedBookPrice}
-              />
-            </div>
-          )}
-
-          {bookTab === "tape" && (
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              <TradeTapeView lastPrice={currentTicker.last_price} symbol={symbol} trades={tradesQuery.data} />
-            </div>
-          )}
+          <SystemMap />
         </div>
+      </section>
 
-        {/* Column 4: Unified Order Entry Ticket */}
-        <div className="panel-container right-panel">
-          <TradeTicket
-            symbol={symbol}
-            lastPrice={currentTicker.last_price}
-            availableBalance={typeof portfolioQuery.data?.cash === "string" ? portfolioQuery.data.cash : "95240.00"}
-            preview={undefined}
-            isLoadingPreview={false}
-            isSubmitting={orderMutation.isPending}
-            onSubmit={(params) => orderMutation.mutate(params)}
-            selectedPrice={selectedBookPrice}
-          />
+      <footer className="mx-auto flex max-w-[1440px] flex-col gap-6 px-5 py-12 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between lg:px-10">
+        <div className="flex items-center gap-3">
+          <LogoMark />
+          <span className="tracking-[0.18em] text-slate-300">SISERA</span>
+        </div>
+        <p>
+          Trading systems carry material risk. Start with paper execution and independent review.
+        </p>
+      </footer>
+    </main>
+  );
+}
+
+function LogoMark() {
+  return (
+    <span className="grid size-7 place-items-center border border-cyan-300/60 bg-cyan-300/10 font-mono text-[10px] font-bold text-cyan-200">
+      S
+    </span>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border-r border-line px-4 py-4 last:border-r-0">
+      <p className="data-label">{label}</p>
+      <p className="mt-2 text-[12px] font-semibold text-slate-200">{value}</p>
+    </div>
+  );
+}
+
+function Feature({
+  icon: Icon,
+  title,
+  copy,
+}: { icon: typeof Braces; title: string; copy: string }) {
+  return (
+    <article className="min-h-64 border-b border-r border-line p-7">
+      <Icon className="text-cyan-300" size={20} strokeWidth={1.5} />
+      <h3 className="mt-16 font-semibold text-white">{title}</h3>
+      <p className="mt-3 text-sm leading-6 text-slate-400">{copy}</p>
+    </article>
+  );
+}
+
+function TerminalPreview() {
+  return (
+    <div className="relative w-full border border-line-strong bg-[#070b10] shadow-2xl shadow-black/40">
+      <div className="flex h-10 items-center justify-between border-b border-line px-3">
+        <div className="flex items-center gap-2">
+          <LogoMark />
+          <span className="font-mono text-[10px] tracking-widest text-slate-400">
+            OPERATOR / GLOBAL
+          </span>
+        </div>
+        <StatusBadge tone="warning">No venue connected</StatusBadge>
+      </div>
+      <div className="grid min-h-[440px] grid-cols-[84px_1fr]">
+        <div className="border-r border-line p-2">
+          {["OV", "MK", "TR", "PF", "RK", "AG"].map((item, index) => (
+            <div
+              key={item}
+              className={`mb-1 px-3 py-2 font-mono text-[10px] ${index === 0 ? "bg-slate-800 text-cyan-200" : "text-slate-600"}`}
+            >
+              {item}
+            </div>
+          ))}
+        </div>
+        <div>
+          <div className="grid grid-cols-3 border-b border-line">
+            {["NET ASSET VALUE", "GROSS EXPOSURE", "TODAY P&L"].map((label) => (
+              <div key={label} className="border-r border-line p-4 last:border-r-0">
+                <p className="data-label">{label}</p>
+                <p className="data-value mt-3 text-xl text-slate-500">—</p>
+              </div>
+            ))}
+          </div>
+          <div className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-xs font-semibold">Market monitor</span>
+              <span className="data-label">Source / status / latency</span>
+            </div>
+            <div className="grid h-44 place-items-center border border-dashed border-slate-800">
+              <div className="text-center">
+                <Braces className="mx-auto text-slate-700" size={22} />
+                <p className="mt-3 text-xs text-slate-500">Connect an approved data provider</p>
+                <p className="mt-1 font-mono text-[10px] text-slate-700">
+                  No synthetic fallback enabled
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 border-t border-line">
+            <div className="p-4">
+              <p className="data-label">Risk engine</p>
+              <p className="mt-3 text-xs text-emerald-300">Ready / fail-closed</p>
+            </div>
+            <div className="border-l border-line p-4">
+              <p className="data-label">Decision ledger</p>
+              <p className="mt-3 text-xs text-slate-400">Append-only provenance</p>
+            </div>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Copilot Drawer */}
-      <CopilotDrawer
-        isOpen={copilotOpen}
-        onClose={() => setCopilotOpen(false)}
-        onQueryCopilot={(q) => api.queryCopilot(q, symbol, portfolioId)}
-        onCompileIntent={(p) => api.compileIntent(p, portfolioId)}
-        onExecutePlan={async (plan) => {
-          const ord = await api.createOrder({
-            client_order_id: `cop_${Date.now()}`,
-            instrument_id: plan.instrument || symbol,
-            side: plan.side || "SELL",
-            order_type: "MARKET",
-            quantity: plan.quantity || "0.25",
-            account_id: "desk_main",
-            portfolio_id: portfolioId,
-          });
-          return api.executeOrder(ord.sisera_order_id, {
-            portfolio_id: portfolioId,
-            account_id: "desk_main",
-          });
-        }}
-      />
+function SystemMap() {
+  const rows = [
+    ["INPUT", "Market data · orders · intents"],
+    ["NORMALIZE", "Instrument master · portfolio truth"],
+    ["CONTROL", "RBAC · policy · pre-trade risk"],
+    ["EXECUTE", "Paper engine · venue adapters"],
+    ["PROVE", "Decision ledger · metrics · audit"],
+  ];
+  return (
+    <div className="border border-line bg-panel">
+      {rows.map(([label, value], index) => (
+        <div
+          key={label}
+          className="grid grid-cols-[110px_1fr] border-b border-line last:border-b-0"
+        >
+          <div className="border-r border-line p-5 font-mono text-[10px] text-cyan-300">
+            {String(index + 1).padStart(2, "0")} / {label}
+          </div>
+          <div className="p-5 text-sm text-slate-300">{value}</div>
+        </div>
+      ))}
     </div>
   );
 }

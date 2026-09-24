@@ -11,9 +11,10 @@ RUN pnpm install --frozen-lockfile
 COPY apps/web apps/web
 COPY packages/ui packages/ui
 COPY packages/domain packages/domain
-RUN pnpm --filter @sisera/web build
+RUN pnpm --filter @sisera/web... build
 
 FROM node:22-alpine AS runtime
+RUN corepack enable
 ENV NODE_ENV=production
 USER node
 WORKDIR /app

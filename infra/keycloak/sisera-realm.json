@@ -1,0 +1,42 @@
+{
+  "realm": "sisera",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "roles": {
+    "realm": [
+      { "name": "viewer" },
+      { "name": "trader" },
+      { "name": "risk_manager" },
+      { "name": "admin" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "sisera-web",
+      "name": "Sisera Web",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "local-development-only",
+      "redirectUris": ["http://localhost:3000/api/auth/callback/keycloak"],
+      "webOrigins": ["http://localhost:3000"],
+      "standardFlowEnabled": true
+    },
+    {
+      "clientId": "sisera-api",
+      "name": "Sisera API",
+      "enabled": true,
+      "bearerOnly": true
+    }
+  ],
+  "users": [
+    {
+      "username": "operator",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "operator@local.sisera",
+      "credentials": [{ "type": "password", "value": "change-me", "temporary": true }],
+      "realmRoles": ["trader"]
+    }
+  ]
+}

@@ -1,29 +1,37 @@
 {
   "name": "@sisera/web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Sisera web terminal (Next.js)",
   "scripts": {
-    "dev": "next dev -p 3000",
     "build": "next build",
-    "typecheck": "tsc --noEmit",
-    "lint": "next lint"
+    "dev": "next dev --turbopack -p 3000",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@sisera/api-client": "workspace:*",
+    "@radix-ui/react-dialog": "^1.1.6",
+    "@radix-ui/react-dropdown-menu": "^2.1.6",
+    "@radix-ui/react-tooltip": "^1.1.8",
+    "@sisera/domain": "workspace:*",
     "@sisera/ui": "workspace:*",
-    "@privy-io/react-auth": "^2.4.0",
-    "@tanstack/react-query": "^5.0.0",
-    "lightweight-charts": "^5.0.0",
-    "next": "^15.0.0",
+    "@tanstack/react-table": "^8.21.2",
+    "cmdk": "^1.1.1",
+    "lightweight-charts": "^5.0.4",
+    "lucide-react": "^0.475.0",
+    "motion": "^12.4.7",
+    "next": "^15.2.1",
+    "next-auth": "^5.0.0-beta.25",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "zustand": "^5.0.0"
+    "sonner": "^2.0.1"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "typescript": "^5.6.0"
+    "@types/node": "^22.13.9",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.2"
   }
 }

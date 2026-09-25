@@ -115,6 +115,11 @@ jobs:
 
             # Ensure git repository is in sync
             echo "==> Fetching latest changes from main branch..."
+            if [ ! -d .git ]; then
+              echo "==> Initializing git repository in $APP_DIR..."
+              git init
+              git remote add origin https://github.com/UncleTom29/Sisera.git || git remote set-url origin https://github.com/UncleTom29/Sisera.git
+            fi
             git fetch origin main
             git reset --hard origin/main
 

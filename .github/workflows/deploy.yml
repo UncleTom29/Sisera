@@ -1,0 +1,89 @@
+name: deploy-production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Run Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit & Integration tests
+        run: pnpm test
+
+      - name: Build packages & web
+        run: pnpm build
+
+  deploy-contabo:
+    name: Deploy to Contabo VPS (Native Node / PM2)
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.CONTABO_HOST }}
+          username: ${{ secrets.CONTABO_USER }}
+          key: ${{ secrets.CONTABO_SSH_KEY }}
+          port: ${{ secrets.CONTABO_SSH_PORT || 22 }}
+          script: |
+            set -e
+            APP_DIR="/opt/sisera"
+
+            echo "==> Deploying Sisera to $APP_DIR"
+            cd $APP_DIR
+
+            # Ensure git repository is in sync
+            echo "==> Fetching latest changes from main branch..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Install dependencies
+            echo "==> Installing Node.js workspace dependencies..."
+            pnpm install --frozen-lockfile
+
+            # Apply pending database migrations
+            echo "==> Running PostgreSQL database migrations..."
+            pnpm db:migrate
+
+            # Build all packages, API, and Next.js production bundle
+            echo "==> Building Sisera workspace (API & Web)..."
+            pnpm build
+
+            # Restart services cleanly
+            echo "==> Restarting Sisera systemd services..."
+            systemctl restart sisera-api sisera-web
+
+            echo "==> Sisera Production Stack deployed and active!"
+            systemctl status sisera-api sisera-web --no-pager

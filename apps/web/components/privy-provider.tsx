@@ -3,18 +3,29 @@
 import { PrivyProvider } from "@privy-io/react-auth";
 import type { ReactNode } from "react";
 
+const DEFAULT_PRIVY_APP_ID = "cmuhawmmr00xa0bjwxxjqdocd";
+
 export function SiseraPrivyProvider({
-  appId,
+  appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID || DEFAULT_PRIVY_APP_ID,
   children,
-}: { appId: string | undefined; children: ReactNode }) {
-  if (!appId) return <>{children}</>;
+}: { appId?: string | undefined; children: ReactNode }) {
+  const activeAppId = appId || DEFAULT_PRIVY_APP_ID;
   return (
     <PrivyProvider
-      appId={appId}
+      appId={activeAppId}
       config={{
-        loginMethods: ["google", "apple", "email", "wallet", "passkey"],
-        appearance: { theme: "dark", walletChainType: "solana-only" },
-        embeddedWallets: { solana: { createOnLogin: "users-without-wallets" } },
+        loginMethods: ["email", "google", "twitter", "discord", "apple", "wallet", "passkey"],
+        appearance: {
+          theme: "dark",
+          accentColor: "#67e8f9",
+          logo: "/icon.svg",
+          walletChainType: "solana-only",
+        },
+        embeddedWallets: {
+          solana: {
+            createOnLogin: "users-without-wallets",
+          },
+        },
       }}
     >
       {children}

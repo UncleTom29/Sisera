@@ -1,7 +1,7 @@
 # Sisera — Institutional Multi-Asset Trading OS
 # One-command local development & CI commands
 
-.PHONY: help dev dev-v2 infra-up infra-down infra-up-analytics test lint format typecheck check db-migrate
+.PHONY: help dev dev-v1 test lint format typecheck check db-migrate
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -15,14 +15,8 @@ dev: ## Boot V2 API Gateway & Next.js Web Terminal
 dev-v1: ## Boot legacy dashboard
 	uv run sisera web --port 8000
 
-infra-up: ## Start dev infrastructure (Postgres/Timescale, Redis, NATS)
-	docker compose -f infra/docker/docker-compose.yml up -d
-
-infra-up-analytics: ## Start dev infrastructure including ClickHouse (analytics profile)
-	docker compose -f infra/docker/docker-compose.yml --profile analytics up -d
-
-infra-down: ## Stop dev infrastructure
-	docker compose -f infra/docker/docker-compose.yml down
+db-migrate: ## Run PostgreSQL database migrations
+	pnpm db:migrate
 
 test: ## Run full Python test suite
 	uv run pytest

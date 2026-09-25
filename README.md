@@ -15,15 +15,14 @@ Instead of treating tokenized stocks as isolated SPL tokens with a chart and swa
 - Jupiter order and execution routes support user-signed Solana swaps after server-side account, balance, risk, and order checks. Sisera never holds a wallet private key.
 - Existing Hyperliquid, Binance, and Polymarket adapters remain secondary. Provider failures
   return unavailable states; Sisera never substitutes invented prices.
-- Paper orders have cash/share balances and pass through the risk engine. In production, accounts and orders persist in PostgreSQL.
-- PostgreSQL schema, Docker development stack, CI, unit tests, and runbooks.
+- PostgreSQL schema, automated database migrations, CI, unit tests, and production runbooks.
 
 ## Quick start
 
 ```bash
 cp -n .env.example .env
 pnpm install
-docker compose -f infra/docker-compose.yml up -d
+pnpm db:migrate
 pnpm dev
 ```
 

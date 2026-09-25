@@ -1,5 +1,6 @@
 import { ArrowLeft, KeyRound } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 import { SiseraMark } from "../../components/operator-shell";
 import { PrivySignIn } from "../../components/privy-sign-in";
 
@@ -50,18 +51,13 @@ export default function SignInPage() {
               Access your unified portfolio, autonomous agent controls, and real-time market
               intelligence.
             </p>
-            {process.env.NEXT_PUBLIC_PRIVY_APP_ID ? (
+            <Suspense
+              fallback={
+                <div className="mt-8 h-48 animate-pulse rounded border border-line bg-panel/40" />
+              }
+            >
               <PrivySignIn />
-            ) : (
-              <div className="mt-10 border border-amber-500/25 bg-amber-500/[0.07] p-4">
-                <p className="text-xs font-semibold text-amber-200">
-                  Sign-in is temporarily unavailable
-                </p>
-                <p className="mt-2 text-[11px] leading-5 text-amber-100/60">
-                  Please try again shortly.
-                </p>
-              </div>
-            )}
+            </Suspense>
           </div>
         </div>
       </section>

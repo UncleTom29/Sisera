@@ -12,11 +12,13 @@
     "dev:api": "node scripts/run-local.mjs api",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
+    "db:migrate": "node scripts/migrate.mjs",
     "test": "turbo run test --cache-dir=.turbo/cache",
     "typecheck": "turbo run typecheck --cache-dir=.turbo/cache"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "postgres": "^3.4.5",
     "turbo": "^2.4.4",
     "typescript": "^5.8.2"
   }

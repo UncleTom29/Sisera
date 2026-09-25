@@ -4,9 +4,7 @@ import { cookies } from "next/headers";
 export const sessionCookieName = "sisera-privy-session";
 
 const appId =
-  process.env.NEXT_PUBLIC_PRIVY_APP_ID ||
-  process.env.PRIVY_APP_ID ||
-  "cmuhawmmr00xa0bjwxxjqdocd";
+  process.env.NEXT_PUBLIC_PRIVY_APP_ID || process.env.PRIVY_APP_ID || "cmuhawmmr00xa0bjwxxjqdocd";
 const appSecret =
   process.env.PRIVY_APP_SECRET ||
   "privy_app_secret_55gM4H3shNT3DNQmNhZMjLQeENG4RSNKFwgAN2kxCyT7wLqkM2TLZ8m7oWnBBLtAEBKnSHTwQE8ikYXURmAieufy";

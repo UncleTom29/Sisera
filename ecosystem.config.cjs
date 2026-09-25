@@ -22,7 +22,7 @@ module.exports = {
     {
       name: "sisera-web",
       script: "apps/web/node_modules/next/dist/bin/next",
-      args: "start apps/web -p 3000",
+      args: "start apps/web -p 9000",
       cwd: "/opt/sisera",
       exec_mode: "fork",
       instances: 1,
@@ -32,11 +32,11 @@ module.exports = {
       env_file: "/opt/sisera/.env.production",
       env: {
         NODE_ENV: "production",
-        PORT: "3000",
+        PORT: "9000",
       },
       env_production: {
         NODE_ENV: "production",
-        PORT: "3000",
+        PORT: "9000",
       },
     },
   ],

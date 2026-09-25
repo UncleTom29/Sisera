@@ -10,13 +10,14 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#05080d",
-        panel: "#0a0f16",
-        line: "#1d2733",
+        ink: "#0c141b",
+        panel: "#14202a",
+        line: "#2a3943",
+        cyan: { 200: "#f4d8b8", 300: "#e9bd8c", 400: "#d6a16d", 500: "#b77d4e" },
       },
       fontFamily: {
-        sans: ["Inter Variable", "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
-        mono: ["Berkeley Mono", "SFMono-Regular", "Cascadia Code", "ui-monospace", "monospace"],
+        sans: ["IBM Plex Sans", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
       },
       boxShadow: { insetline: "inset 0 0 0 1px rgba(148,163,184,.12)" },
     },

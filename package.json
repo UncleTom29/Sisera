@@ -7,9 +7,9 @@
   "engines": { "node": ">=22.0.0" },
   "scripts": {
     "build": "turbo run build --cache-dir=.turbo/cache",
-    "dev": "turbo run dev --parallel --cache-dir=.turbo/cache",
-    "dev:web": "pnpm --filter @sisera/web dev",
-    "dev:api": "pnpm --filter @sisera/api dev",
+    "dev": "node scripts/run-local.mjs all",
+    "dev:web": "node scripts/run-local.mjs web",
+    "dev:api": "node scripts/run-local.mjs api",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "test": "turbo run test --cache-dir=.turbo/cache",

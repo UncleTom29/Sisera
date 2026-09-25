@@ -26,6 +26,9 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { SiseraMark } from "./sisera-mark";
+
+export { SiseraMark } from "./sisera-mark";
 
 const navigation = [
   {
@@ -90,17 +93,17 @@ export function OperatorShell({
     setMobileOpen(false);
     router.push(href);
   };
-  const sidebarWidth = collapsed ? "lg:ml-[68px]" : "lg:ml-[236px]";
+  const sidebarWidth = collapsed ? "lg:ml-[72px]" : "lg:ml-[232px]";
 
   return (
     <div className="min-h-screen bg-ink text-slate-100 lg:h-screen lg:overflow-hidden">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 hidden border-r border-line bg-[#070b10] transition-[width] duration-200 lg:flex lg:flex-col",
-          collapsed ? "w-[68px]" : "w-[236px]",
+          "fixed inset-y-0 left-0 z-50 hidden border-r border-line bg-[#101b23] transition-[width] duration-200 lg:flex lg:flex-col",
+          collapsed ? "w-[72px]" : "w-[232px]",
         )}
       >
-        <div className="flex h-14 items-center border-b border-line px-4">
+        <div className="flex h-16 items-center border-b border-line px-4">
           <Link
             href="/terminal"
             className="flex min-w-0 items-center gap-3"
@@ -109,9 +112,9 @@ export function OperatorShell({
             <SiseraMark />
             {!collapsed && (
               <div className="min-w-0">
-                <p className="text-[13px] font-semibold tracking-[0.2em] text-slate-100">SISERA</p>
-                <p className="mt-0.5 font-mono text-[8px] uppercase tracking-[0.16em] text-slate-600">
-                  Operator console
+                <p className="text-[15px] font-semibold tracking-[0.16em] text-slate-100">SISERA</p>
+                <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-slate-500">
+                  Markets / workspace
                 </p>
               </div>
             )}
@@ -121,7 +124,7 @@ export function OperatorShell({
           {navigation.map((group) => (
             <div key={group.label} className="mb-5 px-2">
               {!collapsed && (
-                <p className="mb-1 px-2 font-mono text-[8px] uppercase tracking-[0.18em] text-slate-700">
+                <p className="mb-2 px-2 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-500">
                   {group.label}
                 </p>
               )}
@@ -134,8 +137,8 @@ export function OperatorShell({
                       href={item.href}
                       title={collapsed ? item.label : undefined}
                       className={cn(
-                        "group flex h-9 items-center gap-3 border border-transparent px-2 text-[12px] text-slate-500 transition-colors hover:bg-slate-900/70 hover:text-slate-200",
-                        active && "border-cyan-400/10 bg-cyan-400/[0.08] text-cyan-200",
+                        "group flex h-10 items-center gap-3 rounded-md border border-transparent px-2 text-[13px] text-slate-400 transition-colors hover:bg-white/[0.06] hover:text-slate-100",
+                        active && "border-cyan-400/20 bg-cyan-400/[0.1] font-medium text-cyan-200",
                         collapsed && "justify-center",
                       )}
                     >
@@ -188,7 +191,7 @@ export function OperatorShell({
 
       <header
         className={cn(
-          "fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b border-line bg-[#070b10]/95 backdrop-blur transition-[left] duration-200",
+          "fixed inset-x-0 top-0 z-40 flex h-16 items-center border-b border-line bg-[#101b23]/95 backdrop-blur transition-[left] duration-200",
           sidebarWidth,
         )}
       >
@@ -202,22 +205,15 @@ export function OperatorShell({
         </button>
         <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 lg:px-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="hidden items-center gap-2 sm:flex">
-              <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.65)]" />
-              <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-slate-500">
-                Systems nominal
-              </span>
-            </div>
-            <span className="hidden h-4 w-px bg-line sm:block" />
-            <span className="truncate font-mono text-[9px] uppercase tracking-[0.14em] text-slate-600">
-              Global · Paper execution
+            <span className="truncate text-[13px] font-medium text-slate-300">
+              Global markets <span className="mx-2 text-slate-600">/</span> Paper workspace
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setCommandsOpen(true)}
-              className="flex h-8 min-w-8 items-center gap-2 border border-line bg-panel px-2 text-[11px] text-slate-500 hover:border-slate-600 sm:min-w-52"
+              className="flex h-9 min-w-8 items-center gap-2 rounded-md border border-line bg-panel px-3 text-[12px] text-slate-400 hover:border-slate-500 sm:min-w-52"
             >
               <Search size={13} />
               <span className="hidden sm:inline">Search markets and workspaces</span>
@@ -228,7 +224,7 @@ export function OperatorShell({
             <button
               type="button"
               onClick={() => setCommandsOpen(true)}
-              className="hidden h-8 items-center gap-2 border border-line bg-panel px-3 text-[11px] text-slate-300 hover:border-cyan-500/40 md:flex"
+              className="hidden h-9 items-center gap-2 rounded-md border border-line bg-panel px-3 text-[12px] text-slate-300 hover:border-cyan-500/40 md:flex"
             >
               <Sparkles size={13} className="text-cyan-300" /> Ask Sisera
             </button>
@@ -286,7 +282,7 @@ export function OperatorShell({
 
       <main
         className={cn(
-          "min-h-screen pt-14 transition-[margin] duration-200 lg:h-screen lg:min-h-0 lg:overflow-auto",
+          "min-h-screen pt-16 transition-[margin] duration-200 lg:h-screen lg:min-h-0 lg:overflow-auto",
           sidebarWidth,
         )}
       >
@@ -363,16 +359,5 @@ export function OperatorShell({
         </Dialog.Portal>
       </Dialog.Root>
     </div>
-  );
-}
-
-export function SiseraMark({ className }: { className?: string }) {
-  return (
-    <span className={cn("relative grid size-7 shrink-0 place-items-center", className)}>
-      <span className="absolute h-6 w-2 rotate-[30deg] rounded-full border border-cyan-300/80" />
-      <span className="absolute h-6 w-2 rotate-[90deg] rounded-full border border-cyan-300/80" />
-      <span className="absolute h-6 w-2 rotate-[150deg] rounded-full border border-cyan-300/80" />
-      <span className="size-1.5 rounded-full bg-cyan-200 shadow-[0_0_8px_rgba(103,232,249,.7)]" />
-    </span>
   );
 }

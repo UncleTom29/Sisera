@@ -21,7 +21,7 @@ decision provenance, agent promotion stages, stress testing, and market-data qua
 ## Quick start
 
 ```bash
-cp .env.example .env
+cp -n .env.example .env
 pnpm install
 docker compose -f infra/docker-compose.yml up -d
 pnpm dev
@@ -29,8 +29,17 @@ pnpm dev
 
 Open `http://localhost:3000`. The API runs on `http://localhost:4000`.
 
-For local UI evaluation only, set `SISERA_LOCAL_OPERATOR_MODE=true`. API development auth remains
-disabled unless `SISERA_ALLOW_DEV_AUTH=true`; neither option should be enabled in deployments.
+The terminal and screener refresh while visible. Spot quotes, candles, and depth come from
+Binance's public market-data host (`data-api.binance.vision`), which requires no API key.
+Prediction markets use Polymarket Gamma. Provider failures remain visible as unavailable states;
+the interface never fills gaps with sample prices. The order ticket is a paper-trading preview
+until a reconciled portfolio and risk limits are connected.
+
+`pnpm dev` loads the repository `.env` when present, preserves existing values, and supplies
+local-only operator/auth defaults for any missing development variables. This means an existing
+legacy `.env` is not overwritten. Set `SISERA_LOCAL_OPERATOR_MODE=false` and
+`SISERA_ALLOW_DEV_AUTH=false` when testing the Keycloak flow; neither option may be enabled in a
+deployment.
 
 ## Verification
 
@@ -41,4 +50,5 @@ pnpm test
 pnpm build
 ```
 
-Read `docs/architecture.md`, `docs/security.md`, and `docs/operations.md` before connecting a venue.
+Read `docs/architecture.md`, `docs/security.md`, `docs/operations.md`, and
+`docs/design-sources.md` before connecting a venue.

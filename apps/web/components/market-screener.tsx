@@ -1,6 +1,5 @@
 "use client";
 
-import { formatPercent } from "@sisera/ui";
 import {
   type ColumnDef,
   type SortingState,
@@ -10,10 +9,11 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, Search, SlidersHorizontal } from "lucide-react";
+import { ArrowUpDown, ArrowUpRight, Search } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { MarketRow } from "../lib/api";
+import { DeltaBadge } from "./delta-badge";
 
 export function MarketScreener({ rows }: { rows: MarketRow[] }) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "volume", desc: true }]);
@@ -26,14 +26,14 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
         header: "Market",
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
-            <span className="grid size-7 place-items-center rounded-full bg-slate-800 font-mono text-[10px] font-semibold text-slate-300">
+            <span className="grid size-9 place-items-center rounded-lg bg-[#2b3b43] font-mono text-sm font-semibold text-[#e9bd8c]">
               {row.original.instrument.baseAsset.slice(0, 1)}
             </span>
             <div>
-              <p className="font-mono text-[11px] font-semibold text-slate-200">
+              <p className="text-sm font-semibold text-slate-100">
                 {row.original.instrument.displaySymbol}
               </p>
-              <p className="mt-0.5 font-mono text-[8px] uppercase tracking-wider text-slate-700">
+              <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
                 {row.original.instrument.venue} · {row.original.instrument.type}
               </p>
             </div>
@@ -45,7 +45,7 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
         accessorFn: (row) => Number(row.snapshot.last),
         header: "Last price",
         cell: ({ row }) => (
-          <span className="data-value text-slate-200">
+          <span className="font-mono text-[13px] text-slate-100">
             $
             {Number(row.original.snapshot.last).toLocaleString(undefined, {
               maximumFractionDigits: 6,
@@ -57,21 +57,14 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
         id: "change",
         accessorFn: (row) => Number(row.snapshot.change24hPct ?? 0),
         header: "24h change",
-        cell: ({ row }) => {
-          const value = Number(row.original.snapshot.change24hPct ?? 0);
-          return (
-            <span className={`data-value ${value >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-              {formatPercent(value)}
-            </span>
-          );
-        },
+        cell: ({ row }) => <DeltaBadge value={row.original.snapshot.change24hPct} />,
       },
       {
         id: "volume",
         accessorFn: (row) => Number(row.snapshot.volume24h ?? 0),
         header: "24h volume",
         cell: ({ row }) => (
-          <span className="data-value text-slate-300">
+          <span className="font-mono text-[13px] text-slate-200">
             {formatCompact(row.original.snapshot.volume24h)}
           </span>
         ),
@@ -81,7 +74,7 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
         accessorFn: (row) => Number(row.snapshot.ask) - Number(row.snapshot.bid),
         header: "Spread",
         cell: ({ row }) => (
-          <span className="data-value text-slate-400">{spreadBps(row.original)} bps</span>
+          <span className="font-mono text-xs text-slate-300">{spreadBps(row.original)} bps</span>
         ),
       },
       {
@@ -90,11 +83,9 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
         header: "Source",
         cell: ({ row }) => (
           <div>
-            <p className="font-mono text-[9px] text-slate-400">
-              {row.original.snapshot.quality.source}
-            </p>
-            <p className="mt-1 font-mono text-[8px] text-emerald-300">
-              LIVE · {row.original.snapshot.quality.latencyMs}ms
+            <p className="font-mono text-[11px] text-slate-200">Binance spot</p>
+            <p className="mt-1 font-mono text-[10px] text-slate-500">
+              {new Date(row.original.snapshot.quality.receivedAt).toLocaleTimeString()}
             </p>
           </div>
         ),
@@ -106,9 +97,9 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
         cell: ({ row }) => (
           <Link
             href={`/terminal?symbol=${row.original.instrument.venueSymbol}`}
-            className="inline-flex h-7 items-center border border-cyan-400/30 bg-cyan-400/[0.08] px-3 text-[10px] font-semibold text-cyan-300 hover:bg-cyan-400/[0.14]"
+            className="inline-flex h-9 items-center gap-1 rounded-md border border-cyan-400/30 bg-cyan-400/[0.08] px-3 text-xs font-medium text-cyan-300 hover:bg-cyan-400/[0.14]"
           >
-            Trade
+            Open <ArrowUpRight size={13} />
           </Link>
         ),
       },
@@ -127,52 +118,35 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
   });
 
   return (
-    <section className="overflow-hidden border border-line bg-panel">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className="h-7 border border-cyan-400/30 bg-cyan-400/10 px-3 text-[10px] text-cyan-300"
-          >
-            All markets
-          </button>
-          <button type="button" className="h-7 border border-line px-3 text-[10px] text-slate-500">
-            Spot
-          </button>
-          <button type="button" className="h-7 border border-line px-3 text-[10px] text-slate-500">
-            Perpetuals
-          </button>
-          <button type="button" className="h-7 border border-line px-3 text-[10px] text-slate-500">
-            Outcomes
-          </button>
+    <section className="overflow-hidden rounded-lg border border-line bg-panel">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+        <div>
+          <h2 className="text-base font-semibold text-slate-100">Spot markets</h2>
+          <p className="mt-1 text-xs text-slate-400">
+            Live order book prices and 24 hour activity from Binance
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex h-8 items-center gap-2 border border-line bg-[#080c12] px-3">
-            <Search size={12} className="text-slate-600" />
+          <div className="flex h-9 items-center gap-2 rounded-md border border-line bg-[#0f1a22] px-3">
+            <Search size={14} className="text-slate-400" />
             <input
               aria-label="Filter instruments"
               value={filter}
               onChange={(event) => setFilter(event.target.value)}
-              placeholder="Filter instruments"
-              className="w-36 bg-transparent text-[10px] outline-none placeholder:text-slate-700"
+              placeholder="Search markets"
+              className="w-40 bg-transparent text-xs text-slate-100 outline-none placeholder:text-slate-500"
             />
           </div>
-          <button
-            type="button"
-            className="flex h-8 items-center gap-2 border border-line px-3 text-[10px] text-slate-500"
-          >
-            <SlidersHorizontal size={12} /> Filters
-          </button>
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px] border-collapse text-left text-[10px]">
-          <thead className="bg-[#090e14] text-slate-600">
+        <table className="w-full min-w-[980px] border-collapse text-left text-xs">
+          <thead className="bg-[#101b23] text-slate-400">
             <tr>
               {table.getHeaderGroups()[0]?.headers.map((header) => (
                 <th
                   key={header.id}
-                  className="h-10 border-b border-line px-4 font-mono font-normal uppercase tracking-wider"
+                  className="h-11 border-b border-line px-5 font-mono text-[10px] font-medium uppercase tracking-wider"
                 >
                   <button
                     type="button"
@@ -188,9 +162,12 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
           </thead>
           <tbody>
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="border-b border-line hover:bg-cyan-400/[0.025]">
+              <tr
+                key={row.id}
+                className="border-b border-line transition-colors hover:bg-white/[0.035]"
+              >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="h-14 px-4">
+                  <td key={cell.id} className="h-16 px-5">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
@@ -199,9 +176,9 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
           </tbody>
         </table>
       </div>
-      <div className="flex h-10 items-center justify-between border-t border-line px-4 font-mono text-[9px] uppercase tracking-wider text-slate-700">
+      <div className="flex h-12 items-center justify-between border-t border-line px-5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
         <span>{table.getRowModel().rows.length} verified markets</span>
-        <span>Provider timestamps shown · no derived volume</span>
+        <span>Updated from public venue data</span>
       </div>
     </section>
   );

@@ -10,7 +10,7 @@ const Environment = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
-  BINANCE_SPOT_BASE_URL: z.string().url().default("https://api.binance.com"),
+  BINANCE_SPOT_BASE_URL: z.string().url().default("https://data-api.binance.vision"),
   POLYMARKET_GAMMA_BASE_URL: z.string().url().default("https://gamma-api.polymarket.com"),
 });
 

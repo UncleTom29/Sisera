@@ -2,6 +2,24 @@ import { describe, expect, it, vi } from "vitest";
 import { BinanceSpotProvider } from "../src/index.js";
 
 describe("BinanceSpotProvider", () => {
+  it("uses the public market-data endpoint by default", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ symbol: "BTCUSDT", bidPrice: "10", askPrice: "11" })),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ lastPrice: "10.5", priceChangePercent: "1.2", quoteVolume: "1000" }),
+        ),
+      );
+    await new BinanceSpotProvider(undefined, fetcher).getSnapshot("BTCUSDT");
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining("https://data-api.binance.vision/api/v3/ticker/"),
+      expect.any(Object),
+    );
+  });
+
   it("normalizes a live venue response without inventing fields", async () => {
     const fetcher = vi
       .fn()

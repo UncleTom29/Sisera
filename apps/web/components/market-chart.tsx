@@ -20,30 +20,30 @@ export function MarketChart({ candles }: { candles: Candle[] }) {
       width: container.clientWidth,
       height: container.clientHeight,
       layout: {
-        background: { type: ColorType.Solid, color: "#090d13" },
-        textColor: "#667385",
-        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-        fontSize: 10,
+        background: { type: ColorType.Solid, color: "#14202a" },
+        textColor: "#9dabb3",
+        fontFamily: "IBM Plex Mono, ui-monospace, monospace",
+        fontSize: 11,
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "#141d27" },
-        horzLines: { color: "#141d27" },
+        vertLines: { color: "#263640" },
+        horzLines: { color: "#263640" },
       },
-      rightPriceScale: { borderColor: "#1c2733", scaleMargins: { top: 0.08, bottom: 0.24 } },
-      timeScale: { borderColor: "#1c2733", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: "#30414b", scaleMargins: { top: 0.08, bottom: 0.24 } },
+      timeScale: { borderColor: "#30414b", timeVisible: true, secondsVisible: false },
       crosshair: {
-        vertLine: { color: "#435267", labelBackgroundColor: "#263343" },
-        horzLine: { color: "#435267", labelBackgroundColor: "#263343" },
+        vertLine: { color: "#71858c", labelBackgroundColor: "#34464d" },
+        horzLine: { color: "#71858c", labelBackgroundColor: "#34464d" },
       },
     });
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#36c98f",
-      downColor: "#ef6678",
+      upColor: "#83c8ad",
+      downColor: "#ed8585",
       borderVisible: false,
-      wickUpColor: "#36c98f",
-      wickDownColor: "#ef6678",
-      priceLineColor: "#8ea0b5",
+      wickUpColor: "#83c8ad",
+      wickDownColor: "#ed8585",
+      priceLineColor: "#c5d1d1",
     });
     candleSeries.setData(
       candles.map((candle) => ({
@@ -63,7 +63,7 @@ export function MarketChart({ candles }: { candles: Candle[] }) {
       candles.map((candle) => ({
         time: candle.time as UTCTimestamp,
         value: Number(candle.volume),
-        color: Number(candle.close) >= Number(candle.open) ? "#36c98f35" : "#ef667835",
+        color: Number(candle.close) >= Number(candle.open) ? "#83c8ad50" : "#ed858550",
       })),
     );
     chart.timeScale().fitContent();

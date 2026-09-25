@@ -2,6 +2,7 @@ import { StatusBadge } from "@sisera/ui";
 import { ListFilter } from "lucide-react";
 import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
+import { LiveRefresh } from "../../../components/live-refresh";
 import { MarketScreener } from "../../../components/market-screener";
 import { PageHeader } from "../../../components/page-header";
 import { getMarkets } from "../../../lib/api";
@@ -32,16 +33,19 @@ export default async function MarketsPage() {
   return (
     <div className="min-h-full">
       <PageHeader
-        eyebrow="Cross-venue discovery"
-        title="Market screener"
-        description="Source-labelled spot markets with sortable liquidity, spread, price action, and direct access to the trading workspace."
+        eyebrow="Discover / Crypto spot"
+        title="Markets"
+        description="A live view of listed spot pairs, with clear source and update times. Select a market to inspect its chart and order book."
         actions={
-          <StatusBadge tone={rows.length ? "positive" : "negative"}>
-            {rows.length ? `${rows.length} markets live` : "Provider unavailable"}
-          </StatusBadge>
+          <div className="flex items-center gap-2">
+            <StatusBadge tone={rows.length ? "positive" : "negative"}>
+              {rows.length ? `${rows.length} markets live` : "Provider unavailable"}
+            </StatusBadge>
+            <LiveRefresh />
+          </div>
         }
       />
-      <div className="p-4">
+      <div className="p-4 md:p-6">
         {rows.length ? (
           <MarketScreener rows={rows} />
         ) : (

@@ -51,7 +51,7 @@ export class BinanceSpotProvider implements MarketDataProvider {
   readonly id = "binance-spot";
 
   constructor(
-    private readonly baseUrl = "https://api.binance.com",
+    private readonly baseUrl = "https://data-api.binance.vision",
     private readonly fetcher: Fetch = globalThis.fetch,
   ) {}
 

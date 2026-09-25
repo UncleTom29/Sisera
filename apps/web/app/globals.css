@@ -2,20 +2,63 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("/fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("/fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("/fonts/ibm-plex-sans-latin-700-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
-  --background: #05080d;
-  --panel: #0a0f16;
-  --panel-raised: #0d141d;
-  --line: #1b2733;
-  --line-strong: #2b3a49;
-  --text: #e8edf3;
-  --muted: #8290a1;
-  --faint: #4f5d6d;
-  --cyan: #60d9e7;
-  --green: #3ad69f;
-  --red: #f36a7c;
-  --amber: #e8b85a;
+  --background: #0c141b;
+  --panel: #14202a;
+  --panel-raised: #192833;
+  --line: #2a3943;
+  --line-strong: #43545c;
+  --text: #f2f0e9;
+  --muted: #a5b1b7;
+  --faint: #70828b;
+  --cyan: #e9bd8c;
+  --green: #83c8ad;
+  --red: #ed8585;
+  --amber: #e9bd8c;
 }
 
 * {
@@ -30,8 +73,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--text);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 a {
@@ -46,17 +88,17 @@ input {
   font: inherit;
 }
 ::selection {
-  background: rgba(96, 217, 231, 0.25);
+  background: rgba(233, 189, 140, 0.28);
 }
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #263444;
+  background: #43545c;
 }
 ::-webkit-scrollbar-track {
-  background: #080c12;
+  background: #0c141b;
 }
 
 .technical-grid {
@@ -66,8 +108,8 @@ input {
 }
 
 .eyebrow {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -75,15 +117,15 @@ input {
 }
 
 .data-label {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
 
 .data-value {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 

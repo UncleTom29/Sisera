@@ -1,10 +1,13 @@
-import { StatusBadge, formatMoney, formatPercent } from "@sisera/ui";
-import { BarChart3, BookOpen, CandlestickChart, CircleOff, Gauge, Radio } from "lucide-react";
+import type { OrderBook } from "@sisera/domain";
+import { formatMoney } from "@sisera/ui";
+import { ArrowUpRight, BookOpen, CandlestickChart, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { auth } from "../../../auth";
-import { EmptyState } from "../../../components/empty-state";
+import { DeltaBadge } from "../../../components/delta-badge";
+import { LiveRefresh } from "../../../components/live-refresh";
 import { MarketChart } from "../../../components/market-chart";
 import { OrderTicket } from "../../../components/order-ticket";
+import { TerminalDetails } from "../../../components/terminal-details";
 import {
   getCandles,
   getMarket,
@@ -49,261 +52,220 @@ export default async function TerminalPage({
   const snapshot = market?.snapshot;
 
   return (
-    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col bg-[#080c12]">
-      <div className="hide-scrollbar flex h-8 shrink-0 items-center overflow-x-auto border-b border-line bg-[#060a0f]">
-        {markets.length > 0 ? (
-          markets.map(({ instrument, snapshot: item }) => (
-            <Link
-              key={instrument.id}
-              href={`/terminal?symbol=${instrument.venueSymbol}&interval=${interval}`}
-              className="flex h-full shrink-0 items-center gap-2 border-r border-line px-3 font-mono text-[9px] hover:bg-slate-900"
-            >
-              <span className="font-semibold text-slate-300">{instrument.baseAsset}</span>
-              <span className="text-slate-500">{formatCompact(item.last)}</span>
-              <span
-                className={
-                  Number(item.change24hPct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"
-                }
-              >
-                {formatPercent(item.change24hPct)}
-              </span>
-            </Link>
-          ))
-        ) : (
-          <span className="px-3 font-mono text-[9px] uppercase tracking-wider text-slate-700">
-            Live market tape unavailable · no synthetic fallback
-          </span>
-        )}
-      </div>
-
-      <div className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-[#090e14] px-4 py-2">
-        <div className="flex items-center gap-5">
+    <div className="min-h-full bg-ink px-4 pb-8 pt-6 md:px-6">
+      <div className="mx-auto max-w-[1920px]">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="eyebrow">Markets / Execution</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.035em] text-slate-50">
+              Trading terminal
+            </h1>
+          </div>
           <div className="flex items-center gap-3">
-            <span className="grid size-8 place-items-center rounded-full bg-orange-400/15 font-mono text-sm font-bold text-orange-300">
-              {market?.instrument.baseAsset.slice(0, 1) ?? "?"}
+            <span className="inline-flex items-center gap-2 rounded-md border border-amber-400/20 bg-amber-400/[0.07] px-3 py-2 font-mono text-[10px] uppercase tracking-wide text-amber-200">
+              <span className="size-1.5 rounded-full bg-amber-300" /> Paper mode
             </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-semibold text-white">
-                  {market?.instrument.displaySymbol ?? symbol}
-                </span>
-                <StatusBadge>{market?.instrument.type ?? "spot"}</StatusBadge>
-              </div>
-              <p className="mt-1 font-mono text-[8px] uppercase tracking-widest text-slate-600">
-                {market?.instrument.venue ?? "provider unavailable"} · normalized instrument
-              </p>
-            </div>
+            <LiveRefresh />
           </div>
-          <Metric
-            label="Last"
-            value={formatMoney(snapshot?.last)}
-            tone={Number(snapshot?.change24hPct ?? 0) >= 0 ? "up" : "down"}
-          />
-          <Metric
-            label="24h"
-            value={formatPercent(snapshot?.change24hPct)}
-            tone={Number(snapshot?.change24hPct ?? 0) >= 0 ? "up" : "down"}
-          />
-          <Metric label="Volume" value={formatCompact(snapshot?.volume24h)} />
-          <Metric
-            label="Spread"
-            value={snapshot ? (Number(snapshot.ask) - Number(snapshot.bid)).toFixed(2) : "—"}
-          />
         </div>
-        {snapshot ? (
-          <div className="flex items-center gap-2">
-            <span className="size-1.5 rounded-full bg-emerald-400 pulse-live" />
-            <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-300">
-              Live · {snapshot.quality.latencyMs}ms
-            </span>
-          </div>
-        ) : (
-          <StatusBadge tone="negative">Market data unavailable</StatusBadge>
-        )}
-      </div>
 
-      <div className="grid flex-1 lg:min-h-0 lg:grid-cols-[minmax(500px,1fr)_286px_310px] lg:grid-rows-[minmax(520px,1fr)_180px]">
-        <section className="min-h-[560px] border-b border-line bg-[#090d13] lg:min-h-0 lg:border-r">
-          <div className="flex h-10 items-center justify-between border-b border-line px-3">
-            <div className="flex items-center gap-1">
-              {intervals.map((value) => (
-                <Link
-                  key={value}
-                  href={`/terminal?symbol=${symbol}&interval=${value}`}
-                  className={`grid h-6 min-w-8 place-items-center px-1.5 font-mono text-[9px] ${interval === value ? "bg-cyan-400/10 text-cyan-300" : "text-slate-600 hover:text-slate-300"}`}
+        <div className="hide-scrollbar mb-5 flex gap-2 overflow-x-auto pb-1">
+          {markets.length > 0 ? (
+            markets.map(({ instrument, snapshot: item }) => (
+              <Link
+                key={instrument.id}
+                href={`/terminal?symbol=${instrument.venueSymbol}&interval=${interval}`}
+                className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-md border px-3 py-2.5 transition-colors hover:border-slate-500 ${symbol === instrument.venueSymbol ? "border-cyan-400/50 bg-cyan-400/[0.08]" : "border-line bg-panel"}`}
+              >
+                <div>
+                  <p className="text-xs font-semibold text-slate-100">{instrument.baseAsset}</p>
+                  <p className="mt-0.5 font-mono text-[10px] text-slate-500">
+                    {formatCompact(item.last)}
+                  </p>
+                </div>
+                <span
+                  className={`font-mono text-xs ${Number(item.change24hPct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}
                 >
-                  {value}
-                </Link>
-              ))}
-              <span className="mx-2 h-4 w-px bg-line" />
-              <span className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                <CandlestickChart size={13} /> Candles
-              </span>
-            </div>
-            <span className="font-mono text-[8px] uppercase tracking-wider text-slate-700">
-              UTC · source verified
-            </span>
-          </div>
-          {candles.length > 0 ? (
-            <MarketChart candles={candles} />
+                  {Number(item.change24hPct ?? 0) > 0 ? "+" : ""}
+                  {Number(item.change24hPct ?? 0).toFixed(2)}%
+                </span>
+              </Link>
+            ))
           ) : (
-            <div className="p-3">
-              <EmptyState
-                icon={CircleOff}
-                title="Historical stream unavailable"
-                copy="The chart remains blank because Sisera never invents candle data."
-                code="CANDLES / UNAVAILABLE"
-              />
+            <div className="w-full rounded-md border border-line bg-panel px-4 py-3 text-sm text-slate-400">
+              Market tape unavailable. Check your data connection and refresh.
             </div>
           )}
-        </section>
+        </div>
 
-        <section className="min-h-[520px] border-b border-line bg-[#080c12] lg:min-h-0 lg:border-r">
-          <div className="flex h-10 items-center justify-between border-b border-line px-3">
-            <span className="flex items-center gap-2 text-[11px] font-semibold">
-              <BookOpen size={13} className="text-slate-600" /> Order book
-            </span>
-            <span className="font-mono text-[8px] text-slate-700">L2 · 20</span>
-          </div>
-          {depth ? (
-            <OrderBookPanel bids={depth.bids} asks={depth.asks} />
-          ) : (
-            <EmptyState
-              icon={BookOpen}
-              title="Depth unavailable"
-              copy="The approved venue did not return order-book depth."
-              code="DEPTH / UNAVAILABLE"
-            />
-          )}
-        </section>
-
-        <aside className="min-h-[520px] border-b border-line bg-[#090d13] lg:min-h-0">
-          <OrderTicket bid={snapshot?.bid} ask={snapshot?.ask} symbol={symbol} />
-        </aside>
-
-        <section className="border-b border-line bg-[#080c12] lg:col-span-2 lg:border-b-0 lg:border-r">
-          <div className="flex h-9 items-center gap-6 border-b border-line px-4 text-[10px]">
-            <span className="h-full border-b border-cyan-300 pt-3 text-cyan-300">
-              Market intelligence
-            </span>
-            <span className="pt-0.5 text-slate-600">Positions</span>
-            <span className="pt-0.5 text-slate-600">Orders</span>
-            <span className="pt-0.5 text-slate-600">Fills</span>
-            <span className="pt-0.5 text-slate-600">Funding</span>
-          </div>
-          {intelligence ? (
-            <div className="grid h-[140px] grid-cols-[180px_repeat(4,minmax(120px,1fr))] overflow-x-auto">
-              <div className="border-r border-line p-4">
-                <p className="data-label">Composite score</p>
-                <p
-                  className={`data-value mt-2 text-3xl ${intelligence.score >= 0 ? "text-emerald-300" : "text-rose-300"}`}
-                >
-                  {intelligence.score.toFixed(1)}
-                </p>
-                <p className="mt-2 font-mono text-[9px] uppercase text-slate-600">
-                  {intelligence.regime.replace("_", " ")} ·{" "}
-                  {(intelligence.confidence * 100).toFixed(0)}% confidence
+        <section className="mb-4 rounded-lg border border-line bg-panel px-5 py-4">
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
+            <div className="flex min-w-44 items-center gap-3 border-r border-line pr-8">
+              <div className="grid size-11 shrink-0 place-items-center rounded-lg bg-[#273943] font-mono text-lg font-semibold text-[#f4d8b8]">
+                {market?.instrument.baseAsset.slice(0, 1) ?? symbol.slice(0, 1)}
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-50">
+                  {market?.instrument.displaySymbol ?? symbol}
+                </h2>
+                <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+                  {market?.instrument.venue ?? "Venue unavailable"} · Spot
                 </p>
               </div>
-              {intelligence.signals.map((signal) => (
-                <div key={signal.id} className="border-r border-line p-4">
-                  <p className="data-label">{signal.label}</p>
-                  <div className="mt-3 flex items-end justify-between">
-                    <span className="data-value text-lg text-slate-200">
-                      {signal.value.toFixed(2)}
-                    </span>
-                    <span
-                      className={
-                        signal.direction === "bullish"
-                          ? "text-emerald-300"
-                          : signal.direction === "bearish"
-                            ? "text-rose-300"
-                            : "text-slate-500"
-                      }
-                    >
-                      {signal.direction}
-                    </span>
-                  </div>
-                  <div className="mt-3 h-1 bg-slate-800">
-                    <div
-                      className={`h-full ${signal.score >= 0 ? "bg-emerald-400" : "bg-rose-400"}`}
-                      style={{ width: `${Math.min(Math.abs(signal.score), 100)}%` }}
-                    />
-                  </div>
+            </div>
+            <div className="min-w-36">
+              <p className="data-label">Last traded</p>
+              <div className="mt-1 flex items-center gap-3">
+                <span className="font-mono text-[24px] font-medium tracking-[-0.04em] text-slate-50">
+                  {formatMoney(snapshot?.last)}
+                </span>
+                <DeltaBadge value={snapshot?.change24hPct} />
+              </div>
+            </div>
+            <MarketMetric label="Best bid" value={formatMoney(snapshot?.bid)} />
+            <MarketMetric label="Best ask" value={formatMoney(snapshot?.ask)} />
+            <MarketMetric label="24h quote volume" value={formatCompact(snapshot?.volume24h)} />
+            <div className="ml-auto">
+              {snapshot ? (
+                <div className="text-right">
+                  <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300">
+                    <span className="size-1.5 rounded-full bg-emerald-300" /> Live market data
+                  </span>
+                  <p className="mt-1 font-mono text-[10px] text-slate-500">
+                    {snapshot.quality.source} ·{" "}
+                    {new Date(snapshot.quality.receivedAt).toLocaleTimeString()}
+                  </p>
                 </div>
-              ))}
+              ) : (
+                <span className="text-xs text-rose-300">Provider unavailable</span>
+              )}
             </div>
-          ) : (
-            <div className="grid h-[140px] place-items-center text-[10px] text-slate-700">
-              Intelligence waits for verified candles.
-            </div>
-          )}
+          </div>
         </section>
 
-        <section className="bg-[#080c12]">
-          <div className="flex h-9 items-center justify-between border-b border-line px-3">
-            <span className="flex items-center gap-2 text-[10px] font-semibold text-slate-300">
-              <Gauge size={12} /> Execution status
-            </span>
-            <span className="font-mono text-[8px] text-amber-300">PAPER</span>
-          </div>
-          <div className="grid grid-cols-2 gap-px bg-line">
-            <StatusCell label="OMS" value="Ready" />
-            <StatusCell label="Risk" value="Fail closed" />
-            <StatusCell label="Portfolio" value="Not connected" muted />
-            <StatusCell label="Venue routing" value="Disabled" muted />
-          </div>
-        </section>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_270px_300px]">
+          <section className="flex min-h-[570px] flex-col overflow-hidden rounded-lg border border-line bg-panel">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+              <div className="flex items-center gap-2">
+                <CandlestickChart size={16} className="text-cyan-300" />
+                <h3 className="text-sm font-semibold text-slate-100">Price chart</h3>
+                <span className="ml-1 font-mono text-[10px] text-slate-500">
+                  {symbol} · {interval}
+                </span>
+              </div>
+              <div className="flex items-center rounded-md bg-[#0f1a22] p-1">
+                {intervals.map((value) => (
+                  <Link
+                    key={value}
+                    href={`/terminal?symbol=${symbol}&interval=${value}`}
+                    className={`grid h-7 min-w-8 place-items-center rounded px-1.5 font-mono text-[10px] ${interval === value ? "bg-[#34464d] text-slate-50" : "text-slate-400 hover:text-slate-100"}`}
+                  >
+                    {value}
+                  </Link>
+                ))}
+              </div>
+            </div>
+            {candles.length > 0 ? (
+              <div className="min-h-[510px] flex-1 p-2">
+                <MarketChart candles={candles} />
+              </div>
+            ) : (
+              <DataUnavailable
+                title="Chart unavailable"
+                detail="The public venue has not returned verified candles."
+              />
+            )}
+          </section>
+
+          <section className="min-h-[570px] overflow-hidden rounded-lg border border-line bg-panel">
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                <BookOpen size={15} className="text-cyan-300" /> Order book
+              </h3>
+              <span className="font-mono text-[10px] text-slate-500">L2 · 20 levels</span>
+            </div>
+            {depth ? (
+              <OrderBookPanel book={depth} />
+            ) : (
+              <DataUnavailable
+                title="Depth unavailable"
+                detail="The venue has not returned order-book depth."
+              />
+            )}
+          </section>
+
+          <aside className="min-h-[570px] overflow-hidden rounded-lg border border-line bg-panel">
+            <OrderTicket bid={snapshot?.bid} ask={snapshot?.ask} symbol={symbol} />
+          </aside>
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <TerminalDetails intelligence={intelligence} />
+          <section className="rounded-lg border border-line bg-panel p-5">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+              <ShieldCheck size={16} className="text-cyan-300" /> Execution controls
+            </div>
+            <p className="mt-4 text-xs leading-5 text-slate-400">
+              Orders require a reconciled portfolio, mandate limits, and a fresh venue quote.
+            </p>
+            <Link
+              href="/risk"
+              className="mt-5 inline-flex items-center gap-1 text-xs font-medium text-cyan-300 hover:text-cyan-200"
+            >
+              Review risk controls <ArrowUpRight size={14} />
+            </Link>
+          </section>
+        </div>
       </div>
     </div>
   );
 }
 
-function OrderBookPanel({
-  bids,
-  asks,
-}: {
-  bids: Array<{ price: string; quantity: string }>;
-  asks: Array<{ price: string; quantity: string }>;
-}) {
-  const visibleAsks = [...asks].slice(0, 9).reverse();
-  const visibleBids = bids.slice(0, 9);
-  const max = Math.max(
-    ...[...visibleAsks, ...visibleBids].map((level) => Number(level.quantity)),
-    1,
-  );
+function MarketMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="font-mono text-[10px]">
-      <div className="grid grid-cols-3 border-b border-line px-3 py-2 text-slate-700">
-        <span>Price</span>
+    <div>
+      <p className="data-label">{label}</p>
+      <p className="mt-1 font-mono text-sm text-slate-200">{value}</p>
+    </div>
+  );
+}
+
+function DataUnavailable({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="grid min-h-[440px] place-items-center p-6 text-center">
+      <div>
+        <p className="text-sm font-medium text-slate-200">{title}</p>
+        <p className="mt-2 text-xs text-slate-400">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
+function OrderBookPanel({ book }: { book: OrderBook }) {
+  const asks = book.asks.slice(0, 10).reverse();
+  const bids = book.bids.slice(0, 10);
+  const max = Math.max(1, ...[...asks, ...bids].map((level) => Number(level.quantity)));
+  return (
+    <div className="font-mono text-[11px]">
+      <div className="grid grid-cols-2 border-b border-line px-4 py-2 text-[10px] text-slate-500">
+        <span>Price (USDT)</span>
         <span className="text-right">Size</span>
-        <span className="text-right">Total</span>
       </div>
-      {visibleAsks.map((level, index) => (
-        <DepthRow
-          key={`a-${level.price}`}
-          level={level}
-          max={max}
-          side="ask"
-          total={visibleAsks
-            .slice(0, index + 1)
-            .reduce((sum, item) => sum + Number(item.quantity), 0)}
-        />
+      {asks.map((level) => (
+        <DepthRow key={`ask-${level.price}`} level={level} max={max} side="ask" />
       ))}
-      <div className="flex h-8 items-center justify-center border-y border-line bg-slate-900/50 text-[9px] text-slate-500">
-        Spread
+      <div className="flex items-center justify-between border-y border-line bg-[#1b2b34] px-4 py-2 text-xs">
+        <span className="text-slate-500">Spread</span>
+        <span className="text-slate-200">
+          {(Number(book.asks[0]?.price ?? 0) - Number(book.bids[0]?.price ?? 0)).toFixed(2)}
+        </span>
       </div>
-      {visibleBids.map((level, index) => (
-        <DepthRow
-          key={`b-${level.price}`}
-          level={level}
-          max={max}
-          side="bid"
-          total={visibleBids
-            .slice(0, index + 1)
-            .reduce((sum, item) => sum + Number(item.quantity), 0)}
-        />
+      {bids.map((level) => (
+        <DepthRow key={`bid-${level.price}`} level={level} max={max} side="bid" />
       ))}
+      <p className="border-t border-line px-4 py-3 text-[10px] text-slate-500">
+        {book.quality.source} · {new Date(book.quality.receivedAt).toLocaleTimeString()}
+      </p>
     </div>
   );
 }
@@ -312,54 +274,29 @@ function DepthRow({
   level,
   max,
   side,
-  total,
-}: {
-  level: { price: string; quantity: string };
-  max: number;
-  side: "bid" | "ask";
-  total: number;
-}) {
+}: { level: { price: string; quantity: string }; max: number; side: "bid" | "ask" }) {
   return (
-    <div className="relative grid h-6 grid-cols-3 items-center px-3">
+    <div className="relative grid h-7 grid-cols-2 items-center px-4">
       <span className={`relative z-10 ${side === "bid" ? "text-emerald-300" : "text-rose-300"}`}>
         {Number(level.price).toLocaleString(undefined, { maximumFractionDigits: 4 })}
       </span>
-      <span className="relative z-10 text-right text-slate-400">
+      <span className="relative z-10 text-right text-slate-300">
         {Number(level.quantity).toFixed(4)}
       </span>
-      <span className="relative z-10 text-right text-slate-600">{total.toFixed(3)}</span>
       <span
-        className={`absolute inset-y-0 right-0 ${side === "bid" ? "bg-emerald-400/[0.09]" : "bg-rose-400/[0.09]"}`}
+        className={`absolute inset-y-0 right-0 ${side === "bid" ? "bg-emerald-400/[0.08]" : "bg-rose-400/[0.08]"}`}
         style={{ width: `${(Number(level.quantity) / max) * 100}%` }}
       />
     </div>
   );
 }
 
-function Metric({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
-  return (
-    <div className="hidden border-l border-line pl-5 sm:block">
-      <p className="data-label">{label}</p>
-      <p
-        className={`data-value mt-1 text-[11px] ${tone === "up" ? "text-emerald-300" : tone === "down" ? "text-rose-300" : "text-slate-300"}`}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-function StatusCell({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
-  return (
-    <div className="bg-[#090d13] p-3">
-      <p className="data-label">{label}</p>
-      <p className={`mt-2 text-[10px] ${muted ? "text-slate-600" : "text-emerald-300"}`}>{value}</p>
-    </div>
-  );
-}
 function formatCompact(value?: string | null) {
+  if (!value) return "—";
   const number = Number(value);
-  if (!Number.isFinite(number)) return "—";
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(
-    number,
-  );
+  return Number.isFinite(number)
+    ? new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(
+        number,
+      )
+    : "—";
 }

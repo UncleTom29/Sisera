@@ -18,6 +18,7 @@
     "@sisera/domain": "workspace:*",
     "@sisera/market-data": "workspace:*",
     "@sisera/oms": "workspace:*",
+    "@sisera/quant": "workspace:*",
     "@sisera/risk": "workspace:*",
     "fastify": "^5.2.1",
     "jose": "^6.0.8",

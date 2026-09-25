@@ -41,6 +41,9 @@ importers:
       '@sisera/oms':
         specifier: workspace:*
         version: link:../../packages/oms
+      '@sisera/quant':
+        specifier: workspace:*
+        version: link:../../packages/quant
       '@sisera/risk':
         specifier: workspace:*
         version: link:../../packages/risk
@@ -193,6 +196,29 @@ importers:
         version: 3.2.7(@types/node@22.20.4)(jiti@1.21.7)(tsx@4.23.15)
 
   packages/oms:
+    dependencies:
+      '@sisera/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      vitest:
+        specifier: ^3.0.8
+        version: 3.2.7(@types/node@22.20.4)(jiti@1.21.7)(tsx@4.23.15)
+
+  packages/portfolio:
+    dependencies:
+      '@sisera/domain':
+        specifier: workspace:*
+        version: link:../domain
+      decimal.js:
+        specifier: ^10.5.0
+        version: 10.6.0
+    devDependencies:
+      vitest:
+        specifier: ^3.0.8
+        version: 3.2.7(@types/node@22.20.4)(jiti@1.21.7)(tsx@4.23.15)
+
+  packages/quant:
     dependencies:
       '@sisera/domain':
         specifier: workspace:*

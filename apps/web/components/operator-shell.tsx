@@ -1,33 +1,62 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Button, cn } from "@sisera/ui";
+import { cn } from "@sisera/ui";
 import { Command } from "cmdk";
 import {
-  Activity,
+  Bell,
   Bot,
   BriefcaseBusiness,
-  ChartCandlestick,
-  CommandIcon,
-  Gauge,
-  LayoutDashboard,
-  LogOut,
+  CandlestickChart,
+  ChevronLeft,
+  ChevronRight,
+  CircleUserRound,
+  Globe2,
+  ListFilter,
   Menu,
+  Network,
+  RadioTower,
   Search,
-  Shield,
+  Settings,
+  ShieldCheck,
+  Sparkles,
   Target,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 const navigation = [
-  { href: "/terminal", label: "Terminal", short: "TR", icon: ChartCandlestick },
-  { href: "/portfolio", label: "Portfolio", short: "PF", icon: BriefcaseBusiness },
-  { href: "/risk", label: "Risk", short: "RK", icon: Shield },
-  { href: "/predictions", label: "Predictions", short: "PM", icon: Target },
-  { href: "/agents", label: "Agents", short: "AG", icon: Bot },
+  {
+    label: "Workspace",
+    items: [
+      { href: "/terminal", label: "Trading terminal", hint: "⌥1", icon: CandlestickChart },
+      { href: "/markets", label: "Market screener", hint: "⌥2", icon: ListFilter },
+      { href: "/intelligence", label: "Intelligence", hint: "⌥3", icon: Sparkles },
+      { href: "/macro", label: "Macro & chains", hint: "⌥4", icon: Globe2 },
+    ],
+  },
+  {
+    label: "Portfolio",
+    items: [
+      { href: "/portfolio", label: "Portfolio", hint: "", icon: BriefcaseBusiness },
+      { href: "/risk", label: "Risk command", hint: "", icon: ShieldCheck },
+      { href: "/predictions", label: "Prediction markets", hint: "", icon: Target },
+    ],
+  },
+  {
+    label: "Automation",
+    items: [
+      { href: "/agents", label: "Agent operations", hint: "", icon: Bot },
+      { href: "/audit", label: "Decision ledger", hint: "", icon: Network },
+    ],
+  },
+];
+
+const utilityNavigation = [
+  { href: "/alerts", label: "Alerts", icon: Bell },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function OperatorShell({
@@ -39,6 +68,11 @@ export function OperatorShell({
   const router = useRouter();
   const [commandsOpen, setCommandsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const allCommands = useMemo(
+    () => [...navigation.flatMap((group) => group.items), ...utilityNavigation],
+    [],
+  );
 
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
@@ -56,10 +90,108 @@ export function OperatorShell({
     setMobileOpen(false);
     router.push(href);
   };
+  const sidebarWidth = collapsed ? "lg:ml-[68px]" : "lg:ml-[236px]";
 
   return (
     <div className="min-h-screen bg-ink text-slate-100 lg:h-screen lg:overflow-hidden">
-      <header className="fixed inset-x-0 top-0 z-40 flex h-12 items-center border-b border-line bg-[#070b10] lg:left-16">
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 hidden border-r border-line bg-[#070b10] transition-[width] duration-200 lg:flex lg:flex-col",
+          collapsed ? "w-[68px]" : "w-[236px]",
+        )}
+      >
+        <div className="flex h-14 items-center border-b border-line px-4">
+          <Link
+            href="/terminal"
+            className="flex min-w-0 items-center gap-3"
+            aria-label="Sisera terminal"
+          >
+            <SiseraMark />
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold tracking-[0.2em] text-slate-100">SISERA</p>
+                <p className="mt-0.5 font-mono text-[8px] uppercase tracking-[0.16em] text-slate-600">
+                  Operator console
+                </p>
+              </div>
+            )}
+          </Link>
+        </div>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden py-3">
+          {navigation.map((group) => (
+            <div key={group.label} className="mb-5 px-2">
+              {!collapsed && (
+                <p className="mb-1 px-2 font-mono text-[8px] uppercase tracking-[0.18em] text-slate-700">
+                  {group.label}
+                </p>
+              )}
+              <nav className="space-y-0.5">
+                {group.items.map((item) => {
+                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      title={collapsed ? item.label : undefined}
+                      className={cn(
+                        "group flex h-9 items-center gap-3 border border-transparent px-2 text-[12px] text-slate-500 transition-colors hover:bg-slate-900/70 hover:text-slate-200",
+                        active && "border-cyan-400/10 bg-cyan-400/[0.08] text-cyan-200",
+                        collapsed && "justify-center",
+                      )}
+                    >
+                      <item.icon size={15} strokeWidth={1.7} className="shrink-0" />
+                      {!collapsed && (
+                        <>
+                          <span className="truncate">{item.label}</span>
+                          {item.hint && (
+                            <span className="ml-auto font-mono text-[8px] text-slate-700">
+                              {item.hint}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-line p-2">
+          {utilityNavigation.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              title={collapsed ? item.label : undefined}
+              className={cn(
+                "flex h-9 items-center gap-3 px-2 text-[12px] text-slate-600 hover:bg-slate-900 hover:text-slate-200",
+                collapsed && "justify-center",
+              )}
+            >
+              <item.icon size={15} />
+              {!collapsed && item.label}
+            </Link>
+          ))}
+          <button
+            type="button"
+            onClick={() => setCollapsed((value) => !value)}
+            className={cn(
+              "mt-1 flex h-9 w-full items-center gap-3 border-t border-line px-2 pt-1 text-[11px] text-slate-700 hover:text-slate-300",
+              collapsed && "justify-center",
+            )}
+          >
+            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+            {!collapsed && <span>Collapse navigation</span>}
+          </button>
+        </div>
+      </aside>
+
+      <header
+        className={cn(
+          "fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b border-line bg-[#070b10]/95 backdrop-blur transition-[left] duration-200",
+          sidebarWidth,
+        )}
+      >
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
@@ -68,152 +200,179 @@ export function OperatorShell({
         >
           <Menu size={17} />
         </button>
-        <div className="flex min-w-0 flex-1 items-center justify-between px-3 lg:px-4">
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 lg:px-4">
           <div className="flex min-w-0 items-center gap-3">
-            <Activity size={14} className="text-cyan-300" />
-            <span className="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">
-              Institutional workspace
-            </span>
+            <div className="hidden items-center gap-2 sm:flex">
+              <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.65)]" />
+              <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-slate-500">
+                Systems nominal
+              </span>
+            </div>
             <span className="hidden h-4 w-px bg-line sm:block" />
-            <span className="hidden font-mono text-[10px] text-slate-600 sm:block">
-              GLOBAL / PAPER
+            <span className="truncate font-mono text-[9px] uppercase tracking-[0.14em] text-slate-600">
+              Global · Paper execution
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setCommandsOpen(true)}
-              className="hidden h-7 items-center gap-6 border border-line bg-panel px-2 text-[11px] text-slate-500 hover:border-slate-600 sm:flex"
+              className="flex h-8 min-w-8 items-center gap-2 border border-line bg-panel px-2 text-[11px] text-slate-500 hover:border-slate-600 sm:min-w-52"
             >
-              <span className="flex items-center gap-2">
-                <Search size={12} /> Search or jump
+              <Search size={13} />
+              <span className="hidden sm:inline">Search markets and workspaces</span>
+              <span className="ml-auto hidden font-mono text-[9px] text-slate-700 sm:inline">
+                ⌘K
               </span>
-              <span className="font-mono">⌘K</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCommandsOpen(true)}
+              className="hidden h-8 items-center gap-2 border border-line bg-panel px-3 text-[11px] text-slate-300 hover:border-cyan-500/40 md:flex"
+            >
+              <Sparkles size={13} className="text-cyan-300" /> Ask Sisera
             </button>
             <span
               className={cn(
-                "hidden h-6 items-center border px-2 font-mono text-[9px] uppercase tracking-wider sm:inline-flex",
+                "hidden h-8 items-center gap-2 border px-3 font-mono text-[9px] uppercase tracking-wider xl:inline-flex",
                 localMode
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
                   : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
               )}
             >
-              {localMode ? "Local mode" : "SSO verified"}
+              <RadioTower size={12} /> {localMode ? "Local operator" : "SSO verified"}
             </span>
-            <span className="grid size-7 place-items-center border border-line bg-slate-900 font-mono text-[10px] text-slate-300">
-              {operator.slice(0, 2).toUpperCase()}
-            </span>
+            <button
+              type="button"
+              className="grid size-8 place-items-center border border-line bg-slate-900 text-slate-400 hover:text-white"
+              aria-label="Operator profile"
+              title={operator}
+            >
+              <CircleUserRound size={15} />
+            </button>
           </div>
         </div>
       </header>
 
-      <aside className="fixed inset-y-0 left-0 z-50 hidden w-16 border-r border-line bg-[#070b10] lg:flex lg:flex-col">
-        <Link href="/terminal" className="grid h-12 place-items-center border-b border-line">
-          <span className="grid size-7 place-items-center border border-cyan-300/60 bg-cyan-300/10 font-mono text-[10px] font-bold text-cyan-200">
-            S
-          </span>
-        </Link>
-        <nav className="flex flex-1 flex-col gap-1 p-2">
-          {navigation.map((item) => {
-            const active = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={item.label}
-                className={cn(
-                  "group grid h-11 place-items-center border border-transparent text-slate-600 transition-colors hover:border-line hover:bg-panel hover:text-slate-200",
-                  active && "border-line-strong bg-slate-800/70 text-cyan-300",
-                )}
-              >
-                <item.icon size={17} strokeWidth={1.6} />
-                <span className="sr-only">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="border-t border-line p-2">
-          <Link
-            href="/"
-            title="Exit workspace"
-            className="grid h-11 place-items-center text-slate-600 hover:text-slate-200"
-          >
-            <LogOut size={16} />
-          </Link>
-        </div>
-      </aside>
-
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 lg:hidden">
-          <div className="h-full w-72 border-r border-line bg-[#070b10] p-4">
-            <div className="mb-8 flex items-center justify-between">
-              <span className="font-semibold tracking-[.2em]">SISERA</span>
-              <button type="button" onClick={() => setMobileOpen(false)}>
+        <div className="fixed inset-0 z-[90] bg-black/75 lg:hidden">
+          <div className="h-full w-72 border-r border-line bg-[#070b10] p-4 shadow-2xl">
+            <div className="mb-7 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <SiseraMark />
+                <span className="font-semibold tracking-[.2em]">SISERA</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close navigation"
+              >
                 <X size={18} />
               </button>
             </div>
-            {navigation.map((item) => (
+            {allCommands.map((item) => (
               <button
                 key={item.href}
                 type="button"
                 onClick={() => navigate(item.href)}
                 className="flex h-11 w-full items-center gap-3 border-b border-line text-sm text-slate-300"
               >
-                <item.icon size={16} />
-                {item.label}
+                <item.icon size={16} /> {item.label}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      <main className="min-h-screen pt-12 lg:ml-16 lg:h-screen lg:min-h-0 lg:overflow-auto">
+      <main
+        className={cn(
+          "min-h-screen pt-14 transition-[margin] duration-200 lg:h-screen lg:min-h-0 lg:overflow-auto",
+          sidebarWidth,
+        )}
+      >
         {children}
       </main>
 
       <Dialog.Root open={commandsOpen} onOpenChange={setCommandsOpen}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm" />
-          <Dialog.Content className="fixed left-1/2 top-[18%] z-[80] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 border border-line-strong bg-[#0a0f16] shadow-2xl">
-            <Dialog.Title className="sr-only">Command menu</Dialog.Title>
+          <Dialog.Overlay className="fixed inset-0 z-[100] bg-[#020407]/80 backdrop-blur-sm" />
+          <Dialog.Content className="fixed left-1/2 top-[13%] z-[110] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 overflow-hidden border border-line-strong bg-[#0a1017] shadow-2xl shadow-black/60">
+            <Dialog.Title className="sr-only">Global command menu</Dialog.Title>
             <Command className="w-full">
               <div className="flex items-center gap-3 border-b border-line px-4">
-                <Search size={15} className="text-slate-500" />
+                <Search size={16} className="text-cyan-300" />
                 <Command.Input
                   autoFocus
-                  placeholder="Go to a workspace…"
-                  className="h-12 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-600"
+                  placeholder="Search markets, actions, or workspaces…"
+                  className="h-14 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-600"
                 />
-                <CommandIcon size={13} className="text-slate-700" />
+                <span className="border border-line px-1.5 py-1 font-mono text-[9px] text-slate-600">
+                  ESC
+                </span>
               </div>
-              <Command.List className="max-h-80 overflow-auto p-2">
-                <Command.Empty className="p-6 text-center text-xs text-slate-500">
-                  No command found.
+              <Command.List className="max-h-[430px] overflow-auto p-2">
+                <Command.Empty className="p-10 text-center text-xs text-slate-500">
+                  No result found.
                 </Command.Empty>
                 <Command.Group
-                  heading="Workspaces"
-                  className="text-[10px] uppercase tracking-widest text-slate-600"
+                  heading="Navigate"
+                  className="text-[9px] uppercase tracking-widest text-slate-600"
                 >
-                  {navigation.map((item) => (
+                  {allCommands.map((item) => (
                     <Command.Item
                       key={item.href}
                       value={item.label}
                       onSelect={() => navigate(item.href)}
                       className="mt-1 flex cursor-pointer items-center gap-3 px-3 py-3 text-sm normal-case tracking-normal text-slate-300 data-[selected=true]:bg-slate-800 data-[selected=true]:text-white"
                     >
-                      <item.icon size={15} />
-                      {item.label}
+                      <item.icon size={15} /> {item.label}
                       <span className="ml-auto font-mono text-[9px] text-slate-600">
-                        {item.short}
+                        {item.href}
+                      </span>
+                    </Command.Item>
+                  ))}
+                </Command.Group>
+                <Command.Separator className="my-2 h-px bg-line" />
+                <Command.Group
+                  heading="Copilot"
+                  className="text-[9px] uppercase tracking-widest text-slate-600"
+                >
+                  {[
+                    "Explain current BTC regime",
+                    "Review portfolio risk",
+                    "Draft a paper order",
+                  ].map((item) => (
+                    <Command.Item
+                      key={item}
+                      className="mt-1 flex cursor-pointer items-center gap-3 px-3 py-3 text-sm normal-case tracking-normal text-slate-400 data-[selected=true]:bg-slate-800 data-[selected=true]:text-white"
+                    >
+                      <Sparkles size={14} className="text-cyan-300" /> {item}
+                      <span className="ml-auto font-mono text-[9px] text-slate-700">
+                        Intent only
                       </span>
                     </Command.Item>
                   ))}
                 </Command.Group>
               </Command.List>
+              <div className="flex items-center justify-between border-t border-line px-4 py-2 font-mono text-[9px] uppercase tracking-wider text-slate-700">
+                <span>↑↓ Navigate · ↵ Open</span>
+                <span>Execution requires confirmation</span>
+              </div>
             </Command>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
     </div>
+  );
+}
+
+export function SiseraMark({ className }: { className?: string }) {
+  return (
+    <span className={cn("relative grid size-7 shrink-0 place-items-center", className)}>
+      <span className="absolute h-6 w-2 rotate-[30deg] rounded-full border border-cyan-300/80" />
+      <span className="absolute h-6 w-2 rotate-[90deg] rounded-full border border-cyan-300/80" />
+      <span className="absolute h-6 w-2 rotate-[150deg] rounded-full border border-cyan-300/80" />
+      <span className="size-1.5 rounded-full bg-cyan-200 shadow-[0_0_8px_rgba(103,232,249,.7)]" />
+    </span>
   );
 }

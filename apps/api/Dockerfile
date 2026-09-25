@@ -10,6 +10,7 @@ COPY packages/risk/package.json packages/risk/package.json
 COPY packages/oms/package.json packages/oms/package.json
 COPY packages/copilot/package.json packages/copilot/package.json
 COPY packages/market-data/package.json packages/market-data/package.json
+COPY packages/quant/package.json packages/quant/package.json
 RUN pnpm install --frozen-lockfile
 COPY apps/api apps/api
 COPY packages/domain packages/domain
@@ -17,6 +18,7 @@ COPY packages/risk packages/risk
 COPY packages/oms packages/oms
 COPY packages/copilot packages/copilot
 COPY packages/market-data packages/market-data
+COPY packages/quant packages/quant
 RUN pnpm --filter @sisera/api... build
 
 FROM node:22-alpine AS runtime

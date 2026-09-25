@@ -1,4 +1,4 @@
-import type { Instrument, MarketSnapshot } from "@sisera/domain";
+import type { Candle, Instrument, MarketSnapshot, OrderBook } from "@sisera/domain";
 import { describe, expect, it } from "vitest";
 import { buildApi } from "../src/app.js";
 import { readConfig } from "../src/config.js";
@@ -52,6 +52,63 @@ describe("control plane API", () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json().snapshot.quality.source).toBe("test-provider");
+    await app.close();
+  });
+
+  it("serves live candles, depth, and deterministic intelligence", async () => {
+    const now = new Date().toISOString();
+    const snapshot: MarketSnapshot = {
+      instrumentId: instrument.id,
+      bid: "100",
+      ask: "101",
+      last: "100.5",
+      quality: { status: "live", source: "test", observedAt: now, receivedAt: now, latencyMs: 1 },
+    };
+    const candles: Candle[] = Array.from({ length: 60 }, (_, index) => ({
+      time: 1_700_000_000 + index * 60,
+      open: String(100 + index),
+      high: String(102 + index),
+      low: String(99 + index),
+      close: String(101 + index),
+      volume: String(1000 + index),
+    }));
+    const depth: OrderBook = {
+      instrumentId: instrument.id,
+      sequence: "1",
+      bids: [{ price: "100", quantity: "2" }],
+      asks: [{ price: "101", quantity: "3" }],
+      quality: { status: "live", source: "test", observedAt: now, receivedAt: now, latencyMs: 1 },
+    };
+    const app = await buildApi(
+      readConfig({ NODE_ENV: "test", LOG_LEVEL: "silent", SISERA_ALLOW_DEV_AUTH: "true" }),
+      {
+        marketData: {
+          getInstrument: async () => instrument,
+          getSnapshot: async () => snapshot,
+          getCandles: async () => candles,
+          getOrderBook: async () => depth,
+        },
+      },
+    );
+    const headers = { "x-sisera-dev-role": "viewer" };
+    const candleResponse = await app.inject({
+      method: "GET",
+      url: "/v1/markets/BTCUSDT/candles",
+      headers,
+    });
+    const depthResponse = await app.inject({
+      method: "GET",
+      url: "/v1/markets/BTCUSDT/depth",
+      headers,
+    });
+    const intelligenceResponse = await app.inject({
+      method: "GET",
+      url: "/v1/markets/BTCUSDT/intelligence",
+      headers,
+    });
+    expect(candleResponse.statusCode).toBe(200);
+    expect(depthResponse.json().data.sequence).toBe("1");
+    expect(intelligenceResponse.json().data.direction).toBe("long");
     await app.close();
   });
 });

@@ -1,4 +1,10 @@
-import type { Instrument, MarketSnapshot, PredictionMarket } from "@sisera/domain";
+import type {
+  Candle,
+  Instrument,
+  MarketSnapshot,
+  OrderBook,
+  PredictionMarket,
+} from "@sisera/domain";
 import { z } from "zod";
 
 export class MarketDataUnavailableError extends Error {
@@ -33,6 +39,12 @@ const BinanceExchangeInfo = z.object({
       filters: z.array(z.record(z.unknown())),
     }),
   ),
+});
+const BinanceKlines = z.array(z.array(z.union([z.string(), z.number()])).min(6));
+const BinanceDepth = z.object({
+  lastUpdateId: z.number(),
+  bids: z.array(z.tuple([z.string(), z.string()])),
+  asks: z.array(z.tuple([z.string(), z.string()])),
 });
 
 export class BinanceSpotProvider implements MarketDataProvider {
@@ -92,6 +104,51 @@ export class BinanceSpotProvider implements MarketDataProvider {
         observedAt: receivedAt.toISOString(),
         receivedAt: receivedAt.toISOString(),
         latencyMs: receivedAt.getTime() - startedAt,
+      },
+    };
+  }
+
+  async getCandles(symbol: string, interval = "15m", limit = 240): Promise<Candle[]> {
+    const normalized = normalizeSymbol(symbol);
+    if (!/^(1m|3m|5m|15m|30m|1h|2h|4h|6h|8h|12h|1d|3d|1w)$/.test(interval)) {
+      throw new Error("Invalid candle interval");
+    }
+    const payload = BinanceKlines.parse(
+      await this.request(
+        `/api/v3/klines?symbol=${encodeURIComponent(normalized)}&interval=${interval}&limit=${Math.min(Math.max(limit, 10), 1000)}`,
+      ),
+    );
+    return payload.map((row) => ({
+      time: Math.floor(Number(row[0]) / 1000),
+      open: String(row[1]),
+      high: String(row[2]),
+      low: String(row[3]),
+      close: String(row[4]),
+      volume: String(row[5]),
+    }));
+  }
+
+  async getOrderBook(symbol: string, limit = 20): Promise<OrderBook> {
+    const normalized = normalizeSymbol(symbol);
+    const startedAt = Date.now();
+    const depth = BinanceDepth.parse(
+      await this.request(
+        `/api/v3/depth?symbol=${encodeURIComponent(normalized)}&limit=${normalizeDepth(limit)}`,
+      ),
+    );
+    const receivedAt = new Date();
+    return {
+      instrumentId: `binance:${normalized}:spot`,
+      sequence: String(depth.lastUpdateId),
+      bids: depth.bids.map(([price, quantity]) => ({ price, quantity })),
+      asks: depth.asks.map(([price, quantity]) => ({ price, quantity })),
+      quality: {
+        status: "live",
+        source: this.id,
+        observedAt: receivedAt.toISOString(),
+        receivedAt: receivedAt.toISOString(),
+        latencyMs: receivedAt.getTime() - startedAt,
+        sequence: String(depth.lastUpdateId),
       },
     };
   }
@@ -183,6 +240,11 @@ function normalizeSymbol(symbol: string): string {
   const normalized = symbol.replaceAll(/[\s/_-]/g, "").toUpperCase();
   if (!/^[A-Z0-9]{5,20}$/.test(normalized)) throw new Error("Invalid market symbol");
   return normalized;
+}
+
+function normalizeDepth(limit: number): number {
+  const permitted = [5, 10, 20, 50, 100, 500, 1000];
+  return permitted.find((candidate) => candidate >= limit) ?? 1000;
 }
 
 function readString(

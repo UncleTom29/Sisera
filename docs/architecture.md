@@ -1,5 +1,7 @@
 # Architecture
 
+See `docs/legacy-migration.md` for the capability-by-capability migration from the original Sisera engine.
+
 ## Boundaries
 
 Sisera is a modular monorepo with independently deployable applications and framework-neutral domain

@@ -61,9 +61,56 @@ export const MarketSnapshot = z.object({
 });
 export type MarketSnapshot = z.infer<typeof MarketSnapshot>;
 
+export const Candle = z.object({
+  time: z.number().int().positive(),
+  open: DecimalString,
+  high: DecimalString,
+  low: DecimalString,
+  close: DecimalString,
+  volume: DecimalString,
+});
+export type Candle = z.infer<typeof Candle>;
+
+export const OrderBookLevel = z.object({
+  price: DecimalString,
+  quantity: DecimalString,
+});
+export type OrderBookLevel = z.infer<typeof OrderBookLevel>;
+
+export const OrderBook = z.object({
+  instrumentId: z.string(),
+  sequence: z.string(),
+  bids: z.array(OrderBookLevel),
+  asks: z.array(OrderBookLevel),
+  quality: DataQuality,
+});
+export type OrderBook = z.infer<typeof OrderBook>;
+
 export const OrderSide = z.enum(["buy", "sell"]);
 export const OrderType = z.enum(["market", "limit", "stop_market", "stop_limit"]);
 export const TimeInForce = z.enum(["day", "gtc", "ioc", "fok"]);
+
+export const PortfolioPosition = z.object({
+  instrumentId: z.string(),
+  side: OrderSide,
+  quantity: DecimalString,
+  entryPrice: DecimalString,
+  markPrice: DecimalString,
+  contractMultiplier: DecimalString.default("1"),
+  marginUsed: DecimalString.default("0"),
+  betaMap: z.record(DecimalString).default({}),
+});
+export type PortfolioPosition = z.infer<typeof PortfolioPosition>;
+
+export const PortfolioSnapshot = z.object({
+  portfolioId: z.string(),
+  baseCurrency: z.string(),
+  cash: z.record(DecimalString),
+  positions: z.array(PortfolioPosition),
+  reconciledAt: z.string().datetime(),
+  source: z.string(),
+});
+export type PortfolioSnapshot = z.infer<typeof PortfolioSnapshot>;
 
 export const OrderIntent = z.object({
   clientOrderId: z.string().min(8),

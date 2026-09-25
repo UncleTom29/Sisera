@@ -27,4 +27,30 @@ describe("BinanceSpotProvider", () => {
       new BinanceSpotProvider("https://example.test", fetcher).getSnapshot("BTCUSDT"),
     ).rejects.toMatchObject({ code: "MARKET_DATA_UNAVAILABLE" });
   });
+
+  it("normalizes candles and order-book depth", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([[1_700_000_000_000, "10", "12", "9", "11", "42"]])),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ lastUpdateId: 12, bids: [["10", "2"]], asks: [["11", "3"]] }),
+        ),
+      );
+    const provider = new BinanceSpotProvider("https://example.test", fetcher);
+    const candles = await provider.getCandles("BTCUSDT", "1h", 30);
+    const depth = await provider.getOrderBook("BTCUSDT", 20);
+    expect(candles[0]).toEqual({
+      time: 1_700_000_000,
+      open: "10",
+      high: "12",
+      low: "9",
+      close: "11",
+      volume: "42",
+    });
+    expect(depth.sequence).toBe("12");
+    expect(depth.bids[0]).toEqual({ price: "10", quantity: "2" });
+  });
 });

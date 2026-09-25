@@ -3,13 +3,14 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { compileIntent } from "@sisera/copilot";
 import { OrderIntent, type PortfolioRiskState, type RiskLimits } from "@sisera/domain";
-import type { Instrument, MarketSnapshot } from "@sisera/domain";
+import type { Candle, Instrument, MarketSnapshot, OrderBook } from "@sisera/domain";
 import {
   BinanceSpotProvider,
   MarketDataUnavailableError,
   PolymarketProvider,
 } from "@sisera/market-data";
 import { applyOrderEvent, createOrderRecord } from "@sisera/oms";
+import { analyzeCandles } from "@sisera/quant";
 import { evaluatePreTradeRisk } from "@sisera/risk";
 import Fastify from "fastify";
 import { Counter, Histogram, Registry, collectDefaultMetrics } from "prom-client";
@@ -26,6 +27,8 @@ export type ApiDependencies = {
   marketData?: {
     getInstrument(symbol: string): Promise<Instrument>;
     getSnapshot(symbol: string): Promise<MarketSnapshot>;
+    getCandles?(symbol: string, interval?: string, limit?: number): Promise<Candle[]>;
+    getOrderBook?(symbol: string, limit?: number): Promise<OrderBook>;
   };
   predictions?: { listOpenMarkets(limit?: number): Promise<unknown[]> };
   loadRiskContext?: (portfolioId: string) => Promise<RiskContext | null>;
@@ -82,6 +85,37 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     reply.type(registry.contentType).send(await registry.metrics()),
   );
 
+  app.get("/v1/markets", { preHandler: requirePermission("market:read") }, async (request) => {
+    const { symbols } = z
+      .object({ symbols: z.string().default("BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT") })
+      .parse(request.query);
+    const requested = [
+      ...new Set(
+        symbols
+          .split(",")
+          .map((symbol) => symbol.trim())
+          .filter(Boolean),
+      ),
+    ].slice(0, 20);
+    const results = await Promise.allSettled(
+      requested.map(async (symbol) => {
+        const [instrument, snapshot] = await Promise.all([
+          marketData.getInstrument(symbol),
+          marketData.getSnapshot(symbol),
+        ]);
+        return { instrument, snapshot };
+      }),
+    );
+    return {
+      data: results.flatMap((result) => (result.status === "fulfilled" ? [result.value] : [])),
+      unavailable: results.flatMap((result, index) =>
+        result.status === "rejected"
+          ? [{ symbol: requested[index], reason: "provider_unavailable" }]
+          : [],
+      ),
+    };
+  });
+
   app.get(
     "/v1/markets/:symbol",
     { preHandler: requirePermission("market:read") },
@@ -92,6 +126,49 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         marketData.getSnapshot(symbol),
       ]);
       return { instrument, snapshot };
+    },
+  );
+
+  app.get(
+    "/v1/markets/:symbol/candles",
+    { preHandler: requirePermission("market:read") },
+    async (request) => {
+      if (!marketData.getCandles)
+        throw new MarketDataUnavailableError("Candle adapter unavailable");
+      const { symbol } = z.object({ symbol: z.string().min(5).max(20) }).parse(request.params);
+      const { interval, limit } = z
+        .object({
+          interval: z.string().default("15m"),
+          limit: z.coerce.number().int().min(30).max(1000).default(240),
+        })
+        .parse(request.query);
+      return { data: await marketData.getCandles(symbol, interval, limit), interval };
+    },
+  );
+
+  app.get(
+    "/v1/markets/:symbol/depth",
+    { preHandler: requirePermission("market:read") },
+    async (request) => {
+      if (!marketData.getOrderBook)
+        throw new MarketDataUnavailableError("Depth adapter unavailable");
+      const { symbol } = z.object({ symbol: z.string().min(5).max(20) }).parse(request.params);
+      const { limit } = z
+        .object({ limit: z.coerce.number().int().min(5).max(100).default(20) })
+        .parse(request.query);
+      return { data: await marketData.getOrderBook(symbol, limit) };
+    },
+  );
+
+  app.get(
+    "/v1/markets/:symbol/intelligence",
+    { preHandler: requirePermission("market:read") },
+    async (request) => {
+      if (!marketData.getCandles)
+        throw new MarketDataUnavailableError("Candle adapter unavailable");
+      const { symbol } = z.object({ symbol: z.string().min(5).max(20) }).parse(request.params);
+      const candles = await marketData.getCandles(symbol, "1h", 240);
+      return { data: analyzeCandles(candles) };
     },
   );
 

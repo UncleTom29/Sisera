@@ -29,6 +29,7 @@ node_modules/
 .next/
 dist/
 build/
+*.tsbuildinfo
 
 # Local runtime state (SQLite files on dev boot; Postgres in prod)
 var/

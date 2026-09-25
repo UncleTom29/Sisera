@@ -37,6 +37,6 @@ var/
 # Internal and sensitive documentation (public repo safety)
 docs/
 docs/*.md
-ecosystem.config.cjs
 scripts/setup-contabo-vps.sh
+
 

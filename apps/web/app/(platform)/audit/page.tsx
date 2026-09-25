@@ -7,10 +7,10 @@ export default function AuditPage() {
   return (
     <div className="min-h-full">
       <PageHeader
-        eyebrow="Immutable provenance"
+        eyebrow="Decision provenance"
         title="Decision ledger"
-        description="Orders, risk outcomes, copilot compilations, agent proposals, approvals, and configuration changes linked by correlation ID."
-        actions={<StatusBadge>Append only</StatusBadge>}
+        description="Decision events require a persistent, authenticated audit sink. No empty screen is presented as an immutable ledger."
+        actions={<StatusBadge tone="warning">Audit sink not connected</StatusBadge>}
       />
       <div className="p-4">
         <section className="border border-line bg-panel">
@@ -18,7 +18,7 @@ export default function AuditPage() {
             <span className="flex items-center gap-2 text-xs font-semibold">
               <Fingerprint size={13} className="text-cyan-300" /> Audit stream
             </span>
-            <span className="data-label">Hash chained</span>
+            <span className="data-label">Persistence pending</span>
           </div>
           <div className="grid grid-cols-[150px_110px_1fr_180px_90px] border-b border-line bg-[#090e14] px-4 py-2 data-label">
             <span>Time</span>
@@ -30,7 +30,7 @@ export default function AuditPage() {
           <EmptyState
             icon={Network}
             title="No recorded decisions"
-            copy="Entries appear when authenticated actors create intents, risk decisions, orders, or governance events."
+            copy="No persistent audit events are available. Hash chaining and integrity status are not claimed until the audit pipeline is implemented."
             code="DECISION_LEDGER / EMPTY"
           />
         </section>

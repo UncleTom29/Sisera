@@ -1,10 +1,26 @@
 import { StatusBadge } from "@sisera/ui";
 import { BriefcaseBusiness, Download, Layers3, RefreshCcw, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 import { PortfolioConnect } from "../../../components/portfolio-connect";
+import { getPublicPerpAccount } from "../../../lib/api";
 
-export default function PortfolioPage() {
+export const dynamic = "force-dynamic";
+
+export default async function PortfolioPage({
+  searchParams,
+}: { searchParams: Promise<{ address?: string }> }) {
+  const address = (await searchParams).address?.trim() ?? "";
+  const validAddress = /^0x[a-fA-F0-9]{40}$/.test(address);
+  const session = await auth();
+  const observed = validAddress
+    ? await getPublicPerpAccount(address, {
+        accessToken: session?.accessToken,
+        localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
+      }).catch(() => null)
+    : null;
   return (
     <div className="min-h-full">
       <PageHeader
@@ -13,11 +29,123 @@ export default function PortfolioPage() {
         description="Cross-venue cash, positions, margin, exposure, and P&L—accepted only after reconciliation."
         actions={
           <div className="flex items-center gap-2">
-            <StatusBadge tone="warning">No source connected</StatusBadge>
+            <StatusBadge tone="warning">No reconciled source</StatusBadge>
             <PortfolioConnect />
           </div>
         }
       />
+      <section className="m-4 border border-line bg-panel p-5 md:m-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="eyebrow">Public onchain observation</p>
+            <h2 className="mt-1 text-base font-semibold text-slate-100">
+              Watch a Hyperliquid perp wallet
+            </h2>
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">
+              Read-only clearinghouse state for an address you supply. This is not custody, account
+              verification, or a reconciled Sisera portfolio.
+            </p>
+          </div>
+          {observed && (
+            <Link
+              href={`/risk?address=${encodeURIComponent(address)}`}
+              className="rounded border border-cyan-400/30 px-3 py-2 text-xs text-cyan-300"
+            >
+              Review observed exposure →
+            </Link>
+          )}
+        </div>
+        <form action="/portfolio" className="mt-4 flex flex-wrap gap-2">
+          <input
+            name="address"
+            defaultValue={address}
+            aria-label="Hyperliquid wallet address"
+            placeholder="0x… public wallet address"
+            className="min-w-64 flex-1 rounded border border-line bg-[#0f1a22] px-3 py-2 font-mono text-xs text-slate-100"
+          />
+          <button
+            type="submit"
+            className="rounded border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300"
+          >
+            Observe wallet
+          </button>
+        </form>
+        {address && !validAddress && (
+          <p className="mt-2 text-xs text-rose-300">Enter a 42-character 0x address.</p>
+        )}
+        {validAddress && !observed && (
+          <p className="mt-2 text-xs text-amber-300">
+            Hyperliquid account state is unavailable for this address.
+          </p>
+        )}
+        {observed && (
+          <div className="mt-5">
+            <p className="font-mono text-[10px] text-slate-500">
+              {observed.source} · fetched {new Date(observed.fetchedAt).toLocaleTimeString()} ·
+              public read-only observation
+            </p>
+            <div className="mt-3 grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                ["Account value", observed.accountValue],
+                ["Notional exposure", observed.notionalExposure],
+                ["Margin used", observed.marginUsed],
+                ["Withdrawable", observed.withdrawable],
+              ].map(([label, value]) => (
+                <div key={label} className="bg-[#101b23] p-4">
+                  <p className="data-label">{label}</p>
+                  <p className="mt-2 font-mono text-lg text-white">
+                    ${Number(value).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[680px] text-left text-xs">
+                <thead className="font-mono text-[10px] uppercase text-slate-500">
+                  <tr>
+                    <th className="py-3">Perp</th>
+                    <th>Size</th>
+                    <th>Entry</th>
+                    <th>Notional</th>
+                    <th>Unrealized P&L</th>
+                    <th>Margin</th>
+                    <th>Liquidation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {observed.positions.map((position) => (
+                    <tr
+                      key={position.coin}
+                      className="border-t border-line font-mono text-slate-300"
+                    >
+                      <td className="py-3 font-semibold text-white">
+                        {position.coin} · {position.marginType} {position.leverage}x
+                      </td>
+                      <td>{position.size}</td>
+                      <td>{position.entryPrice}</td>
+                      <td>${Number(position.notional).toLocaleString()}</td>
+                      <td
+                        className={
+                          Number(position.unrealizedPnl) >= 0 ? "text-emerald-300" : "text-rose-300"
+                        }
+                      >
+                        {position.unrealizedPnl}
+                      </td>
+                      <td>{position.marginUsed}</td>
+                      <td>{position.liquidationPrice ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!observed.positions.length && (
+                <p className="border-t border-line py-4 text-xs text-slate-500">
+                  No open perpetual positions reported.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
       <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2 xl:grid-cols-5">
         {["Net asset value", "Available cash", "Gross exposure", "Net exposure", "Today P&L"].map(
           (label) => (

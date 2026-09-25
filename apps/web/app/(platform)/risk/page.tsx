@@ -1,7 +1,11 @@
 import { StatusBadge } from "@sisera/ui";
 import { Activity, Ban, CircleGauge, ShieldAlert, Siren, Waves } from "lucide-react";
+import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
+import { getPublicPerpAccount } from "../../../lib/api";
+
+export const dynamic = "force-dynamic";
 
 const limits = [
   "Order notional",
@@ -17,13 +21,28 @@ const scenarios = [
   { name: "Macro volatility spike", detail: "Rates +75bp · vol ×2 · USD +3%" },
 ];
 
-export default function RiskPage() {
+export default async function RiskPage({
+  searchParams,
+}: { searchParams: Promise<{ address?: string }> }) {
+  const address = (await searchParams).address?.trim() ?? "";
+  const session = await auth();
+  const observed = /^0x[a-fA-F0-9]{40}$/.test(address)
+    ? await getPublicPerpAccount(address, {
+        accessToken: session?.accessToken,
+        localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
+      }).catch(() => null)
+    : null;
+  const accountValue = Number(observed?.accountValue ?? 0);
+  const exposureMultiple =
+    accountValue > 0 ? Math.abs(Number(observed?.notionalExposure)) / accountValue : null;
+  const marginUtilization =
+    accountValue > 0 ? (Number(observed?.marginUsed) / accountValue) * 100 : null;
   return (
     <div className="min-h-full">
       <PageHeader
         eyebrow="Independent control function"
         title="Risk command center"
-        description="Pre-trade mandates, real-time limit utilization, stress testing, circuit breakers, and kill-switch authority."
+        description="Pre-trade controls fail closed without a reconciled portfolio. Public wallet observations are research only, never mandate utilization."
         actions={
           <div className="flex items-center gap-2">
             <StatusBadge tone="positive">Engine fail-closed</StatusBadge>
@@ -39,7 +58,12 @@ export default function RiskPage() {
       />
       <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "Risk state", value: "Protected", tone: "text-emerald-300", icon: CircleGauge },
+          {
+            label: "Risk state",
+            value: "Execution gated",
+            tone: "text-amber-300",
+            icon: CircleGauge,
+          },
           { label: "Breaches", value: "—", tone: "text-slate-600", icon: ShieldAlert },
           { label: "Blocked orders", value: "—", tone: "text-slate-600", icon: Ban },
           { label: "Quote freshness", value: "Live only", tone: "text-cyan-300", icon: Activity },
@@ -53,6 +77,62 @@ export default function RiskPage() {
           </div>
         ))}
       </div>
+      <section className="m-4 border border-line bg-panel p-5 md:m-6">
+        <p className="eyebrow">Observed exposure · research only</p>
+        <h2 className="mt-1 text-base font-semibold text-slate-100">
+          Hyperliquid public wallet exposure
+        </h2>
+        <p className="mt-2 text-xs text-slate-400">
+          Enter a public address to inspect its reported perp exposure. These figures do not
+          activate risk limits or trading.
+        </p>
+        <form action="/risk" className="mt-4 flex flex-wrap gap-2">
+          <input
+            name="address"
+            defaultValue={address}
+            aria-label="Hyperliquid wallet address"
+            placeholder="0x… public wallet address"
+            className="min-w-64 flex-1 rounded border border-line bg-[#0f1a22] px-3 py-2 font-mono text-xs text-slate-100"
+          />
+          <button
+            type="submit"
+            className="rounded border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300"
+          >
+            Observe risk
+          </button>
+        </form>
+        {observed && (
+          <div className="mt-4 grid gap-px bg-line sm:grid-cols-3">
+            {[
+              ["Account value", `$${Number(observed.accountValue).toLocaleString()}`],
+              [
+                "Notional / equity",
+                exposureMultiple == null ? "—" : `${exposureMultiple.toFixed(2)}×`,
+              ],
+              [
+                "Margin / equity",
+                marginUtilization == null ? "—" : `${marginUtilization.toFixed(1)}%`,
+              ],
+            ].map(([label, value]) => (
+              <div key={label} className="bg-[#101b23] p-4">
+                <p className="data-label">{label}</p>
+                <p className="mt-2 font-mono text-lg text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {observed && (
+          <p className="mt-3 font-mono text-[10px] text-slate-500">
+            {observed.source} · fetched {new Date(observed.fetchedAt).toLocaleTimeString()} · public
+            read-only data
+          </p>
+        )}
+        {address && !observed && (
+          <p className="mt-3 text-xs text-amber-300">
+            Enter a valid 0x address, or retry when Hyperliquid is reachable.
+          </p>
+        )}
+      </section>
       <div className="grid gap-4 p-4 xl:grid-cols-[1.15fr_.85fr]">
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">

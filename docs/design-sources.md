@@ -25,3 +25,8 @@ Market data is read from [Binance's public market-data API](https://github.com/b
 The API supports public quotes, candles, and book depth without an account. The prediction-market
 adapter uses [Polymarket Gamma](https://docs.polymarket.com/developers/gamma-markets-api/overview).
 Both adapters label their source and fail when the provider is unavailable.
+When Binance is unreachable, [CoinGecko's public markets endpoint](https://docs.coingecko.com/reference/coins-markets)
+can supply separately labeled USD reference prices. Those values have their own observation time,
+are not Binance quotes, and never populate the order book or order ticket. Reference data is
+rate-limited, so the adapter briefly coalesces repeat requests. If it also fails, the UI shows
+an unavailable state rather than fabricated prices.

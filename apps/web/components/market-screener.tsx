@@ -15,7 +15,10 @@ import { useMemo, useState } from "react";
 import type { MarketRow } from "../lib/api";
 import { DeltaBadge } from "./delta-badge";
 
-export function MarketScreener({ rows }: { rows: MarketRow[] }) {
+export function MarketScreener({
+  rows,
+  venue,
+}: { rows: MarketRow[]; venue: "binance" | "hyperliquid" }) {
   const [sorting, setSorting] = useState<SortingState>([{ id: "volume", desc: true }]);
   const [filter, setFilter] = useState("");
   const columns = useMemo<ColumnDef<MarketRow>[]>(
@@ -83,7 +86,9 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
         header: "Source",
         cell: ({ row }) => (
           <div>
-            <p className="font-mono text-[11px] text-slate-200">Binance spot</p>
+            <p className="font-mono text-[11px] text-slate-200">
+              {row.original.instrument.venue} {row.original.instrument.type}
+            </p>
             <p className="mt-1 font-mono text-[10px] text-slate-500">
               {new Date(row.original.snapshot.quality.receivedAt).toLocaleTimeString()}
             </p>
@@ -96,7 +101,7 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
         header: "",
         cell: ({ row }) => (
           <Link
-            href={`/terminal?symbol=${row.original.instrument.venueSymbol}`}
+            href={`/terminal?symbol=${row.original.instrument.baseAsset}USDT&venue=${venue}`}
             className="inline-flex h-9 items-center gap-1 rounded-md border border-cyan-400/30 bg-cyan-400/[0.08] px-3 text-xs font-medium text-cyan-300 hover:bg-cyan-400/[0.14]"
           >
             Open <ArrowUpRight size={13} />
@@ -104,7 +109,7 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
         ),
       },
     ],
-    [],
+    [venue],
   );
   const table = useReactTable({
     data: rows,
@@ -121,9 +126,12 @@ export function MarketScreener({ rows }: { rows: MarketRow[] }) {
     <section className="overflow-hidden rounded-lg border border-line bg-panel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
         <div>
-          <h2 className="text-base font-semibold text-slate-100">Spot markets</h2>
+          <h2 className="text-base font-semibold text-slate-100">
+            {venue === "hyperliquid" ? "Perpetual markets" : "Spot markets"}
+          </h2>
           <p className="mt-1 text-xs text-slate-400">
-            Live order book prices and 24 hour activity from Binance
+            Live book quotes and 24-hour activity from{" "}
+            {venue === "hyperliquid" ? "Hyperliquid" : "Binance"}
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -11,6 +11,7 @@ const Environment = z.object({
     .default("false")
     .transform((value) => value === "true"),
   BINANCE_SPOT_BASE_URL: z.string().url().default("https://data-api.binance.vision"),
+  HYPERLIQUID_BASE_URL: z.string().url().default("https://api.hyperliquid.xyz"),
   POLYMARKET_GAMMA_BASE_URL: z.string().url().default("https://gamma-api.polymarket.com"),
 });
 

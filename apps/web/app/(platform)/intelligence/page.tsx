@@ -18,8 +18,8 @@ export default async function IntelligencePage() {
   const settled = await Promise.allSettled(
     symbols.map(async (symbol) => {
       const [market, intelligence] = await Promise.all([
-        getMarket(symbol, identity),
-        getMarketIntelligence(symbol, identity),
+        getMarket(symbol, identity, "hyperliquid"),
+        getMarketIntelligence(symbol, identity, "hyperliquid"),
       ]);
       return { symbol, market, intelligence };
     }),
@@ -28,7 +28,7 @@ export default async function IntelligencePage() {
   return (
     <div className="min-h-full">
       <PageHeader
-        eyebrow="Legacy intelligence · production port"
+        eyebrow="Hyperliquid perpetuals · verified candles"
         title="Market intelligence"
         description="Technical, momentum, volatility, and participation signals compiled from verified candles into explainable directional evidence."
         actions={
@@ -110,7 +110,7 @@ export default async function IntelligencePage() {
                         </td>
                         <td className="px-4 text-right">
                           <Link
-                            href={`/terminal?symbol=${symbol}`}
+                            href={`/terminal?symbol=${symbol}&venue=hyperliquid`}
                             className="text-cyan-300 hover:text-cyan-200"
                           >
                             Inspect →

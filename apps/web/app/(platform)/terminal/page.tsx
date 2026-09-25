@@ -9,11 +9,13 @@ import { MarketChart } from "../../../components/market-chart";
 import { OrderTicket } from "../../../components/order-ticket";
 import { TerminalDetails } from "../../../components/terminal-details";
 import {
+  type Venue,
   getCandles,
   getMarket,
   getMarketIntelligence,
   getMarkets,
   getOrderBook,
+  getReferenceMarkets,
 } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +25,9 @@ const intervals = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
 export default async function TerminalPage({
   searchParams,
-}: { searchParams: Promise<{ symbol?: string; interval?: string }> }) {
+}: { searchParams: Promise<{ symbol?: string; interval?: string; venue?: string }> }) {
   const parameters = await searchParams;
+  const venue: Venue = parameters.venue === "binance" ? "binance" : "hyperliquid";
   const symbol = universe.includes(parameters.symbol ?? "")
     ? (parameters.symbol as string)
     : "BTCUSDT";
@@ -38,11 +41,11 @@ export default async function TerminalPage({
   };
   const [marketResult, universeResult, candlesResult, depthResult, intelligenceResult] =
     await Promise.allSettled([
-      getMarket(symbol, identity),
-      getMarkets(universe, identity),
-      getCandles(symbol, interval, identity),
-      getOrderBook(symbol, identity),
-      getMarketIntelligence(symbol, identity),
+      getMarket(symbol, identity, venue),
+      getMarkets(universe, identity, venue),
+      getCandles(symbol, interval, identity, venue),
+      getOrderBook(symbol, identity, venue),
+      getMarketIntelligence(symbol, identity, venue),
     ]);
   const market = marketResult.status === "fulfilled" ? marketResult.value : null;
   const markets = universeResult.status === "fulfilled" ? universeResult.value.data : [];
@@ -50,6 +53,11 @@ export default async function TerminalPage({
   const depth = depthResult.status === "fulfilled" ? depthResult.value : null;
   const intelligence = intelligenceResult.status === "fulfilled" ? intelligenceResult.value : null;
   const snapshot = market?.snapshot;
+  const references =
+    venue === "binance" && !snapshot
+      ? await getReferenceMarkets(universe, identity).catch(() => [])
+      : [];
+  const reference = references.find((item) => item.symbol === symbol);
 
   return (
     <div className="min-h-full bg-ink px-4 pb-8 pt-6 md:px-6">
@@ -69,18 +77,59 @@ export default async function TerminalPage({
           </div>
         </div>
 
+        <div className="mb-4 flex items-center gap-2 border-b border-line pb-3 text-xs">
+          <Link
+            href={`/terminal?symbol=${symbol}&interval=${interval}&venue=hyperliquid`}
+            className={`rounded px-3 py-2 ${venue === "hyperliquid" ? "bg-cyan-400/10 text-cyan-300" : "text-slate-400"}`}
+          >
+            Hyperliquid perps
+          </Link>
+          <Link
+            href={`/terminal?symbol=${symbol}&interval=${interval}&venue=binance`}
+            className={`rounded px-3 py-2 ${venue === "binance" ? "bg-cyan-400/10 text-cyan-300" : "text-slate-400"}`}
+          >
+            Binance spot
+          </Link>
+          <span className="ml-auto font-mono text-[10px] uppercase text-slate-500">
+            Venues are separate · no synthetic cross-venue quotes
+          </span>
+        </div>
+
         <div className="hide-scrollbar mb-5 flex gap-2 overflow-x-auto pb-1">
           {markets.length > 0 ? (
             markets.map(({ instrument, snapshot: item }) => (
               <Link
                 key={instrument.id}
-                href={`/terminal?symbol=${instrument.venueSymbol}&interval=${interval}`}
-                className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-md border px-3 py-2.5 transition-colors hover:border-slate-500 ${symbol === instrument.venueSymbol ? "border-cyan-400/50 bg-cyan-400/[0.08]" : "border-line bg-panel"}`}
+                href={`/terminal?symbol=${instrument.baseAsset}USDT&interval=${interval}&venue=${venue}`}
+                className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-md border px-3 py-2.5 transition-colors hover:border-slate-500 ${symbol === `${instrument.baseAsset}USDT` ? "border-cyan-400/50 bg-cyan-400/[0.08]" : "border-line bg-panel"}`}
               >
                 <div>
                   <p className="text-xs font-semibold text-slate-100">{instrument.baseAsset}</p>
                   <p className="mt-0.5 font-mono text-[10px] text-slate-500">
                     {formatCompact(item.last)}
+                  </p>
+                </div>
+                <span
+                  className={`font-mono text-xs ${Number(item.change24hPct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                >
+                  {Number(item.change24hPct ?? 0) > 0 ? "+" : ""}
+                  {Number(item.change24hPct ?? 0).toFixed(2)}%
+                </span>
+              </Link>
+            ))
+          ) : references.length > 0 ? (
+            references.map((item) => (
+              <Link
+                key={item.symbol}
+                href={`/terminal?symbol=${item.symbol}&interval=${interval}&venue=${venue}`}
+                className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-md border px-3 py-2.5 hover:border-slate-500 ${symbol === item.symbol ? "border-cyan-400/50 bg-cyan-400/[0.08]" : "border-line bg-panel"}`}
+              >
+                <div>
+                  <p className="text-xs font-semibold text-slate-100">
+                    {item.symbol.replace("USDT", "")}
+                  </p>
+                  <p className="mt-0.5 font-mono text-[10px] text-slate-500">
+                    ${formatCompact(item.priceUsd.toString())}
                   </p>
                 </div>
                 <span
@@ -106,38 +155,50 @@ export default async function TerminalPage({
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-slate-50">
-                  {market?.instrument.displaySymbol ?? symbol}
+                  {market?.instrument.displaySymbol ?? `${symbol.replace("USDT", "")} / USD`}
                 </h2>
                 <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
-                  {market?.instrument.venue ?? "Venue unavailable"} · Spot
+                  {market?.instrument.venue ?? "Reference market"} ·{" "}
+                  {market?.instrument.type ?? "USD"}
                 </p>
               </div>
             </div>
             <div className="min-w-36">
-              <p className="data-label">Last traded</p>
+              <p className="data-label">{venue === "hyperliquid" ? "Mark price" : "Last traded"}</p>
               <div className="mt-1 flex items-center gap-3">
                 <span className="font-mono text-[24px] font-medium tracking-[-0.04em] text-slate-50">
-                  {formatMoney(snapshot?.last)}
+                  {formatMoney(snapshot?.last ?? reference?.priceUsd.toString())}
                 </span>
-                <DeltaBadge value={snapshot?.change24hPct} />
+                <DeltaBadge value={snapshot?.change24hPct ?? reference?.change24hPct?.toString()} />
               </div>
             </div>
             <MarketMetric label="Best bid" value={formatMoney(snapshot?.bid)} />
             <MarketMetric label="Best ask" value={formatMoney(snapshot?.ask)} />
-            <MarketMetric label="24h quote volume" value={formatCompact(snapshot?.volume24h)} />
+            <MarketMetric
+              label="24h quote volume"
+              value={formatCompact(snapshot?.volume24h ?? reference?.volume24hUsd?.toString())}
+            />
             <div className="ml-auto">
               {snapshot ? (
                 <div className="text-right">
                   <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300">
-                    <span className="size-1.5 rounded-full bg-emerald-300" /> Live market data
+                    <span className="size-1.5 rounded-full bg-emerald-300" /> Live{" "}
+                    {venue === "hyperliquid" ? "perpetual" : "spot"} venue data
                   </span>
                   <p className="mt-1 font-mono text-[10px] text-slate-500">
                     {snapshot.quality.source} ·{" "}
                     {new Date(snapshot.quality.receivedAt).toLocaleTimeString()}
                   </p>
                 </div>
+              ) : reference ? (
+                <div className="text-right">
+                  <span className="text-xs text-amber-200">Reference price · not executable</span>
+                  <p className="mt-1 font-mono text-[10px] text-slate-500">
+                    CoinGecko · {new Date(reference.observedAt).toLocaleTimeString()}
+                  </p>
+                </div>
               ) : (
-                <span className="text-xs text-rose-300">Provider unavailable</span>
+                <span className="text-xs text-rose-300">Providers unavailable</span>
               )}
             </div>
           </div>
@@ -150,14 +211,14 @@ export default async function TerminalPage({
                 <CandlestickChart size={16} className="text-cyan-300" />
                 <h3 className="text-sm font-semibold text-slate-100">Price chart</h3>
                 <span className="ml-1 font-mono text-[10px] text-slate-500">
-                  {symbol} · {interval}
+                  {market?.instrument.displaySymbol ?? symbol} · {interval}
                 </span>
               </div>
               <div className="flex items-center rounded-md bg-[#0f1a22] p-1">
                 {intervals.map((value) => (
                   <Link
                     key={value}
-                    href={`/terminal?symbol=${symbol}&interval=${value}`}
+                    href={`/terminal?symbol=${symbol}&interval=${value}&venue=${venue}`}
                     className={`grid h-7 min-w-8 place-items-center rounded px-1.5 font-mono text-[10px] ${interval === value ? "bg-[#34464d] text-slate-50" : "text-slate-400 hover:text-slate-100"}`}
                   >
                     {value}
@@ -185,7 +246,7 @@ export default async function TerminalPage({
               <span className="font-mono text-[10px] text-slate-500">L2 · 20 levels</span>
             </div>
             {depth ? (
-              <OrderBookPanel book={depth} />
+              <OrderBookPanel book={depth} quoteAsset={market?.instrument.quoteAsset ?? "USDT"} />
             ) : (
               <DataUnavailable
                 title="Depth unavailable"
@@ -195,7 +256,12 @@ export default async function TerminalPage({
           </section>
 
           <aside className="min-h-[570px] overflow-hidden rounded-lg border border-line bg-panel">
-            <OrderTicket bid={snapshot?.bid} ask={snapshot?.ask} symbol={symbol} />
+            <OrderTicket
+              bid={snapshot?.bid}
+              ask={snapshot?.ask}
+              symbol={symbol}
+              quoteAsset={market?.instrument.quoteAsset ?? "USDT"}
+            />
           </aside>
         </div>
 
@@ -241,14 +307,14 @@ function DataUnavailable({ title, detail }: { title: string; detail: string }) {
   );
 }
 
-function OrderBookPanel({ book }: { book: OrderBook }) {
+function OrderBookPanel({ book, quoteAsset }: { book: OrderBook; quoteAsset: string }) {
   const asks = book.asks.slice(0, 10).reverse();
   const bids = book.bids.slice(0, 10);
   const max = Math.max(1, ...[...asks, ...bids].map((level) => Number(level.quantity)));
   return (
     <div className="font-mono text-[11px]">
       <div className="grid grid-cols-2 border-b border-line px-4 py-2 text-[10px] text-slate-500">
-        <span>Price (USDT)</span>
+        <span>Price ({quoteAsset})</span>
         <span className="text-right">Size</span>
       </div>
       {asks.map((level) => (

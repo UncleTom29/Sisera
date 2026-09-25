@@ -1,5 +1,5 @@
-import { Button, StatusBadge } from "@sisera/ui";
-import { Bot, Plus, Workflow } from "lucide-react";
+import { StatusBadge } from "@sisera/ui";
+import { Bot, Workflow } from "lucide-react";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 
@@ -10,12 +10,8 @@ export default function AgentsPage() {
       <PageHeader
         eyebrow="Governed automation"
         title="Agent operations"
-        description="Strategies advance through evidence-based promotion stages. Agents submit proposals; policy and risk retain execution authority."
-        actions={
-          <Button variant="primary" size="sm">
-            <Plus size={13} /> New manifest
-          </Button>
-        }
+        description="Governed agent stages and runtime inventory. No agent is deployed or authorized to execute from this workspace."
+        actions={<StatusBadge tone="warning">Runtime not connected</StatusBadge>}
       />
       <div className="overflow-x-auto border-b border-line bg-panel px-4 py-5">
         <div className="flex min-w-[760px] items-center">
@@ -42,7 +38,7 @@ export default function AgentsPage() {
             <EmptyState
               icon={Bot}
               title="No agent manifests"
-              copy="Create a signed manifest with explicit instruments, capital limits, autonomy, and a kill-switch action."
+              copy="Manifest creation and persistence are not connected. No agent has been silently activated."
               code="AGENT_RUNTIME / EMPTY"
             />
           </div>
@@ -55,7 +51,7 @@ export default function AgentsPage() {
             <EmptyState
               icon={Workflow}
               title="No promotion events"
-              copy="Approvals, demotions, pauses, and policy changes are recorded here."
+              copy="Governance events will appear after a persistent agent runtime and audit sink are connected."
               code="AGENT_LEDGER / EMPTY"
             />
           </div>

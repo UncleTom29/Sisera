@@ -7,7 +7,8 @@ export function OrderTicket({
   bid,
   ask,
   symbol,
-}: { bid: string | undefined; ask: string | undefined; symbol: string }) {
+  quoteAsset,
+}: { bid: string | undefined; ask: string | undefined; symbol: string; quoteAsset: string }) {
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [orderType, setOrderType] = useState<"market" | "limit">("market");
   const [quantity, setQuantity] = useState("");
@@ -69,7 +70,7 @@ export function OrderTicket({
         </div>
         {orderType === "limit" && (
           <label className="mt-4 block">
-            <span className="data-label">Limit price · USDT</span>
+            <span className="data-label">Limit price · {quoteAsset}</span>
             <input
               value={limitPrice}
               onChange={(event) => setLimitPrice(event.target.value)}

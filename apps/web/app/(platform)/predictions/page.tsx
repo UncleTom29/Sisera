@@ -19,10 +19,10 @@ export default async function PredictionsPage() {
       <PageHeader
         eyebrow="Outcome markets"
         title="Prediction markets"
-        description="Venue-normalized event contracts with explicit settlement source, close time, liquidity, and data provenance."
+        description="Public Polymarket Gamma event snapshots with outcomes, close time, and fetch time. Prices are not executable quotes."
         actions={
           <StatusBadge tone={markets.length ? "positive" : "negative"}>
-            {markets.length ? `${markets.length} live markets` : "Provider unavailable"}
+            {markets.length ? `${markets.length} market snapshots` : "Provider unavailable"}
           </StatusBadge>
         }
       />
@@ -42,7 +42,7 @@ export default async function PredictionsPage() {
                   <span className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-wider text-slate-600">
                     <Radio size={11} className="text-emerald-300" /> {market.provider}
                   </span>
-                  <StatusBadge tone="positive">Live</StatusBadge>
+                  <StatusBadge tone="warning">Gamma snapshot</StatusBadge>
                 </div>
                 <div className="p-4">
                   <h2 className="min-h-12 text-sm font-semibold leading-5 text-slate-200">
@@ -64,6 +64,10 @@ export default async function PredictionsPage() {
                   <p className="mt-4 font-mono text-[9px] uppercase tracking-wider text-slate-700">
                     Closes{" "}
                     {market.closesAt ? new Date(market.closesAt).toLocaleString() : "when resolved"}
+                  </p>
+                  <p className="mt-2 font-mono text-[9px] text-slate-500">
+                    Fetched {new Date(market.quality.receivedAt).toLocaleTimeString()} · not an
+                    executable quote
                   </p>
                 </div>
               </article>

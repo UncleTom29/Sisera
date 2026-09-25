@@ -6,6 +6,9 @@ import { OrderIntent, type PortfolioRiskState, type RiskLimits } from "@sisera/d
 import type { Candle, Instrument, MarketSnapshot, OrderBook } from "@sisera/domain";
 import {
   BinanceSpotProvider,
+  CoinGeckoReferenceProvider,
+  DeFiLlamaChainProvider,
+  HyperliquidPerpProvider,
   MarketDataUnavailableError,
   PolymarketProvider,
 } from "@sisera/market-data";
@@ -27,6 +30,9 @@ export type ApiDependencies = {
   marketData?: {
     getInstrument(symbol: string): Promise<Instrument>;
     getSnapshot(symbol: string): Promise<MarketSnapshot>;
+    listMarkets?(
+      symbols: readonly string[],
+    ): Promise<Array<{ instrument: Instrument; snapshot: MarketSnapshot }>>;
     getCandles?(symbol: string, interval?: string, limit?: number): Promise<Candle[]>;
     getOrderBook?(symbol: string, limit?: number): Promise<OrderBook>;
   };
@@ -56,8 +62,12 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   });
   const marketData =
     dependencies.marketData ?? new BinanceSpotProvider(config.BINANCE_SPOT_BASE_URL);
+  const hyperliquid = new HyperliquidPerpProvider(config.HYPERLIQUID_BASE_URL);
+  const chains = new DeFiLlamaChainProvider();
+  const marketProvider = (venue: string) => (venue === "hyperliquid" ? hyperliquid : marketData);
   const predictions =
     dependencies.predictions ?? new PolymarketProvider(config.POLYMARKET_GAMMA_BASE_URL);
+  const referenceMarkets = new CoinGeckoReferenceProvider();
   const requestStarts = new WeakMap<object, number>();
 
   await app.register(helmet);
@@ -86,9 +96,13 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   );
 
   app.get("/v1/markets", { preHandler: requirePermission("market:read") }, async (request) => {
-    const { symbols } = z
-      .object({ symbols: z.string().default("BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT") })
+    const { symbols, venue } = z
+      .object({
+        symbols: z.string().default("BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT"),
+        venue: z.enum(["binance", "hyperliquid"]).default("binance"),
+      })
       .parse(request.query);
+    const provider = marketProvider(venue);
     const requested = [
       ...new Set(
         symbols
@@ -97,11 +111,28 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           .filter(Boolean),
       ),
     ].slice(0, 20);
+    if (provider.listMarkets) {
+      try {
+        const data = await provider.listMarkets(requested);
+        const available = new Set(data.map((row) => row.instrument.baseAsset));
+        return {
+          data,
+          unavailable: requested
+            .filter((symbol) => !available.has(symbol.replace(/USDT$|USDC$/, "")))
+            .map((symbol) => ({ symbol, reason: "provider_unavailable" })),
+        };
+      } catch {
+        return {
+          data: [],
+          unavailable: requested.map((symbol) => ({ symbol, reason: "provider_unavailable" })),
+        };
+      }
+    }
     const results = await Promise.allSettled(
       requested.map(async (symbol) => {
         const [instrument, snapshot] = await Promise.all([
-          marketData.getInstrument(symbol),
-          marketData.getSnapshot(symbol),
+          provider.getInstrument(symbol),
+          provider.getSnapshot(symbol),
         ]);
         return { instrument, snapshot };
       }),
@@ -117,13 +148,26 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   });
 
   app.get(
+    "/v1/reference-markets",
+    { preHandler: requirePermission("market:read") },
+    async (request) => {
+      const { symbols } = z.object({ symbols: z.string().max(200) }).parse(request.query);
+      return { data: await referenceMarkets.list(symbols.split(",").slice(0, 20)) };
+    },
+  );
+
+  app.get(
     "/v1/markets/:symbol",
     { preHandler: requirePermission("market:read") },
     async (request) => {
       const { symbol } = z.object({ symbol: z.string().min(5).max(20) }).parse(request.params);
+      const { venue } = z
+        .object({ venue: z.enum(["binance", "hyperliquid"]).default("binance") })
+        .parse(request.query);
+      const provider = marketProvider(venue);
       const [instrument, snapshot] = await Promise.all([
-        marketData.getInstrument(symbol),
-        marketData.getSnapshot(symbol),
+        provider.getInstrument(symbol),
+        provider.getSnapshot(symbol),
       ]);
       return { instrument, snapshot };
     },
@@ -133,16 +177,17 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     "/v1/markets/:symbol/candles",
     { preHandler: requirePermission("market:read") },
     async (request) => {
-      if (!marketData.getCandles)
-        throw new MarketDataUnavailableError("Candle adapter unavailable");
-      const { symbol } = z.object({ symbol: z.string().min(5).max(20) }).parse(request.params);
-      const { interval, limit } = z
+      const { venue, interval, limit } = z
         .object({
+          venue: z.enum(["binance", "hyperliquid"]).default("binance"),
           interval: z.string().default("15m"),
           limit: z.coerce.number().int().min(30).max(1000).default(240),
         })
         .parse(request.query);
-      return { data: await marketData.getCandles(symbol, interval, limit), interval };
+      const provider = marketProvider(venue);
+      if (!provider.getCandles) throw new MarketDataUnavailableError("Candle adapter unavailable");
+      const { symbol } = z.object({ symbol: z.string().min(5).max(20) }).parse(request.params);
+      return { data: await provider.getCandles(symbol, interval, limit), interval };
     },
   );
 
@@ -150,13 +195,16 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     "/v1/markets/:symbol/depth",
     { preHandler: requirePermission("market:read") },
     async (request) => {
-      if (!marketData.getOrderBook)
-        throw new MarketDataUnavailableError("Depth adapter unavailable");
-      const { symbol } = z.object({ symbol: z.string().min(5).max(20) }).parse(request.params);
-      const { limit } = z
-        .object({ limit: z.coerce.number().int().min(5).max(100).default(20) })
+      const { venue, limit } = z
+        .object({
+          venue: z.enum(["binance", "hyperliquid"]).default("binance"),
+          limit: z.coerce.number().int().min(5).max(100).default(20),
+        })
         .parse(request.query);
-      return { data: await marketData.getOrderBook(symbol, limit) };
+      const provider = marketProvider(venue);
+      if (!provider.getOrderBook) throw new MarketDataUnavailableError("Depth adapter unavailable");
+      const { symbol } = z.object({ symbol: z.string().min(5).max(20) }).parse(request.params);
+      return { data: await provider.getOrderBook(symbol, limit) };
     },
   );
 
@@ -164,11 +212,43 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     "/v1/markets/:symbol/intelligence",
     { preHandler: requirePermission("market:read") },
     async (request) => {
-      if (!marketData.getCandles)
-        throw new MarketDataUnavailableError("Candle adapter unavailable");
+      const { venue } = z
+        .object({ venue: z.enum(["binance", "hyperliquid"]).default("binance") })
+        .parse(request.query);
+      const provider = marketProvider(venue);
+      if (!provider.getCandles) throw new MarketDataUnavailableError("Candle adapter unavailable");
       const { symbol } = z.object({ symbol: z.string().min(5).max(20) }).parse(request.params);
-      const candles = await marketData.getCandles(symbol, "1h", 240);
+      const candles = await provider.getCandles(symbol, "1h", 240);
       return { data: analyzeCandles(candles) };
+    },
+  );
+
+  app.get(
+    "/v1/perpetual-metrics",
+    { preHandler: requirePermission("market:read") },
+    async (request) => {
+      const { symbols } = z
+        .object({ symbols: z.string().default("BTC,ETH,SOL,HYPE,AVAX") })
+        .parse(request.query);
+      return { data: await hyperliquid.listPerpetualMetrics(symbols.split(",").slice(0, 20)) };
+    },
+  );
+
+  app.get("/v1/chains", { preHandler: requirePermission("market:read") }, async (request) => {
+    const { limit } = z
+      .object({ limit: z.coerce.number().int().min(1).max(50).default(20) })
+      .parse(request.query);
+    return { data: await chains.listChains(limit) };
+  });
+
+  app.get(
+    "/v1/public-wallet/:address",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request) => {
+      const { address } = z
+        .object({ address: z.string().regex(/^0x[a-fA-F0-9]{40}$/) })
+        .parse(request.params);
+      return { data: await hyperliquid.getPublicAccount(address) };
     },
   );
 
@@ -197,6 +277,12 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     { preHandler: requirePermission("order:paper:create") },
     async (request, reply) => {
       const order = OrderIntent.parse(request.body);
+      if (!order.instrumentId.startsWith("binance:") || !order.instrumentId.endsWith(":spot")) {
+        return reply.code(422).send({
+          error: "unsupported_paper_venue",
+          message: "Paper execution currently supports only Binance spot instruments.",
+        });
+      }
       const context = await dependencies.loadRiskContext?.(order.portfolioId);
       if (!context) {
         return reply.code(503).send({

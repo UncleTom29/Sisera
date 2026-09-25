@@ -1,6 +1,10 @@
 import { StatusBadge } from "@sisera/ui";
 import { Activity, Database, Globe2, RadioTower } from "lucide-react";
+import { auth } from "../../../auth";
 import { PageHeader } from "../../../components/page-header";
+import { getChains, getPerpetualMetrics } from "../../../lib/api";
+
+export const dynamic = "force-dynamic";
 
 const sources = [
   {
@@ -9,20 +13,132 @@ const sources = [
     scope: "Rates · inflation · liquidity",
   },
   { name: "U.S. Treasury Fiscal Data", key: null, scope: "Debt · cash balance · issuance" },
-  { name: "DeFiLlama", key: null, scope: "Stablecoins · TVL · chain flows" },
-  { name: "Venue funding feeds", key: null, scope: "Funding · basis · open interest" },
+  { name: "DeFiLlama", key: null, scope: "Chain TVL snapshot" },
+  { name: "Venue funding feeds", key: null, scope: "Funding · open interest" },
 ];
 
-export default function MacroPage() {
+export default async function MacroPage() {
+  const session = await auth();
+  const identity = {
+    accessToken: session?.accessToken,
+    localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
+  };
+  const [metrics, chains] = await Promise.all([
+    getPerpetualMetrics(identity).catch(() => []),
+    getChains(identity).catch(() => []),
+  ]);
   return (
     <div className="min-h-full">
       <PageHeader
         eyebrow="Cross-asset regime"
         title="Macro & chain monitor"
         description="Point-in-time macro, liquidity, derivatives, and onchain inputs with explicit source readiness and no retrospective model leakage."
-        actions={<StatusBadge tone="warning">Connections required</StatusBadge>}
+        actions={
+          <StatusBadge tone={metrics.length ? "positive" : "warning"}>
+            {metrics.length ? "Derivatives feed live" : "Connections required"}
+          </StatusBadge>
+        }
       />
       <div className="grid gap-4 p-4 xl:grid-cols-[1.25fr_.75fr]">
+        <section className="overflow-hidden border border-line bg-panel xl:col-span-2">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <span className="text-xs font-semibold">Chain liquidity ranking</span>
+            <span className="data-label">DeFiLlama · TVL snapshot · USD</span>
+          </div>
+          {chains.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] text-left text-xs">
+                <thead className="font-mono text-[10px] uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Chain</th>
+                    <th>TVL / USD</th>
+                    <th>Gas token</th>
+                    <th>Chain ID</th>
+                    <th>Fetched</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chains.map((chain) => (
+                    <tr key={chain.name} className="border-t border-line font-mono text-slate-300">
+                      <td className="px-4 py-3 font-semibold text-white">{chain.name}</td>
+                      <td>
+                        {new Intl.NumberFormat("en-US", {
+                          notation: "compact",
+                          maximumFractionDigits: 2,
+                        }).format(chain.tvlUsd)}
+                      </td>
+                      <td>{chain.tokenSymbol ?? "—"}</td>
+                      <td>{chain.chainId ?? "—"}</td>
+                      <td>{new Date(chain.observedAt).toLocaleTimeString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="p-5 text-xs text-slate-500">
+              Chain TVL feed unavailable. No values are inferred.
+            </p>
+          )}
+        </section>
+        <section className="overflow-hidden border border-line bg-panel xl:col-span-2">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <span className="text-xs font-semibold">Perpetuals liquidity & funding</span>
+            <span className="data-label">Hyperliquid · public venue feed</span>
+          </div>
+          {metrics.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] text-left text-xs">
+                <thead className="font-mono text-[10px] uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Market</th>
+                    <th>Mark / USDC</th>
+                    <th>Oracle</th>
+                    <th>Funding / 1h</th>
+                    <th>Open interest · base</th>
+                    <th>24h notional / USDC</th>
+                    <th>Observed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {metrics.map((item) => (
+                    <tr key={item.symbol} className="border-t border-line font-mono text-slate-300">
+                      <td className="px-4 py-3 font-semibold text-white">{item.symbol}</td>
+                      <td>{Number(item.markPrice).toLocaleString()}</td>
+                      <td>{item.oraclePrice ? Number(item.oraclePrice).toLocaleString() : "—"}</td>
+                      <td
+                        className={
+                          Number(item.fundingRate) >= 0 ? "text-emerald-300" : "text-rose-300"
+                        }
+                      >
+                        {item.fundingRate ? `${(Number(item.fundingRate) * 100).toFixed(4)}%` : "—"}
+                      </td>
+                      <td>
+                        {item.openInterestBase
+                          ? Number(item.openInterestBase).toLocaleString()
+                          : "—"}
+                      </td>
+                      <td>
+                        {item.volume24hUsd
+                          ? Number(item.volume24hUsd).toLocaleString(undefined, {
+                              notation: "compact",
+                              maximumFractionDigits: 2,
+                            })
+                          : "—"}
+                      </td>
+                      <td>{new Date(item.observedAt).toLocaleTimeString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="p-5 text-xs text-slate-500">
+              The public derivatives feed is unavailable. No funding or open-interest values are
+              inferred.
+            </p>
+          )}
+        </section>
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <span className="text-xs font-semibold">Source registry</span>
@@ -30,7 +146,13 @@ export default function MacroPage() {
           </div>
           <div className="divide-y divide-line">
             {sources.map((source) => {
-              const configured = source.key ? Boolean(process.env[source.key]) : false;
+              const configured = source.key
+                ? Boolean(process.env[source.key])
+                : source.name === "DeFiLlama"
+                  ? chains.length > 0
+                  : source.name === "Venue funding feeds"
+                    ? metrics.length > 0
+                    : false;
               return (
                 <div
                   key={source.name}

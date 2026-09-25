@@ -26,7 +26,8 @@ export function TerminalDetails({ intelligence }: { intelligence: MarketIntellig
               onKeyDown={(event) => {
                 if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
                 event.preventDefault();
-                const next = (index + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
+                const next =
+                  (index + (event.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length;
                 setActive(tabs[next] ?? tabs[0]);
                 document.getElementById(`${id}-tab-${next}`)?.focus();
               }}
@@ -55,15 +56,26 @@ export function TerminalDetails({ intelligence }: { intelligence: MarketIntellig
                   {intelligence.score.toFixed(1)}
                 </p>
                 <p className="mt-2 text-xs text-slate-400">
-                  {intelligence.regime.replace("_", " ")} · {(intelligence.confidence * 100).toFixed(0)}% confidence
+                  {intelligence.regime.replace("_", " ")} ·{" "}
+                  {(intelligence.confidence * 100).toFixed(0)}% confidence
                 </p>
               </div>
               {intelligence.signals.map((signal) => (
                 <div key={signal.id} className="border-r border-line pr-4 last:border-r-0">
                   <p className="data-label">{signal.label}</p>
                   <div className="mt-3 flex items-baseline justify-between gap-2">
-                    <span className="font-mono text-lg text-slate-100">{signal.value.toFixed(2)}</span>
-                    <span className={signal.direction === "bullish" ? "text-xs text-emerald-300" : signal.direction === "bearish" ? "text-xs text-rose-300" : "text-xs text-slate-400"}>
+                    <span className="font-mono text-lg text-slate-100">
+                      {signal.value.toFixed(2)}
+                    </span>
+                    <span
+                      className={
+                        signal.direction === "bullish"
+                          ? "text-xs text-emerald-300"
+                          : signal.direction === "bearish"
+                            ? "text-xs text-rose-300"
+                            : "text-xs text-slate-400"
+                      }
+                    >
                       {signal.direction}
                     </span>
                   </div>

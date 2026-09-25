@@ -7,7 +7,7 @@ export default async function PlatformLayout({ children }: { children: ReactNode
   const session = await auth();
   const localMode = process.env.SISERA_LOCAL_OPERATOR_MODE === "true";
   if (!session && !localMode) redirect("/sign-in");
-  const operator = session?.user?.name ?? session?.user?.email ?? "Local operator";
+  const operator = session?.user?.name ?? "Local operator";
   return (
     <OperatorShell operator={operator} localMode={localMode}>
       {children}

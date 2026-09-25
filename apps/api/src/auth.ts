@@ -1,7 +1,8 @@
+import { PrivyClient } from "@privy-io/server-auth";
+import { resolvePrivyMembership } from "@sisera/db";
 import type { Permission, UserRole } from "@sisera/domain";
 import { UserRole as UserRoleSchema, roleCan } from "@sisera/domain";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { createRemoteJWKSet, jwtVerify } from "jose";
 import type { ApiConfig } from "./config.js";
 
 export type Principal = { subject: string; tenantId: string; roles: UserRole[] };
@@ -13,18 +14,18 @@ declare module "fastify" {
 }
 
 export function createAuthenticator(config: ApiConfig) {
-  const jwks = config.OIDC_ISSUER
-    ? createRemoteJWKSet(
-        new URL(`${config.OIDC_ISSUER.replace(/\/$/, "")}/protocol/openid-connect/certs`),
-      )
-    : null;
+  const privy =
+    config.PRIVY_APP_ID && config.PRIVY_APP_SECRET
+      ? new PrivyClient(config.PRIVY_APP_ID, config.PRIVY_APP_SECRET)
+      : null;
 
   return async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     request.principal = null;
     if (
       request.url === "/health/live" ||
       request.url === "/health/ready" ||
-      request.url === "/metrics"
+      request.url === "/metrics" ||
+      request.url === "/v1/helius/webhook"
     )
       return;
 
@@ -41,40 +42,60 @@ export function createAuthenticator(config: ApiConfig) {
     }
 
     const token = request.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
-    if (!token || !jwks || !config.OIDC_ISSUER) {
+    if (!token || !privy) {
       await reply
         .code(401)
         .send({ error: "unauthorized", message: "A valid operator session is required." });
       return;
     }
 
+    let userId: string;
     try {
-      const { payload } = await jwtVerify(token, jwks, {
-        issuer: config.OIDC_ISSUER,
-        audience: config.OIDC_AUDIENCE,
-      });
-      const realmAccess = payload.realm_access;
-      const realmRoles =
-        realmAccess &&
-        typeof realmAccess === "object" &&
-        "roles" in realmAccess &&
-        Array.isArray(realmAccess.roles)
-          ? realmAccess.roles
-          : [];
-      const directRoles = Array.isArray(payload.roles) ? payload.roles : [];
-      const roles = [...realmRoles, ...directRoles]
-        .map((role) => UserRoleSchema.safeParse(role))
-        .filter((result) => result.success)
-        .map((result) => result.data);
-      request.principal = {
-        subject: payload.sub ?? "unknown",
-        tenantId: typeof payload.tenant_id === "string" ? payload.tenant_id : "default",
-        roles,
-      };
+      userId = (await privy.verifyAuthToken(token)).userId;
     } catch {
       await reply
         .code(401)
-        .send({ error: "unauthorized", message: "The operator session is invalid or expired." });
+        .send({ error: "unauthorized", message: "The Privy session is invalid." });
+      return;
+    }
+
+    try {
+      const identity = config.DATABASE_URL
+        ? await resolvePrivyMembership(config.DATABASE_URL, userId)
+        : config.NODE_ENV !== "production"
+          ? {
+              userId: `privy:${userId}`,
+              memberships: [{ organizationId: `personal:${userId}`, role: "viewer" }],
+            }
+          : null;
+      if (!identity) {
+        await reply.code(503).send({
+          error: "identity_store_unavailable",
+          message: "Sisera organization mapping is not configured.",
+        });
+        return;
+      }
+      const requestedOrganization = request.headers["x-sisera-organization"]?.toString();
+      const membership =
+        identity.memberships.find((item) => item.organizationId === requestedOrganization) ??
+        (requestedOrganization ? null : identity.memberships[0]);
+      const role = UserRoleSchema.safeParse(membership?.role);
+      if (!membership || !role.success) {
+        await reply
+          .code(403)
+          .send({ error: "forbidden", message: "No Sisera organization membership." });
+        return;
+      }
+      request.principal = {
+        subject: identity.userId,
+        tenantId: membership.organizationId,
+        roles: [role.data],
+      };
+    } catch {
+      await reply.code(503).send({
+        error: "identity_store_unavailable",
+        message: "Sisera could not resolve the organization membership.",
+      });
     }
   };
 }

@@ -2,6 +2,7 @@ import type { OrderBook } from "@sisera/domain";
 import { formatMoney } from "@sisera/ui";
 import { ArrowUpRight, BookOpen, CandlestickChart, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth } from "../../../auth";
 import { DeltaBadge } from "../../../components/delta-badge";
 import { LiveRefresh } from "../../../components/live-refresh";
@@ -27,6 +28,7 @@ export default async function TerminalPage({
   searchParams,
 }: { searchParams: Promise<{ symbol?: string; interval?: string; venue?: string }> }) {
   const parameters = await searchParams;
+  if (!parameters.venue) redirect("/stocks");
   const venue: Venue = parameters.venue === "binance" ? "binance" : "hyperliquid";
   const symbol = universe.includes(parameters.symbol ?? "")
     ? (parameters.symbol as string)

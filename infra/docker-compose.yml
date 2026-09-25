@@ -11,6 +11,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../packages/db/migrations/0000_rebuild.sql:/docker-entrypoint-initdb.d/0000_rebuild.sql:ro
+      - ../packages/db/migrations/0001_portfolio_ledger_agents.sql:/docker-entrypoint-initdb.d/0001_portfolio_ledger_agents.sql:ro
+      - ../packages/db/migrations/0002_privy_identity.sql:/docker-entrypoint-initdb.d/0002_privy_identity.sql:ro
+      - ../packages/db/migrations/0003_solana_webhook_events.sql:/docker-entrypoint-initdb.d/0003_solana_webhook_events.sql:ro
+      - ../packages/db/migrations/0004_solana_swap_orders.sql:/docker-entrypoint-initdb.d/0004_solana_swap_orders.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sisera -d sisera"]
       interval: 5s
@@ -27,16 +31,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-
-  keycloak:
-    image: quay.io/keycloak/keycloak:26.1
-    command: ["start-dev", "--import-realm"]
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
-    ports: ["8080:8080"]
-    volumes:
-      - ./keycloak/sisera-realm.json:/opt/keycloak/data/import/sisera-realm.json:ro
 
   prometheus:
     image: prom/prometheus:v3.2.1

@@ -23,6 +23,71 @@ export const orderStatus = pgEnum("order_status", [
   "expired",
 ]);
 
+export const siseraUsers = pgTable("sisera_users", {
+  id: text("id").primaryKey(),
+  privyUserId: text("privy_user_id").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const organizations = pgTable("organizations", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const organizationMemberships = pgTable(
+  "organization_memberships",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => siseraUsers.id),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    role: text("role").notNull().default("viewer"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("membership_user_org_idx").on(table.userId, table.organizationId)],
+);
+
+export const solanaWebhookEvents = pgTable("solana_webhook_events", {
+  signature: text("signature").primaryKey(),
+  eventType: text("event_type").notNull(),
+  source: text("source").notNull().default("helius"),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const solanaSwapOrders = pgTable(
+  "solana_swap_orders",
+  {
+    id: uuid("id").primaryKey(),
+    tenantId: text("tenant_id").notNull(),
+    subject: text("subject").notNull(),
+    wallet: text("wallet").notNull(),
+    inputMint: text("input_mint").notNull(),
+    outputMint: text("output_mint").notNull(),
+    inAmount: text("in_amount").notNull(),
+    outAmount: text("out_amount").notNull(),
+    requestId: text("request_id"),
+    unsignedTransaction: text("unsigned_transaction"),
+    riskDecision: jsonb("risk_decision").notNull(),
+    mode: text("mode").notNull(),
+    status: text("status").notNull(),
+    signature: text("signature"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("solana_swap_orders_subject_created_idx").on(table.subject, table.createdAt)],
+);
+
+export const solanaPaperAccounts = pgTable("solana_paper_accounts", {
+  subject: text("subject").primaryKey(),
+  cashUsd: numeric("cash_usd").notNull().default("10000"),
+  holdings: jsonb("holdings").$type<Record<string, string>>().notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const instruments = pgTable(
   "instruments",
   {

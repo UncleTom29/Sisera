@@ -6,37 +6,54 @@ import { Command } from "cmdk";
 import {
   Bell,
   Bot,
+  Boxes,
   BriefcaseBusiness,
   CandlestickChart,
   ChevronLeft,
   ChevronRight,
   CircleUserRound,
+  Compass,
   Globe2,
+  Landmark,
   ListFilter,
   Menu,
   Network,
-  RadioTower,
   Search,
   Settings,
   ShieldCheck,
-  Sparkles,
   Target,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { OperatorProfile } from "./operator-profile";
+import { PortfolioConnect } from "./portfolio-connect";
 import { SiseraMark } from "./sisera-mark";
 
 export { SiseraMark } from "./sisera-mark";
 
 const navigation = [
   {
-    label: "Workspace",
+    label: "Stock markets",
     items: [
-      { href: "/terminal", label: "Trading terminal", hint: "⌥1", icon: CandlestickChart },
-      { href: "/markets", label: "Market screener", hint: "⌥2", icon: ListFilter },
-      { href: "/intelligence", label: "Intelligence", hint: "⌥3", icon: Sparkles },
+      { href: "/stocks", label: "Stocks", hint: "⌥1", icon: CandlestickChart },
+      { href: "/private-markets", label: "Private markets", hint: "⌥2", icon: Landmark },
+      { href: "/clawpump", label: "Agent markets", hint: "", icon: Boxes },
+      { href: "/intelligence", label: "Intelligence", hint: "⌥3", icon: Compass },
+    ],
+  },
+  {
+    label: "Broader markets",
+    items: [
+      { href: "/markets?venue=binance", label: "Crypto spot", hint: "", icon: ListFilter },
+      {
+        href: "/terminal?venue=hyperliquid",
+        label: "Perpetuals",
+        hint: "",
+        icon: CandlestickChart,
+      },
+      { href: "/predictions", label: "Predictions", hint: "", icon: Target },
       { href: "/macro", label: "Macro & chains", hint: "⌥4", icon: Globe2 },
     ],
   },
@@ -44,15 +61,14 @@ const navigation = [
     label: "Portfolio",
     items: [
       { href: "/portfolio", label: "Portfolio", hint: "", icon: BriefcaseBusiness },
-      { href: "/risk", label: "Risk command", hint: "", icon: ShieldCheck },
-      { href: "/predictions", label: "Prediction markets", hint: "", icon: Target },
+      { href: "/risk", label: "Risk", hint: "", icon: ShieldCheck },
     ],
   },
   {
     label: "Automation",
     items: [
-      { href: "/agents", label: "Agent operations", hint: "", icon: Bot },
-      { href: "/audit", label: "Decision ledger", hint: "", icon: Network },
+      { href: "/agents", label: "Agents", hint: "", icon: Bot },
+      { href: "/audit", label: "Activity", hint: "", icon: Network },
     ],
   },
 ];
@@ -65,8 +81,8 @@ const utilityNavigation = [
 export function OperatorShell({
   children,
   operator,
-  localMode,
-}: { children: ReactNode; operator: string; localMode: boolean }) {
+  localMode = false,
+}: { children: ReactNode; operator: string; localMode?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [commandsOpen, setCommandsOpen] = useState(false);
@@ -105,7 +121,7 @@ export function OperatorShell({
       >
         <div className="flex h-16 items-center border-b border-line px-4">
           <Link
-            href="/terminal"
+            href="/stocks"
             className="flex min-w-0 items-center gap-3"
             aria-label="Sisera terminal"
           >
@@ -130,7 +146,8 @@ export function OperatorShell({
               )}
               <nav className="space-y-0.5">
                 {group.items.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  const route = item.href.split("?")[0] ?? item.href;
+                  const active = pathname === route || pathname.startsWith(`${route}/`);
                   return (
                     <Link
                       key={item.href}
@@ -205,9 +222,7 @@ export function OperatorShell({
         </button>
         <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 lg:px-4">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="truncate text-[13px] font-medium text-slate-300">
-              Global markets <span className="mx-2 text-slate-600">/</span> Paper workspace
-            </span>
+            <span className="truncate text-[13px] font-medium text-slate-300">Markets</span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -216,7 +231,7 @@ export function OperatorShell({
               className="flex h-9 min-w-8 items-center gap-2 rounded-md border border-line bg-panel px-3 text-[12px] text-slate-400 hover:border-slate-500 sm:min-w-52"
             >
               <Search size={13} />
-              <span className="hidden sm:inline">Search markets and workspaces</span>
+              <span className="hidden sm:inline">Search Sisera</span>
               <span className="ml-auto hidden font-mono text-[9px] text-slate-700 sm:inline">
                 ⌘K
               </span>
@@ -226,26 +241,10 @@ export function OperatorShell({
               onClick={() => setCommandsOpen(true)}
               className="hidden h-9 items-center gap-2 rounded-md border border-line bg-panel px-3 text-[12px] text-slate-300 hover:border-cyan-500/40 md:flex"
             >
-              <Sparkles size={13} className="text-cyan-300" /> Ask Sisera
+              <Compass size={13} className="text-cyan-300" /> Explore
             </button>
-            <span
-              className={cn(
-                "hidden h-8 items-center gap-2 border px-3 font-mono text-[9px] uppercase tracking-wider xl:inline-flex",
-                localMode
-                  ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-              )}
-            >
-              <RadioTower size={12} /> {localMode ? "Local operator" : "SSO verified"}
-            </span>
-            <button
-              type="button"
-              className="grid size-8 place-items-center border border-line bg-slate-900 text-slate-400 hover:text-white"
-              aria-label="Operator profile"
-              title={operator}
-            >
-              <CircleUserRound size={15} />
-            </button>
+            <PortfolioConnect compact />
+            <OperatorProfile operator={operator} localMode={localMode} />
           </div>
         </div>
       </header>
@@ -299,7 +298,7 @@ export function OperatorShell({
                 <Search size={16} className="text-cyan-300" />
                 <Command.Input
                   autoFocus
-                  placeholder="Search markets, actions, or workspaces…"
+                  placeholder="Search pages…"
                   className="h-14 flex-1 bg-transparent text-sm outline-none placeholder:text-slate-600"
                 />
                 <span className="border border-line px-1.5 py-1 font-mono text-[9px] text-slate-600">
@@ -322,37 +321,13 @@ export function OperatorShell({
                       className="mt-1 flex cursor-pointer items-center gap-3 px-3 py-3 text-sm normal-case tracking-normal text-slate-300 data-[selected=true]:bg-slate-800 data-[selected=true]:text-white"
                     >
                       <item.icon size={15} /> {item.label}
-                      <span className="ml-auto font-mono text-[9px] text-slate-600">
-                        {item.href}
-                      </span>
-                    </Command.Item>
-                  ))}
-                </Command.Group>
-                <Command.Separator className="my-2 h-px bg-line" />
-                <Command.Group
-                  heading="Copilot"
-                  className="text-[9px] uppercase tracking-widest text-slate-600"
-                >
-                  {[
-                    "Explain current BTC regime",
-                    "Review portfolio risk",
-                    "Draft a paper order",
-                  ].map((item) => (
-                    <Command.Item
-                      key={item}
-                      className="mt-1 flex cursor-pointer items-center gap-3 px-3 py-3 text-sm normal-case tracking-normal text-slate-400 data-[selected=true]:bg-slate-800 data-[selected=true]:text-white"
-                    >
-                      <Sparkles size={14} className="text-cyan-300" /> {item}
-                      <span className="ml-auto font-mono text-[9px] text-slate-700">
-                        Intent only
-                      </span>
                     </Command.Item>
                   ))}
                 </Command.Group>
               </Command.List>
               <div className="flex items-center justify-between border-t border-line px-4 py-2 font-mono text-[9px] uppercase tracking-wider text-slate-700">
                 <span>↑↓ Navigate · ↵ Open</span>
-                <span>Execution requires confirmation</span>
+                <span>Press Esc to close</span>
               </div>
             </Command>
           </Dialog.Content>

@@ -20,6 +20,8 @@ export const InstrumentType = z.enum([
   "future",
   "option",
   "tokenized_equity",
+  "pre_ipo_equity",
+  "agent_token",
   "tokenized_fund",
   "prediction_outcome",
 ]);
@@ -37,6 +39,18 @@ export const Instrument = z.object({
   quantityIncrement: DecimalString,
   contractMultiplier: DecimalString.default("1"),
   status: z.enum(["active", "halted", "delisted"]),
+  chain: z.string().optional(),
+  mint: z.string().optional(),
+  issuer: z.string().optional(),
+  provider: z.string().optional(),
+  underlyingSymbol: z.string().optional(),
+  underlyingPythFeed: z.string().optional(),
+  tokenPythFeed: z.string().optional(),
+  markPrice: DecimalString.optional(),
+  impliedValuation: DecimalString.optional(),
+  referenceValuation: DecimalString.optional(),
+  pairedStockMint: z.string().optional(),
+  agentId: z.string().optional(),
 });
 export type Instrument = z.infer<typeof Instrument>;
 
@@ -124,7 +138,7 @@ export const OrderIntent = z.object({
   stopPrice: DecimalString.optional(),
   timeInForce: TimeInForce.default("gtc"),
   reduceOnly: z.boolean().default(false),
-  mode: z.literal("paper"),
+  mode: z.enum(["paper", "live"]),
   submittedBy: z.string().min(1),
   correlationId: z.string().min(8),
 });
@@ -175,6 +189,7 @@ export const Permission = z.enum([
   "market:read",
   "portfolio:read",
   "order:paper:create",
+  "order:live:create",
   "risk:read",
   "risk:manage",
   "agent:read",
@@ -226,7 +241,14 @@ export type PredictionMarket = z.infer<typeof PredictionMarket>;
 
 export const ROLE_PERMISSIONS: Readonly<Record<UserRole, readonly Permission[]>> = {
   viewer: ["market:read", "portfolio:read", "risk:read", "agent:read"],
-  trader: ["market:read", "portfolio:read", "order:paper:create", "risk:read", "agent:read"],
+  trader: [
+    "market:read",
+    "portfolio:read",
+    "order:paper:create",
+    "order:live:create",
+    "risk:read",
+    "agent:read",
+  ],
   risk_manager: [
     "market:read",
     "portfolio:read",

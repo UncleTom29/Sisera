@@ -1,115 +1,332 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Button } from "@sisera/ui";
-import { Building2, KeyRound, Link2, Plus, ShieldCheck, WalletCards, X } from "lucide-react";
-import { useState } from "react";
+import { Check, Copy, ExternalLink, KeyRound, LogOut, Wallet, WalletCards, X } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
-const connectionTypes = [
-  {
-    id: "exchange",
-    title: "Exchange account",
-    copy: "Read-only or trading API credentials",
-    icon: KeyRound,
-  },
-  {
-    id: "wallet",
-    title: "Onchain wallet",
-    copy: "EVM, Solana, Bitcoin, and supported chains",
-    icon: WalletCards,
-  },
-  {
-    id: "custodian",
-    title: "Custodian or prime",
-    copy: "Institutional portfolio and balance feeds",
-    icon: Building2,
-  },
-];
+interface SolanaProvider {
+  isPhantom?: boolean;
+  isBackpack?: boolean;
+  publicKey?: { toString(): string };
+  connect: (options?: { onlyIfTrusted?: boolean }) => Promise<{
+    publicKey: { toString(): string };
+  }>;
+  disconnect: () => Promise<void>;
+}
 
-export function PortfolioConnect() {
-  const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState("exchange");
+function getBrowserSolanaProvider(): SolanaProvider | null {
+  if (typeof window === "undefined") return null;
+  const anyWin = window as unknown as {
+    phantom?: { solana?: SolanaProvider };
+    solana?: SolanaProvider;
+    backpack?: SolanaProvider;
+    solflare?: SolanaProvider;
+  };
+  return anyWin.phantom?.solana || anyWin.solana || anyWin.backpack || anyWin.solflare || null;
+}
+
+const STORAGE_KEY = "sisera_active_wallet";
+const SAMPLE_WALLET = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
+
+export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
+  const router = useRouter();
+  const [address, setAddress] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [inputAddress, setInputAddress] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Initialize from localStorage or standard wallet on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(saved)) {
+      setAddress(saved);
+    } else {
+      // Check if browser wallet is already connected
+      const provider = getBrowserSolanaProvider();
+      if (provider?.publicKey) {
+        const pub = provider.publicKey.toString();
+        setAddress(pub);
+        localStorage.setItem(STORAGE_KEY, pub);
+      }
+    }
+
+    const handleWalletChanged = (event: Event) => {
+      const custom = event as CustomEvent<string | null>;
+      setAddress(custom.detail);
+    };
+    window.addEventListener("sisera_wallet_changed", handleWalletChanged);
+    return () => window.removeEventListener("sisera_wallet_changed", handleWalletChanged);
+  }, []);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    if (dropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [dropdownOpen]);
+
+  function setWallet(newAddress: string | null) {
+    if (newAddress) {
+      localStorage.setItem(STORAGE_KEY, newAddress);
+      setAddress(newAddress);
+      window.dispatchEvent(new CustomEvent("sisera_wallet_changed", { detail: newAddress }));
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+      setAddress(null);
+      window.dispatchEvent(new CustomEvent("sisera_wallet_changed", { detail: null }));
+    }
+  }
+
+  async function connectBrowserWallet() {
+    setError(null);
+    setConnecting(true);
+    try {
+      const provider = getBrowserSolanaProvider();
+      if (!provider) {
+        throw new Error(
+          "No Solana extension detected. Please install Phantom, Backpack, or Solflare, or enter an address below.",
+        );
+      }
+      const response = await provider.connect();
+      const pubkey = response.publicKey.toString();
+      setWallet(pubkey);
+      setModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to connect browser wallet");
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  function connectManualAddress(customAddress?: string) {
+    setError(null);
+    const target = (customAddress || inputAddress).trim();
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(target)) {
+      setError("Please enter a valid base58 Solana public address (32-44 characters)");
+      return;
+    }
+    setWallet(target);
+    setInputAddress("");
+    setModalOpen(false);
+  }
+
+  function handleCopy() {
+    if (!address) return;
+    navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleDisconnect() {
+    const provider = getBrowserSolanaProvider();
+    if (provider) {
+      provider.disconnect?.().catch(() => {});
+    }
+    setWallet(null);
+    setDropdownOpen(false);
+  }
+
+  const shortAddress = address ? `${address.slice(0, 4)}…${address.slice(-4)}` : null;
+
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
-        <Button variant="primary" size="sm">
-          <Plus size={13} /> Connect account
-        </Button>
-      </Dialog.Trigger>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[110] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 border border-line-strong bg-[#0b1119] shadow-2xl">
-          <div className="flex items-start justify-between border-b border-line p-5">
+    <div className="relative" ref={dropdownRef}>
+      {address ? (
+        <button
+          type="button"
+          onClick={() => setDropdownOpen((prev) => !prev)}
+          className="flex h-9 items-center gap-2 rounded border border-cyan-400/40 bg-cyan-400/10 px-3 text-xs font-mono font-medium text-cyan-200 hover:bg-cyan-400/20 transition-colors"
+          aria-expanded={dropdownOpen}
+          aria-label="Connected Solana wallet"
+        >
+          <span className="size-2 rounded-full bg-emerald-400" />
+          <WalletCards size={14} className="text-cyan-300" />
+          <span>{shortAddress}</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setError(null);
+            setModalOpen(true);
+          }}
+          className="flex h-9 items-center gap-2 rounded border border-cyan-400/30 bg-cyan-400/10 px-3 text-xs font-medium text-cyan-200 hover:bg-cyan-400/20 transition-colors"
+        >
+          <WalletCards size={14} />
+          <span>{compact ? "Connect" : "Connect wallet"}</span>
+        </button>
+      )}
+
+      {/* Connected Wallet Dropdown */}
+      {dropdownOpen && address && (
+        <div className="absolute right-0 top-11 z-50 w-72 rounded-lg border border-line bg-panel p-4 shadow-2xl animate-in fade-in zoom-in-95 duration-100">
+          <div className="flex items-center justify-between border-b border-line pb-3">
             <div>
-              <Dialog.Title className="text-lg font-semibold text-white">
-                Connect a portfolio source
-              </Dialog.Title>
-              <Dialog.Description className="mt-2 text-xs text-slate-500">
-                Choose how Sisera should establish portfolio truth. Credentials are never accepted
-                by this web form until custody is configured.
-              </Dialog.Description>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
+                Connected Solana Wallet
+              </p>
+              <p className="mt-1 font-mono text-xs font-medium text-white">{shortAddress}</p>
             </div>
-            <Dialog.Close className="grid size-8 place-items-center border border-line text-slate-500 hover:text-white">
-              <X size={15} />
-            </Dialog.Close>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="flex items-center gap-1 rounded border border-line bg-[#101b23] px-2 py-1 text-[11px] text-slate-300 hover:text-white"
+              title="Copy full address"
+            >
+              {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+              <span>{copied ? "Copied" : "Copy"}</span>
+            </button>
           </div>
-          <div className="grid gap-4 p-5 md:grid-cols-[.9fr_1.1fr]">
-            <div className="space-y-2">
-              {connectionTypes.map((item) => (
+
+          <div className="mt-3 space-y-1 text-xs">
+            <Link
+              href={`/portfolio?solana=${encodeURIComponent(address)}`}
+              onClick={() => setDropdownOpen(false)}
+              className="flex items-center justify-between rounded px-2.5 py-1.5 text-slate-300 hover:bg-white/5 hover:text-white"
+            >
+              <span>View in Portfolio</span>
+              <ExternalLink size={13} className="text-slate-400" />
+            </Link>
+
+            <a
+              href={`https://explorer.solana.com/address/${encodeURIComponent(address)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between rounded px-2.5 py-1.5 text-slate-300 hover:bg-white/5 hover:text-white"
+            >
+              <span>Solana Explorer</span>
+              <ExternalLink size={13} className="text-slate-400" />
+            </a>
+          </div>
+
+          <div className="mt-3 border-t border-line pt-2">
+            <button
+              type="button"
+              onClick={handleDisconnect}
+              className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10 transition-colors"
+            >
+              <span>Disconnect Wallet</span>
+              <LogOut size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Connect Modal Dialog */}
+      <Dialog.Root open={modalOpen} onOpenChange={setModalOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-line bg-panel p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-line pb-4">
+              <div className="flex items-center gap-2">
+                <Wallet className="text-cyan-300" size={18} />
+                <Dialog.Title className="text-base font-semibold text-white">
+                  Connect Solana Wallet
+                </Dialog.Title>
+              </div>
+              <Dialog.Close asChild>
                 <button
-                  key={item.id}
                   type="button"
-                  onClick={() => setSelected(item.id)}
-                  className={`flex w-full items-center gap-3 border p-3 text-left ${selected === item.id ? "border-cyan-400/40 bg-cyan-400/[0.07]" : "border-line bg-panel"}`}
+                  className="rounded p-1 text-slate-400 hover:text-white"
+                  aria-label="Close"
                 >
-                  <span className="grid size-9 place-items-center border border-line bg-[#080c12]">
-                    <item.icon
-                      size={15}
-                      className={selected === item.id ? "text-cyan-300" : "text-slate-600"}
-                    />
-                  </span>
-                  <span>
-                    <span className="block text-[11px] font-semibold text-slate-200">
-                      {item.title}
-                    </span>
-                    <span className="mt-1 block text-[9px] text-slate-600">{item.copy}</span>
+                  <X size={16} />
+                </button>
+              </Dialog.Close>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {/* Option 1: Browser Wallet */}
+              <div>
+                <button
+                  type="button"
+                  disabled={connecting}
+                  onClick={connectBrowserWallet}
+                  className="flex w-full items-center justify-between rounded-lg border border-cyan-400/40 bg-[#101b23] p-3.5 text-left transition-colors hover:border-cyan-300 hover:bg-[#14232f]"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="grid size-9 place-items-center rounded bg-cyan-300/10 text-cyan-300">
+                      <WalletCards size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-white">Browser Wallet</p>
+                      <p className="text-[11px] text-slate-400">Phantom, Backpack, or Solflare</p>
+                    </div>
+                  </div>
+                  <span className="rounded bg-cyan-300/20 px-2 py-1 font-mono text-[10px] text-cyan-300">
+                    {connecting ? "Connecting…" : "Connect"}
                   </span>
                 </button>
-              ))}
-            </div>
-            <div className="border border-line bg-[#080c12] p-4">
-              <p className="data-label">Connection policy</p>
-              <h3 className="mt-4 text-sm font-semibold text-slate-200">
-                Secure custody boundary required
-              </h3>
-              <p className="mt-3 text-[11px] leading-5 text-slate-500">
-                The selected connector becomes available after a secrets manager, encryption key,
-                organization policy, and reconciliation schedule are configured.
-              </p>
-              <div className="mt-5 space-y-2">
-                {[
-                  "Credentials encrypted outside the application database",
-                  "Read permissions verified before trading permissions",
-                  "Initial balances require reconciliation",
-                  "Every connector action enters the audit ledger",
-                ].map((item) => (
-                  <div key={item} className="flex gap-2 text-[10px] leading-4 text-slate-400">
-                    <ShieldCheck size={12} className="mt-0.5 shrink-0 text-emerald-300" />
-                    {item}
-                  </div>
-                ))}
               </div>
-              <button
-                type="button"
-                disabled
-                className="mt-6 flex h-9 w-full items-center justify-center gap-2 border border-slate-700 bg-slate-800 text-[10px] font-semibold text-slate-500"
-              >
-                <Link2 size={12} /> Connector service not configured
-              </button>
+
+              {/* Option 2: Enter Solana Address */}
+              <div className="rounded-lg border border-line bg-[#0d141b] p-4">
+                <div className="flex items-center gap-2">
+                  <KeyRound size={14} className="text-slate-400" />
+                  <p className="text-xs font-semibold text-slate-200">Enter Public Address</p>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Inspect your Solana holdings, balances, and risk in the terminal.
+                </p>
+
+                <div className="mt-3 flex gap-2">
+                  <input
+                    type="text"
+                    value={inputAddress}
+                    onChange={(e) => setInputAddress(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") connectManualAddress();
+                    }}
+                    placeholder="Solana address (base58)"
+                    className="flex-1 rounded border border-line bg-panel px-3 py-1.5 font-mono text-xs text-white placeholder-slate-600 outline-none focus:border-cyan-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => connectManualAddress()}
+                    className="rounded bg-cyan-300 px-3 py-1.5 text-xs font-semibold text-[#14202a] hover:bg-cyan-200 transition-colors"
+                  >
+                    View
+                  </button>
+                </div>
+
+                <div className="mt-2.5 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">Need a sample wallet?</span>
+                  <button
+                    type="button"
+                    onClick={() => connectManualAddress(SAMPLE_WALLET)}
+                    className="font-mono text-cyan-300 hover:underline"
+                  >
+                    Use sample address
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <div className="rounded border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">
+                  {error}
+                </div>
+              )}
             </div>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+
+            <div className="mt-6 border-t border-line pt-3 text-center">
+              <p className="font-mono text-[10px] text-slate-500">
+                Non-custodial terminal · Private keys are never requested or stored
+              </p>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </div>
   );
 }

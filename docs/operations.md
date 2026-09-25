@@ -2,8 +2,17 @@
 
 ## Local stack
 
-`infra/docker-compose.yml` starts PostgreSQL, Redis, Keycloak, Prometheus, and Grafana. Credentials in
+`infra/docker-compose.yml` starts PostgreSQL, Redis, Prometheus, and Grafana. Credentials in
 that file are local-only and must never be reused outside a developer machine.
+New PostgreSQL volumes apply migrations `0000` through `0004` in order. For an existing volume,
+apply `packages/db/migrations/0002_privy_identity.sql` and
+`packages/db/migrations/0003_solana_webhook_events.sql` and
+`packages/db/migrations/0004_solana_swap_orders.sql` manually before enabling Privy membership,
+Helius webhook intake, or paper/live order persistence. Do not reset a volume just to re-run initialization.
+
+## Trading credentials
+
+Privy requires one app ID shared by web and API, plus a server-only app secret. Helius RPC and Jupiter require API keys. Set `DATABASE_URL` for persistent orders. Without these credentials, the public markets and local paper mode still run, but mainnet orders cannot be submitted. Never put `PRIVY_APP_SECRET`, `HELIUS_API_KEY`, or `JUPITER_API_KEY` in a `NEXT_PUBLIC_` variable.
 
 ## Readiness
 

@@ -5,16 +5,25 @@ import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 import { PortfolioConnect } from "../../../components/portfolio-connect";
-import { getPublicPerpAccount } from "../../../lib/api";
+import { getPublicPerpAccount, getSolanaWallet } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortfolioPage({
   searchParams,
-}: { searchParams: Promise<{ address?: string }> }) {
-  const address = (await searchParams).address?.trim() ?? "";
+}: { searchParams: Promise<{ address?: string; solana?: string }> }) {
+  const parameters = await searchParams;
+  const address = parameters.address?.trim() ?? "";
+  const solanaAddress = parameters.solana?.trim() ?? "";
+  const validSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(solanaAddress);
   const validAddress = /^0x[a-fA-F0-9]{40}$/.test(address);
   const session = await auth();
+  const solana = validSolanaAddress
+    ? await getSolanaWallet(solanaAddress, {
+        accessToken: session?.accessToken,
+        localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
+      }).catch(() => null)
+    : null;
   const observed = validAddress
     ? await getPublicPerpAccount(address, {
         accessToken: session?.accessToken,
@@ -24,16 +33,79 @@ export default async function PortfolioPage({
   return (
     <div className="min-h-full">
       <PageHeader
-        eyebrow="Reconciled source of truth"
+        eyebrow="Unified Portfolio / Reconciled Truth"
         title="Portfolio"
-        description="Cross-venue cash, positions, margin, exposure, and P&L—accepted only after reconciliation."
+        description="Unified portfolio across tokenized public equities, PreStocks private markets, Clawpump assets, autonomous agent allocations, and Solana cash."
         actions={
           <div className="flex items-center gap-2">
-            <StatusBadge tone="warning">No reconciled source</StatusBadge>
             <PortfolioConnect />
           </div>
         }
       />
+      <section className="m-4 border border-line bg-panel p-5 md:m-6">
+        <p className="eyebrow">Solana</p>
+        <h2 className="mt-2 text-base font-semibold text-slate-100">Your wallet</h2>
+        <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">
+          Connect your wallet or enter an address to view balances.
+        </p>
+        <form action="/portfolio" className="mt-4 flex flex-wrap gap-2">
+          <input
+            name="solana"
+            defaultValue={solanaAddress}
+            aria-label="Solana public wallet address"
+            placeholder="Solana public address"
+            className="min-w-64 flex-1 rounded border border-line bg-[#0f1a22] px-3 py-2 font-mono text-xs text-slate-100"
+          />
+          <button
+            type="submit"
+            className="rounded border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300"
+          >
+            View balances
+          </button>
+        </form>
+        {solanaAddress && !validSolanaAddress && (
+          <p className="mt-2 text-xs text-rose-300">Enter a valid base58 Solana address.</p>
+        )}
+        {validSolanaAddress && !solana && (
+          <p className="mt-2 text-xs text-amber-300">
+            Wallet balances are temporarily unavailable.
+          </p>
+        )}
+        {solana && (
+          <div className="mt-5">
+            <p className="font-mono text-[10px] text-slate-500">
+              {solana.source} · fetched {new Date(solana.fetchedAt).toLocaleTimeString()} · not
+              reconciled
+            </p>
+            <p className="mt-3 font-mono text-xl text-white">
+              {(Number(solana.solLamports) / 1e9).toFixed(4)} SOL
+            </p>
+            <div className="mt-4 divide-y divide-line border-t border-line">
+              {solana.holdings.map((holding) => (
+                <div
+                  key={holding.mint}
+                  className="flex flex-wrap items-center justify-between gap-3 py-3 text-xs"
+                >
+                  <div>
+                    <p className="font-semibold text-slate-100">
+                      {holding.symbol ?? holding.name ?? "Unknown token"}
+                    </p>
+                    <p className="mt-1 break-all font-mono text-[10px] text-slate-500">
+                      {holding.mint}
+                    </p>
+                  </div>
+                  <p className="font-mono text-slate-200">
+                    {(Number(holding.rawBalance) / 10 ** holding.decimals).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {!solana.holdings.length && (
+              <p className="mt-4 text-xs text-slate-500">No indexed fungible holdings reported.</p>
+            )}
+          </div>
+        )}
+      </section>
       <section className="m-4 border border-line bg-panel p-5 md:m-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

@@ -1,38 +1,24 @@
-import NextAuth from "next-auth";
-import Keycloak from "next-auth/providers/keycloak";
+import { PrivyClient } from "@privy-io/server-auth";
+import { cookies } from "next/headers";
 
-const oidcConfigured = Boolean(
-  process.env.AUTH_KEYCLOAK_ID &&
-    process.env.AUTH_KEYCLOAK_SECRET &&
-    process.env.AUTH_KEYCLOAK_ISSUER,
-);
+export const sessionCookieName = "sisera-privy-session";
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
-  trustHost: process.env.NODE_ENV !== "production" || process.env.AUTH_TRUST_HOST === "true",
-  providers: oidcConfigured
-    ? [
-        Keycloak({
-          clientId: process.env.AUTH_KEYCLOAK_ID as string,
-          clientSecret: process.env.AUTH_KEYCLOAK_SECRET as string,
-          issuer: process.env.AUTH_KEYCLOAK_ISSUER as string,
-        }),
-      ]
-    : [],
-  pages: { signIn: "/sign-in" },
-  session: { strategy: "jwt" },
-  callbacks: {
-    jwt({ token, account, profile }) {
-      if (account?.access_token) token.accessToken = account.access_token;
-      if (profile && typeof profile === "object" && "tenant_id" in profile)
-        token.tenantId = profile.tenant_id;
-      return token;
-    },
-    session({ session, token }) {
-      if (typeof token.accessToken === "string") session.accessToken = token.accessToken;
-      if (typeof token.tenantId === "string") session.tenantId = token.tenantId;
-      return session;
-    },
-  },
-});
+const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+const appSecret = process.env.PRIVY_APP_SECRET;
+const privy = appId && appSecret ? new PrivyClient(appId, appSecret) : null;
 
-export const isOidcConfigured = oidcConfigured;
+export async function verifyPrivyAccessToken(token: string) {
+  if (!privy) throw new Error("Privy server authentication is not configured");
+  return privy.verifyAuthToken(token);
+}
+
+export async function auth() {
+  const token = (await cookies()).get(sessionCookieName)?.value;
+  if (!token || !privy) return null;
+  try {
+    const claims = await privy.verifyAuthToken(token);
+    return { accessToken: token, user: { id: claims.userId, name: claims.userId } };
+  } catch {
+    return null;
+  }
+}

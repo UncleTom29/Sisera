@@ -7,6 +7,72 @@ import type {
 } from "@sisera/domain";
 
 export type MarketRow = { instrument: Instrument; snapshot: MarketSnapshot };
+export type PreStock = {
+  instrument: Instrument;
+  company: string;
+  description: string | null;
+  imageUrl: string | null;
+  productUrl: string | null;
+  tokenPrice: string;
+  markPrice: string;
+  impliedValuation: string;
+  markValuation: string;
+  premiumDiscountPct: string;
+  marketCap: string;
+  supply: string;
+  liquidityUsd: null;
+  holders: null;
+  updatedAt: null;
+  fetchedAt: string;
+  source: "prestocks";
+};
+export type SolanaWallet = {
+  address: string;
+  solLamports: string;
+  holdings: Array<{
+    mint: string;
+    symbol: string | null;
+    name: string | null;
+    rawBalance: string;
+    decimals: number;
+  }>;
+  fetchedAt: string;
+  source: "helius-das";
+  reconciled: false;
+};
+export type StockNewsItem = {
+  title: string;
+  summary: string | null;
+  url: string;
+  publishedAt: string;
+  publisher: string;
+  provider: "gnews" | "finnhub" | "gdelt" | "marketaux";
+};
+export type PublicStock = {
+  name: string;
+  symbol: string;
+  underlyingSymbol: string;
+  mint: string;
+  priceUsd: string | null;
+  dexPriceUsd: string | null;
+  change24hPct: number | null;
+  volume24hUsd: number | null;
+  liquidityUsd: number | null;
+  chartUrl: string | null;
+  tradingHalted: boolean;
+  fetchedAt: string;
+  source: "xstocks";
+};
+export type ClawpumpToken = {
+  mint?: string;
+  address?: string;
+  symbol: string;
+  name: string;
+  verified?: boolean;
+  price?: string | number | null;
+  marketCap?: string | number | null;
+  liquidity?: string | number | null;
+};
 export type Venue = "binance" | "hyperliquid";
 export type PerpetualMetric = {
   symbol: string;
@@ -116,6 +182,65 @@ export async function getReferenceMarkets(symbols: readonly string[], identity: 
     `/v1/reference-markets?symbols=${encodeURIComponent(symbols.join(","))}`,
     identity,
     8000,
+  );
+  return payload.data;
+}
+
+export async function getPrivateMarkets(identity: ApiIdentity) {
+  const payload = await getJson<{ data: PreStock[] }>("/v1/private-markets", identity, 9000);
+  return payload.data;
+}
+
+export async function getPublicStocks(identity: ApiIdentity) {
+  const payload = await getJson<{ data: PublicStock[] }>("/v1/public-stocks", identity, 15000);
+  return payload.data;
+}
+
+export async function getStockNews(symbol: string, identity: ApiIdentity) {
+  return getJson<{ data: StockNewsItem[]; providers: string[]; delayedPossible: boolean }>(
+    `/v1/stocks/${encodeURIComponent(symbol)}/news`,
+    identity,
+    9000,
+  );
+}
+
+export async function searchClawpump(query: string, identity: ApiIdentity) {
+  return getJson<{
+    data: { tokens: ClawpumpToken[]; droppedUnverified?: number };
+    source: "clawpump";
+  }>(`/v1/clawpump/search?query=${encodeURIComponent(query)}`, identity, 9000);
+}
+
+export type JupiterQuote = {
+  inputMint: string;
+  outputMint: string;
+  inAmount: string;
+  outAmount: string;
+  priceImpactPct: string | null;
+  router: string;
+  requestId: string;
+  executable: false;
+};
+export async function getJupiterQuote(
+  inputMint: string,
+  outputMint: string,
+  amount: string,
+  identity: ApiIdentity,
+) {
+  const query = new URLSearchParams({ inputMint, outputMint, amount });
+  const result = await getJson<{ data: JupiterQuote }>(
+    `/v1/solana/quote?${query}`,
+    identity,
+    11000,
+  );
+  return result.data;
+}
+
+export async function getSolanaWallet(address: string, identity: ApiIdentity) {
+  const payload = await getJson<{ data: SolanaWallet }>(
+    `/v1/solana/wallet/${encodeURIComponent(address)}`,
+    identity,
+    9000,
   );
   return payload.data;
 }

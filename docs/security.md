@@ -2,10 +2,12 @@
 
 ## Identity and authorization
 
-- Browser sessions use organization OIDC through Auth.js.
-- API bearer tokens are verified against the issuer JWKS, audience, expiry, and issuer.
+- Browser sessions use Privy access tokens held in an HttpOnly, same-site cookie.
+- The API verifies Privy bearer tokens server-side, then resolves Sisera organization membership.
 - Roles map to explicit permissions. Wallet ownership is never sufficient authorization to trade.
 - Local development bypasses are opt-in, rejected in production, and visible in the terminal.
+- Privy embedded and external wallets never expose private keys to Sisera. Identity alone grants
+  only a viewer role until explicit organization permissions are assigned.
 
 ## Execution controls
 
@@ -14,6 +16,8 @@
 - Quotes have source, observation time, receive time, and quality state. Non-live or old quotes fail.
 - Client order IDs are unique per tenant and are the idempotency boundary.
 - Agent and copilot output remains a proposal until deterministic validation and required approval.
+- Jupiter route checks have no taker address and return quote-only data; live Solana execution is
+  disabled until transaction validation, wallet approval, confirmation, and reconciliation exist.
 
 ## Secrets and data
 

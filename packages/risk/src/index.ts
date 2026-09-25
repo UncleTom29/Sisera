@@ -36,7 +36,7 @@ export function evaluatePreTradeRisk(input: PreTradeInput): RiskDecision {
   );
   const quoteAgeMs = now.getTime() - Date.parse(input.quote.quality.observedAt);
 
-  if (input.quote.quality.status !== "live") {
+  if (input.order.mode === "live" && input.quote.quality.status !== "live") {
     reasons.push({ code: "QUOTE_NOT_LIVE", message: "Execution requires a live market quote." });
   }
   if (quoteAgeMs < 0 || quoteAgeMs > input.limits.maxQuoteAgeMs) {

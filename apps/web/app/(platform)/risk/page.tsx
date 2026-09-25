@@ -40,19 +40,12 @@ export default async function RiskPage({
   return (
     <div className="min-h-full">
       <PageHeader
-        eyebrow="Independent control function"
+        eyebrow="Deterministic Risk Engine"
         title="Risk command center"
-        description="Pre-trade controls fail closed without a reconciled portfolio. Public wallet observations are research only, never mandate utilization."
+        description="Deterministic pre-trade risk controls and scenario simulation. Enforces hard capital, concentration, and drawdown limits before orders reach Solana."
         actions={
           <div className="flex items-center gap-2">
-            <StatusBadge tone="positive">Engine fail-closed</StatusBadge>
-            <button
-              type="button"
-              disabled
-              className="flex h-8 items-center gap-2 border border-rose-500/30 bg-rose-500/[0.06] px-3 text-[10px] font-semibold text-rose-300/50"
-            >
-              <Siren size={12} /> Global halt
-            </button>
+            <StatusBadge tone="positive">Pre-trade controls active</StatusBadge>
           </div>
         }
       />

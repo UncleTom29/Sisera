@@ -1,9 +1,18 @@
 # Market data provenance
 
-Sisera keeps spot, perpetual, and reference markets separate. The terminal and screener default to Hyperliquid perpetuals because its public feed is reachable in the current local environment. Selecting Binance spot never substitutes a perpetual quote.
+Sisera keeps tokenized stocks, spot, perpetual, and reference markets separate. The default
+workspace centers Solana stocks. Hyperliquid perpetuals and Binance spot remain secondary;
+selecting one never substitutes the other's quotes.
 
 | Surface | Source | Public endpoint | Semantics |
 | --- | --- | --- | --- |
+| Pre-IPO catalogue | PreStocks | `GET https://prestocks.com/api/prestocks` | Token price, issuer mark, valuation, supply and Solana mint. Premium and supply-value are derived. The source does not provide quote timestamps, candles, liquidity or holders. |
+| Equity reference | Pyth Pro | Authenticated `POST /v1/latest_price` | Uses `feedUpdateTimestamp` to distinguish current from carried-forward/stale prices. A reference feed is not an executable token price. |
+| Solana wallet observation | Helius | RPC `getBalance`, DAS `getAssetsByOwner` | Read-only balances. Not account reconciliation or trade authorization. |
+| Agent-token discovery | Clawpump | Authenticated `GET /tokens/search`, `/price` | Provider search/verification claims; not a safe-token endorsement. |
+| Company articles | GNews/Finnhub | Authenticated search/company-news | Publication time is attached; GNews free-tier results may be delayed. |
+| Stock research assessment | OpenRouter | Authenticated chat completion with strict JSON schema | On-demand, source-contextual, non-executable model output. Provider/model availability depends on configured credentials. |
+| Solana route preview | Jupiter | Authenticated `GET /swap/v2/order` without taker | Indicative quote only; no unsigned transaction, signing, or execution. |
 | Perpetual market metadata, mark, funding, open interest, 24h notional | Hyperliquid | `POST https://api.hyperliquid.xyz/info` with `type=metaAndAssetCtxs` | `markPx` is displayed as **mark**, not last trade. `dayNtlVlm` is quote notional. Funding is a fractional hourly rate. |
 | Perpetual bid, ask, and depth | Hyperliquid | `type=l2Book` | Top book prices and levels; venue timestamp comes from `time`. |
 | Perpetual candles | Hyperliquid | `type=candleSnapshot` | Verified venue OHLCV, not interpolated. |

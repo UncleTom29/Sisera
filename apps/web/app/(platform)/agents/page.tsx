@@ -8,10 +8,10 @@ export default function AgentsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Governed automation"
-        title="Agent operations"
-        description="Governed agent stages and runtime inventory. No agent is deployed or authorized to execute from this workspace."
-        actions={<StatusBadge tone="warning">Runtime not connected</StatusBadge>}
+        eyebrow="Governed Automation / Risk Limits"
+        title="Autonomous agent operations"
+        description="Persistent trading agents executing within declarative policies and explicit capital, leverage, and drawdown boundaries with an auditable decision trail."
+        actions={<StatusBadge tone="neutral">0 Active Agents</StatusBadge>}
       />
       <div className="overflow-x-auto border-b border-line bg-panel px-4 py-5">
         <div className="flex min-w-[760px] items-center">
@@ -31,28 +31,26 @@ export default function AgentsPage() {
       <div className="grid gap-4 p-4 xl:grid-cols-[1.4fr_.6fr]">
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <span className="text-xs font-semibold">Runtime inventory</span>
+            <span className="text-xs font-semibold">Agent Inventory</span>
             <StatusBadge>0 active</StatusBadge>
           </div>
           <div className="p-3">
             <EmptyState
               icon={Bot}
-              title="No agent manifests"
-              copy="Manifest creation and persistence are not connected. No agent has been silently activated."
-              code="AGENT_RUNTIME / EMPTY"
+              title="No active agents"
+              copy="Configure a persistent trading agent with explicit capital limits, strategy rules, and execution modes."
             />
           </div>
         </section>
         <section className="border border-line bg-panel">
           <div className="border-b border-line px-4 py-3 text-xs font-semibold">
-            Governance events
+            Agent Decision Log
           </div>
           <div className="p-3">
             <EmptyState
               icon={Workflow}
-              title="No promotion events"
-              copy="Governance events will appear after a persistent agent runtime and audit sink are connected."
-              code="AGENT_LEDGER / EMPTY"
+              title="No recent decisions"
+              copy="Auditable decision trails and promotion events will appear here once agents begin monitoring or executing."
             />
           </div>
         </section>

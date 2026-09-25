@@ -1,15 +1,20 @@
 import { StatusBadge } from "@sisera/ui";
-import { Activity, CircleOff, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
+import { Activity, CircleOff, Compass, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
+import { StockIntelligence } from "../../../components/stock-intelligence";
 import { getMarket, getMarketIntelligence } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 const symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"];
 
-export default async function IntelligencePage() {
+export default async function IntelligencePage({
+  searchParams,
+}: { searchParams: Promise<{ universe?: string }> }) {
+  const { universe } = await searchParams;
+  if (universe !== "perps") return <StockIntelligence />;
   const session = await auth();
   const identity = {
     accessToken: session?.accessToken,
@@ -133,14 +138,13 @@ export default async function IntelligencePage() {
         <aside className="border border-line bg-panel">
           <div className="border-b border-line px-4 py-3 text-xs font-semibold">Methodology</div>
           <div className="p-4">
-            <Sparkles size={18} className="text-cyan-300" />
+            <Compass size={18} className="text-cyan-300" />
             <h2 className="mt-6 text-lg font-medium tracking-tight text-white">
               Evidence before narrative.
             </h2>
-            <p className="mt-3 text-xs leading-6 text-slate-500">
-              The scoring pipeline ports Sisera’s prior indicator engine into deterministic
-              TypeScript. Every score exposes its component signals, sample size, observation time,
-              and confidence.
+            <p className="mt-3 text-xs leading-6 text-slate-400">
+              Component signals, indicator regimes, sample size, observation time, and confidence
+              are evaluated deterministically with transparent inputs.
             </p>
             <div className="mt-6 space-y-3">
               {[

@@ -1,7 +1,8 @@
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-import { compileIntent } from "@sisera/copilot";
+import { OpenRouterResearchClient, compileIntent } from "@sisera/copilot";
+import { listSolanaSwapOrders, recordSolanaWebhookEvents } from "@sisera/db";
 import { OrderIntent, type PortfolioRiskState, type RiskLimits } from "@sisera/domain";
 import type { Candle, Instrument, MarketSnapshot, OrderBook } from "@sisera/domain";
 import {
@@ -11,6 +12,8 @@ import {
   HyperliquidPerpProvider,
   MarketDataUnavailableError,
   PolymarketProvider,
+  PreStocksProvider,
+  PythProProvider,
 } from "@sisera/market-data";
 import { applyOrderEvent, createOrderRecord } from "@sisera/oms";
 import { analyzeCandles } from "@sisera/quant";
@@ -19,7 +22,14 @@ import Fastify from "fastify";
 import { Counter, Histogram, Registry, collectDefaultMetrics } from "prom-client";
 import { z } from "zod";
 import { createAuthenticator, requirePermission } from "./auth.js";
+import { ClawpumpClient } from "./clawpump.js";
 import type { ApiConfig } from "./config.js";
+import { parseHeliusWebhook, validWebhookSecret } from "./helius-webhook.js";
+import { HeliusClient } from "./helius.js";
+import { JupiterQuoteClient } from "./jupiter.js";
+import { SolanaTradingService, TradeRejection } from "./solana-trading.js";
+import { StockNewsClient } from "./stock-news.js";
+import { XStocksClient } from "./xstocks.js";
 
 export type RiskContext = {
   portfolio: z.infer<typeof PortfolioRiskState>;
@@ -64,6 +74,27 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     dependencies.marketData ?? new BinanceSpotProvider(config.BINANCE_SPOT_BASE_URL);
   const hyperliquid = new HyperliquidPerpProvider(config.HYPERLIQUID_BASE_URL);
   const chains = new DeFiLlamaChainProvider();
+  const prestocks = new PreStocksProvider(config.PRESTOCKS_BASE_URL);
+  const xstocks = new XStocksClient();
+  const pyth = new PythProProvider(config.PYTH_PRO_API_KEY ?? "");
+  const solanaRpcUrl =
+    config.SOLANA_RPC_URL ??
+    (config.HELIUS_API_KEY
+      ? `https://mainnet.helius-rpc.com/?api-key=${config.HELIUS_API_KEY}`
+      : null);
+  const helius = solanaRpcUrl ? new HeliusClient(solanaRpcUrl) : null;
+  const clawpump = config.CLAWPUMP_API_KEY ? new ClawpumpClient(config.CLAWPUMP_API_KEY) : null;
+  const jupiter = config.JUPITER_API_KEY ? new JupiterQuoteClient(config.JUPITER_API_KEY) : null;
+  const solanaTrading = new SolanaTradingService(config, xstocks, prestocks, helius, jupiter);
+  const stockNews = new StockNewsClient(
+    config.GNEWS_API_KEY,
+    config.FINNHUB_API_KEY,
+    config.MARKETAUX_API_KEY,
+  );
+  const research =
+    config.OPENROUTER_API_KEY && config.SISERA_INTELLIGENCE_MODEL
+      ? new OpenRouterResearchClient(config.OPENROUTER_API_KEY, config.SISERA_INTELLIGENCE_MODEL)
+      : null;
   const marketProvider = (venue: string) => (venue === "hyperliquid" ? hyperliquid : marketData);
   const predictions =
     dependencies.predictions ?? new PolymarketProvider(config.POLYMARKET_GAMMA_BASE_URL);
@@ -91,6 +122,256 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
 
   app.get("/health/live", async () => ({ status: "ok" }));
   app.get("/health/ready", async () => ({ status: "ready", dependencies: { process: "ok" } }));
+  app.post("/v1/helius/webhook", async (request, reply) => {
+    if (!validWebhookSecret(request.headers.authorization, config.HELIUS_WEBHOOK_SECRET))
+      return reply.code(401).send({ error: "unauthorized" });
+    if (!config.DATABASE_URL)
+      return reply
+        .code(503)
+        .send({ error: "identity_store_unavailable", message: "Event database is not configured" });
+    const events = parseHeliusWebhook(request.body);
+    const inserted = await recordSolanaWebhookEvents(config.DATABASE_URL, events);
+    return { accepted: events.length, inserted, status: "observation_only" };
+  });
+  app.get("/v1/private-markets", { preHandler: requirePermission("market:read") }, async () => ({
+    data: await prestocks.list(),
+  }));
+  app.get("/v1/public-stocks", { preHandler: requirePermission("market:read") }, async () => ({
+    data: await xstocks.list(),
+  }));
+  app.get(
+    "/v1/stocks/:symbol/news",
+    { preHandler: requirePermission("market:read") },
+    async (request, reply) => {
+      const { symbol } = z
+        .object({ symbol: z.string().regex(/^[A-Za-z0-9-]{1,20}$/) })
+        .parse(request.params);
+      const asset = (await prestocks.list()).find(
+        (item) => item.instrument.baseAsset.toLowerCase() === symbol.toLowerCase(),
+      );
+      const publicStock = asset
+        ? null
+        : (await xstocks.list()).find((item) => item.symbol.toLowerCase() === symbol.toLowerCase());
+      if (!asset && !publicStock)
+        return reply.code(404).send({ error: "not_found", message: "Unknown stock" });
+      const result = await stockNews.search(
+        asset?.company ?? publicStock?.name ?? symbol,
+        publicStock?.underlyingSymbol,
+      );
+      return { ...result, delayedPossible: true };
+    },
+  );
+  app.post(
+    "/v1/stocks/:symbol/assessment",
+    {
+      preHandler: requirePermission("market:read"),
+      config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      if (!research)
+        return reply.code(503).send({
+          error: "provider_unavailable",
+          message: "Sisera research model is not configured",
+        });
+      const { symbol } = z
+        .object({ symbol: z.string().regex(/^[A-Za-z0-9-]{1,20}$/) })
+        .parse(request.params);
+      const asset = (await prestocks.list()).find(
+        (item) => item.instrument.baseAsset.toLowerCase() === symbol.toLowerCase(),
+      );
+      if (!asset)
+        return reply.code(404).send({ error: "not_found", message: "Unknown PreStocks asset" });
+      const news = await stockNews.search(asset.company).catch(() => ({ data: [], providers: [] }));
+      const assessment = await research.assess({
+        company: asset.company,
+        symbol: asset.instrument.baseAsset,
+        tokenPrice: asset.tokenPrice,
+        markPrice: asset.markPrice,
+        premiumDiscountPct: asset.premiumDiscountPct,
+        fetchedAt: asset.fetchedAt,
+        articles: news.data.slice(0, 5).map((item) => ({
+          title: item.title,
+          publishedAt: item.publishedAt,
+          publisher: item.publisher,
+        })),
+      });
+      return {
+        data: assessment,
+        provenance: {
+          market: asset.source,
+          news: news.providers,
+          model: config.SISERA_INTELLIGENCE_MODEL,
+        },
+        executable: false,
+      };
+    },
+  );
+  app.get(
+    "/v1/clawpump/search",
+    { preHandler: requirePermission("market:read") },
+    async (request, reply) => {
+      const { query } = z.object({ query: z.string().trim().min(2).max(80) }).parse(request.query);
+      if (!clawpump)
+        return reply.code(503).send({
+          error: "provider_unavailable",
+          message: "Clawpump partner API is not configured",
+        });
+      return { data: await clawpump.search(query), source: "clawpump" };
+    },
+  );
+  app.get(
+    "/v1/clawpump/price/:mint",
+    { preHandler: requirePermission("market:read") },
+    async (request, reply) => {
+      const { mint } = z
+        .object({ mint: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) })
+        .parse(request.params);
+      if (!clawpump)
+        return reply.code(503).send({
+          error: "provider_unavailable",
+          message: "Clawpump partner API is not configured",
+        });
+      return { data: await clawpump.price(mint) };
+    },
+  );
+  app.get(
+    "/v1/clawpump/pairs",
+    { preHandler: requirePermission("market:read") },
+    async (_request, reply) => {
+      if (!clawpump)
+        return reply.code(503).send({
+          error: "provider_unavailable",
+          message: "Clawpump partner API is not configured",
+        });
+      return { data: await clawpump.pairs() };
+    },
+  );
+  app.get(
+    "/v1/solana/quote",
+    { preHandler: requirePermission("market:read") },
+    async (request, reply) => {
+      const mint = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
+      const { inputMint, outputMint, amount } = z
+        .object({
+          inputMint: mint,
+          outputMint: mint,
+          amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
+        })
+        .parse(request.query);
+      if (!jupiter)
+        return reply
+          .code(503)
+          .send({ error: "provider_unavailable", message: "Jupiter API is not configured" });
+      return { data: await jupiter.preview(inputMint, outputMint, amount) };
+    },
+  );
+  app.post(
+    "/v1/solana/orders/prepare",
+    {
+      preHandler: requirePermission("order:live:create"),
+      config: { rateLimit: { max: 8, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const principal = request.principal;
+      if (!principal?.subject.startsWith("privy:"))
+        return reply.code(403).send({ error: "account_required" });
+      const input = z
+        .object({
+          wallet: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/),
+          mint: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/),
+          side: z.enum(["buy", "sell"]),
+          amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
+        })
+        .parse(request.body);
+      return {
+        data: await solanaTrading.prepare({
+          ...input,
+          subject: principal.subject,
+          tenantId: principal.tenantId,
+        }),
+      };
+    },
+  );
+  app.post(
+    "/v1/solana/orders/paper",
+    {
+      preHandler: requirePermission("order:paper:create"),
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    },
+    async (request) => {
+      const principal = request.principal;
+      if (!principal) throw new TradeRejection("Sign in to trade.", 401);
+      const input = z
+        .object({
+          mint: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/),
+          side: z.enum(["buy", "sell"]),
+          amount: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,8})?$/),
+        })
+        .parse(request.body);
+      return {
+        data: await solanaTrading.paper({
+          ...input,
+          subject: principal.subject,
+          tenantId: principal.tenantId,
+        }),
+      };
+    },
+  );
+  app.post(
+    "/v1/solana/orders/:id/execute",
+    {
+      preHandler: requirePermission("order:live:create"),
+      config: { rateLimit: { max: 8, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const principal = request.principal;
+      if (!principal?.subject.startsWith("privy:"))
+        return reply.code(403).send({ error: "account_required" });
+      const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+      const { signedTransaction } = z
+        .object({ signedTransaction: z.string().min(40).max(5000) })
+        .parse(request.body);
+      return { data: await solanaTrading.execute(id, principal.subject, signedTransaction) };
+    },
+  );
+  app.get(
+    "/v1/solana/orders",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request) => ({
+      data:
+        config.DATABASE_URL && request.principal
+          ? await listSolanaSwapOrders(config.DATABASE_URL, request.principal.subject)
+          : [],
+    }),
+  );
+  app.get(
+    "/v1/pyth/reference",
+    { preHandler: requirePermission("market:read") },
+    async (request, reply) => {
+      const { symbol } = z
+        .object({ symbol: z.string().regex(/^[A-Za-z0-9./_-]{5,80}$/) })
+        .parse(request.query);
+      if (!config.PYTH_PRO_API_KEY)
+        return reply
+          .code(503)
+          .send({ error: "provider_unavailable", message: "Pyth Pro is not configured" });
+      return { data: await pyth.getLatest(symbol) };
+    },
+  );
+  app.get(
+    "/v1/solana/wallet/:address",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      const { address } = z
+        .object({ address: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) })
+        .parse(request.params);
+      if (!helius)
+        return reply
+          .code(503)
+          .send({ error: "provider_unavailable", message: "Helius RPC is not configured" });
+      return { data: await helius.getWallet(address) };
+    },
+  );
   app.get("/metrics", async (_request, reply) =>
     reply.type(registry.contentType).send(await registry.metrics()),
   );
@@ -321,6 +602,11 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       return reply
         .code(400)
         .send({ error: "validation_error", issues: error.issues, requestId: request.id });
+    }
+    if (error instanceof TradeRejection) {
+      return reply
+        .code(error.statusCode)
+        .send({ error: "trade_unavailable", message: error.message });
     }
     if (error instanceof MarketDataUnavailableError) {
       return reply

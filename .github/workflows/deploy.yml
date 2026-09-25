@@ -148,6 +148,10 @@ jobs:
             fi
 
             # Restart services cleanly using PM2 (with systemd fallback)
+            echo "==> Clearing any lingering processes on application ports (4000 & 3000)..."
+            fuser -k 4000/tcp 2>/dev/null || true
+            fuser -k 3000/tcp 2>/dev/null || true
+
             echo "==> Managing application services..."
             if command -v pm2 >/dev/null 2>&1; then
               echo "==> PM2 detected. Reloading/Starting application..."

@@ -20,7 +20,7 @@ module.exports = {
     },
     {
       name: "sisera-web",
-      script: "node_modules/.bin/next",
+      script: "apps/web/node_modules/next/dist/bin/next",
       args: "start apps/web -p 3000",
       cwd: "/opt/sisera",
       instances: 1,

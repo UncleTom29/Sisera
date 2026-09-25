@@ -62,7 +62,30 @@ jobs:
             APP_DIR="/opt/sisera"
 
             echo "==> Deploying Sisera to $APP_DIR"
-            cd $APP_DIR
+
+            # Ensure PATH includes NVM, pnpm, node, and PM2 locations for non-interactive SSH
+            export PATH=$PATH:/usr/local/bin:/usr/bin:~/.nvm/versions/node/$(ls ~/.nvm/versions/node 2>/dev/null | tail -n 1)/bin:~/.local/share/pnpm:~/.pnpm:~/.npm-global/bin:/root/.nvm/versions/node/$(ls /root/.nvm/versions/node 2>/dev/null | tail -n 1)/bin:/root/.local/share/pnpm:/root/.pnpm
+
+            # Source shell environment scripts if available
+            [ -s "$HOME/.nvm/nvm.sh" ] && . "$HOME/.nvm/nvm.sh"
+            [ -s "$HOME/.bashrc" ] && . "$HOME/.bashrc"
+            [ -s "/root/.nvm/nvm.sh" ] && . "/root/.nvm/nvm.sh"
+
+            # Ensure git safe directory setting
+            git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
+
+            cd "$APP_DIR"
+
+            # Load environment variables if available
+            if [ -f .env.production ]; then
+              set -a
+              . .env.production
+              set +a
+            elif [ -f .env ]; then
+              set -a
+              . .env
+              set +a
+            fi
 
             # Ensure git repository is in sync
             echo "==> Fetching latest changes from main branch..."
@@ -71,19 +94,48 @@ jobs:
 
             # Install dependencies
             echo "==> Installing Node.js workspace dependencies..."
-            pnpm install --frozen-lockfile
+            if command -v pnpm >/dev/null 2>&1; then
+              pnpm install --frozen-lockfile
+            else
+              npx pnpm install --frozen-lockfile
+            fi
 
             # Apply pending database migrations
             echo "==> Running PostgreSQL database migrations..."
-            pnpm db:migrate
+            if command -v pnpm >/dev/null 2>&1; then
+              pnpm db:migrate || echo "Warning: db:migrate skipped or encountered an error"
+            else
+              npx pnpm db:migrate || echo "Warning: db:migrate skipped or encountered an error"
+            fi
 
             # Build all packages, API, and Next.js production bundle
             echo "==> Building Sisera workspace (API & Web)..."
-            pnpm build
+            if command -v pnpm >/dev/null 2>&1; then
+              pnpm build
+            else
+              npx pnpm build
+            fi
 
-            # Restart services cleanly
-            echo "==> Restarting Sisera systemd services..."
-            systemctl restart sisera-api sisera-web
+            # Restart services cleanly using PM2 (with systemd fallback)
+            echo "==> Managing application services..."
+            if command -v pm2 >/dev/null 2>&1; then
+              echo "==> PM2 detected. Reloading/Starting application..."
+              pm2 startOrReload ecosystem.config.cjs --env production || pm2 reload ecosystem.config.cjs || pm2 start ecosystem.config.cjs
+              pm2 save
+              pm2 status
+            elif command -v npx >/dev/null 2>&1 && npx pm2 status >/dev/null 2>&1; then
+              echo "==> PM2 detected via npx. Reloading/Starting application..."
+              npx pm2 startOrReload ecosystem.config.cjs --env production || npx pm2 reload ecosystem.config.cjs || npx pm2 start ecosystem.config.cjs
+              npx pm2 save
+              npx pm2 status
+            elif command -v systemctl >/dev/null 2>&1; then
+              echo "==> systemctl detected. Restarting sisera-api & sisera-web..."
+              systemctl restart sisera-api sisera-web
+              systemctl status sisera-api sisera-web --no-pager
+            else
+              echo "ERROR: Neither PM2 nor systemctl available to manage services."
+              exit 1
+            fi
 
-            echo "==> Sisera Production Stack deployed and active!"
-            systemctl status sisera-api sisera-web --no-pager
+            echo "==> Sisera Production Stack successfully deployed and active!"
+

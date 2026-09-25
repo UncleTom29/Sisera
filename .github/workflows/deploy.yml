@@ -50,13 +50,39 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Validate Deployment Secrets
+        run: |
+          HOST="${{ secrets.CONTABO_HOST || secrets.VPS_HOST || secrets.HOST || secrets.SERVER_HOST }}"
+          USER="${{ secrets.CONTABO_USER || secrets.VPS_USER || secrets.SSH_USER || 'root' }}"
+          KEY="${{ secrets.CONTABO_SSH_KEY || secrets.VPS_SSH_KEY || secrets.SSH_KEY || secrets.SSH_PRIVATE_KEY }}"
+
+          MISSING=""
+          if [ -z "$HOST" ]; then MISSING="$MISSING CONTABO_HOST"; fi
+          if [ -z "$USER" ]; then MISSING="$MISSING CONTABO_USER"; fi
+          if [ -z "$KEY" ]; then MISSING="$MISSING CONTABO_SSH_KEY"; fi
+
+          if [ -n "$MISSING" ]; then
+            echo "::error::Deployment Secrets Missing:$MISSING"
+            echo "=================================================================================="
+            echo "REQUIRED GITHUB ACTIONS SECRETS MISSING FOR CONTABO VPS DEPLOYMENT:"
+            echo "Please configure the following Repository Secrets at:"
+            echo "https://github.com/UncleTom29/Sisera/settings/secrets/actions"
+            echo ""
+            echo "  - CONTABO_HOST     : Contabo VPS IP address or hostname"
+            echo "  - CONTABO_USER     : SSH username (e.g., root)"
+            echo "  - CONTABO_SSH_KEY  : SSH private key for VPS access"
+            echo "  - CONTABO_SSH_PORT : (Optional) SSH port, defaults to 22"
+            echo "=================================================================================="
+            exit 1
+          fi
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.CONTABO_HOST }}
-          username: ${{ secrets.CONTABO_USER }}
-          key: ${{ secrets.CONTABO_SSH_KEY }}
-          port: ${{ secrets.CONTABO_SSH_PORT || 22 }}
+          host: ${{ secrets.CONTABO_HOST || secrets.VPS_HOST || secrets.HOST || secrets.SERVER_HOST }}
+          username: ${{ secrets.CONTABO_USER || secrets.VPS_USER || secrets.SSH_USER || 'root' }}
+          key: ${{ secrets.CONTABO_SSH_KEY || secrets.VPS_SSH_KEY || secrets.SSH_KEY || secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.CONTABO_SSH_PORT || secrets.VPS_PORT || secrets.SSH_PORT || 22 }}
           script: |
             set -e
             APP_DIR="/opt/sisera"

@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import { SiseraMark } from "../../components/operator-shell";
 import { PrivySignIn } from "../../components/privy-sign-in";
 
+export const dynamic = "force-dynamic";
+
 export default function SignInPage() {
   return (
     <main className="grid min-h-screen bg-[#080c12] lg:grid-cols-[1.05fr_.95fr]">

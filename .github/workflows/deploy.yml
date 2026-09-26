@@ -150,24 +150,43 @@ jobs:
               npx pnpm db:migrate
             fi
 
-            # Build all packages, API, and Next.js production bundle
-            echo "==> Building Sisera workspace (API & Web)..."
+            # Build the API and packages before replacing the running web bundle.
+            echo "==> Building Sisera API and packages..."
             if command -v pnpm >/dev/null 2>&1; then
-              pnpm build
+              pnpm exec turbo run build --filter='!@sisera/web' --cache-dir=.turbo/cache
             else
-              npx pnpm build
+              npx pnpm exec turbo run build --filter='!@sisera/web' --cache-dir=.turbo/cache
             fi
 
-            # Restart services cleanly using PM2 (with systemd fallback)
+            # Build Next in a separate directory so the running process keeps its assets.
+            echo "==> Building fresh Sisera web bundle..."
+            rm -rf apps/web/.next-candidate
+            if command -v pnpm >/dev/null 2>&1; then
+              SISERA_NEXT_DIST_DIR=.next-candidate pnpm --filter @sisera/web build
+            else
+              SISERA_NEXT_DIST_DIR=.next-candidate npx pnpm --filter @sisera/web build
+            fi
+            test -f apps/web/.next-candidate/BUILD_ID
+            git checkout -- apps/web/next-env.d.ts apps/web/tsconfig.json
+
+            # Keep previous immutable chunks for tabs opened before this deploy.
+            if [ -d apps/web/.next/static ]; then
+              cp -an apps/web/.next/static/. apps/web/.next-candidate/static/
+            fi
+            rm -rf apps/web/.next-previous
+            if [ -d apps/web/.next ]; then mv apps/web/.next apps/web/.next-previous; fi
+            mv apps/web/.next-candidate apps/web/.next
+
+            # Restart services using the new bundle, not the old process cache.
             echo "==> Managing application services..."
             if command -v pm2 >/dev/null 2>&1; then
-              echo "==> PM2 detected. Reloading/Starting application..."
-              pm2 startOrReload ecosystem.config.cjs --env production || pm2 reload ecosystem.config.cjs || pm2 start ecosystem.config.cjs
+              pm2 restart sisera-api --update-env || pm2 start ecosystem.config.cjs --only sisera-api --env production
+              pm2 restart sisera-web --update-env || pm2 start ecosystem.config.cjs --only sisera-web --env production
               pm2 save
               pm2 status
             elif command -v npx >/dev/null 2>&1 && npx pm2 status >/dev/null 2>&1; then
-              echo "==> PM2 detected via npx. Reloading/Starting application..."
-              npx pm2 startOrReload ecosystem.config.cjs --env production || npx pm2 reload ecosystem.config.cjs || npx pm2 start ecosystem.config.cjs
+              npx pm2 restart sisera-api --update-env || npx pm2 start ecosystem.config.cjs --only sisera-api --env production
+              npx pm2 restart sisera-web --update-env || npx pm2 start ecosystem.config.cjs --only sisera-web --env production
               npx pm2 save
               npx pm2 status
             elif command -v systemctl >/dev/null 2>&1; then
@@ -180,6 +199,13 @@ jobs:
             fi
 
             curl --fail --silent --show-error --retry 5 --retry-delay 2 "http://127.0.0.1:${API_PORT:-4000}/health/live" >/dev/null
-            curl --fail --silent --show-error --retry 5 --retry-delay 2 http://127.0.0.1:9000/sign-in >/dev/null
+            EXPECTED_SIGNIN_CHUNK="$(node -e 'const files=require("./apps/web/.next/app-build-manifest.json").pages["/sign-in/page"];const chunk=files?.find((file)=>file.includes("app/sign-in/page-"));if(!chunk)process.exit(1);process.stdout.write(chunk)')"
+            PUBLIC_BASE_URL="${SISERA_PUBLIC_URL:-https://sisera.xyz}"
+            for BASE_URL in http://127.0.0.1:9000 "$PUBLIC_BASE_URL"; do
+              curl --fail --silent --show-error --retry 5 --retry-delay 2 "$BASE_URL/sign-in" -o /tmp/sisera-sign-in.html
+              grep -F "/_next/$EXPECTED_SIGNIN_CHUNK" /tmp/sisera-sign-in.html >/dev/null
+              curl --fail --silent --show-error --retry 5 --retry-delay 2 "$BASE_URL/_next/$EXPECTED_SIGNIN_CHUNK" -o /dev/null
+            done
+            rm -rf apps/web/.next-previous
 
             echo "==> Sisera Production Stack successfully deployed and active!"

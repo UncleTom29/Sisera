@@ -28,6 +28,8 @@ secrets.env
 node_modules/
 .turbo/
 .next/
+.next-candidate/
+.next-previous/
 dist/
 build/
 *.tsbuildinfo
@@ -39,4 +41,3 @@ var/
 docs/
 docs/*.md
 scripts/setup-contabo-vps.sh
-

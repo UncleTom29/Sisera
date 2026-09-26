@@ -237,6 +237,15 @@ jobs:
                 else
                   echo "No sign-in page answered on port 3000."
                 fi
+                echo "==> Sisera reverse proxy directives..."
+                for PROXY_FILE in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/* /etc/caddy/Caddyfile; do
+                  if [ -f "$PROXY_FILE" ] && grep -q 'sisera.xyz' "$PROXY_FILE"; then
+                    echo "Proxy file: $PROXY_FILE"
+                    grep -nE 'server_name|proxy_pass|reverse_proxy|listen' "$PROXY_FILE" || true
+                  fi
+                done
+                echo "==> Listeners on web ports..."
+                ss -ltnp | grep -E ':(80|443|3000|9000)[[:space:]]' || true
                 exit 1
               fi
               curl --fail --silent --show-error --retry 5 --retry-delay 2 "$BASE_URL/_next/$EXPECTED_SIGNIN_CHUNK" -o /dev/null

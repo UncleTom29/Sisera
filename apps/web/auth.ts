@@ -3,11 +3,8 @@ import { cookies } from "next/headers";
 
 export const sessionCookieName = "sisera-privy-session";
 
-const appId =
-  process.env.NEXT_PUBLIC_PRIVY_APP_ID || process.env.PRIVY_APP_ID || "cmuhawmmr00xa0bjwxxjqdocd";
-const appSecret =
-  process.env.PRIVY_APP_SECRET ||
-  "privy_app_secret_55gM4H3shNT3DNQmNhZMjLQeENG4RSNKFwgAN2kxCyT7wLqkM2TLZ8m7oWnBBLtAEBKnSHTwQE8ikYXURmAieufy";
+const appId = process.env.PRIVY_APP_ID || process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+const appSecret = process.env.PRIVY_APP_SECRET;
 const privy = appId && appSecret ? new PrivyClient(appId, appSecret) : null;
 
 export async function verifyPrivyAccessToken(token: string) {
@@ -20,14 +17,14 @@ export async function auth() {
   const token = cookieStore.get(sessionCookieName)?.value;
   if (!token) return null;
 
-  if (token.startsWith("guest:")) {
+  if (process.env.NODE_ENV !== "production" && token.startsWith("guest:")) {
     return {
       accessToken: token,
       user: { id: "guest", name: "Guest Operator", isGuest: true },
     };
   }
 
-  if (token.startsWith("wallet:")) {
+  if (process.env.NODE_ENV !== "production" && token.startsWith("wallet:")) {
     const parts = token.split(":");
     const address = parts[1];
     if (address && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
@@ -45,7 +42,7 @@ export async function auth() {
   if (!privy) return null;
   try {
     const claims = await privy.verifyAuthToken(token);
-    return { accessToken: token, user: { id: claims.userId, name: claims.userId } };
+    return { accessToken: token, user: { id: claims.userId, name: "Operator" } };
   } catch {
     return null;
   }

@@ -1,10 +1,12 @@
 "use client";
 
+import { usePrivy } from "@privy-io/react-auth";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Check, Copy, ExternalLink, KeyRound, LogOut, Wallet, WalletCards, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { getPrivySolanaAddress } from "../lib/privy-identity";
 
 interface SolanaProvider {
   isPhantom?: boolean;
@@ -32,7 +34,10 @@ const SAMPLE_WALLET = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
 
 export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
-  const [address, setAddress] = useState<string | null>(null);
+  const { ready, authenticated, user } = usePrivy();
+  const [manualAddress, setManualAddress] = useState<string | null>(null);
+  const privyAddress = authenticated ? getPrivySolanaAddress(user) : null;
+  const address = privyAddress || manualAddress;
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -41,28 +46,34 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
   const [connecting, setConnecting] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Initialize from localStorage or standard wallet on mount
+  // Stored manual addresses belong only to guest or direct-wallet sessions.
   useEffect(() => {
+    if (!ready) return;
+    if (authenticated) {
+      setManualAddress(null);
+      localStorage.removeItem(STORAGE_KEY);
+      return;
+    }
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(saved)) {
-      setAddress(saved);
+      setManualAddress(saved);
     } else {
       // Check if browser wallet is already connected
       const provider = getBrowserSolanaProvider();
       if (provider?.publicKey) {
         const pub = provider.publicKey.toString();
-        setAddress(pub);
+        setManualAddress(pub);
         localStorage.setItem(STORAGE_KEY, pub);
       }
     }
 
     const handleWalletChanged = (event: Event) => {
       const custom = event as CustomEvent<string | null>;
-      setAddress(custom.detail);
+      setManualAddress(custom.detail);
     };
     window.addEventListener("sisera_wallet_changed", handleWalletChanged);
     return () => window.removeEventListener("sisera_wallet_changed", handleWalletChanged);
-  }, []);
+  }, [ready, authenticated]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -80,11 +91,11 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
   function setWallet(newAddress: string | null) {
     if (newAddress) {
       localStorage.setItem(STORAGE_KEY, newAddress);
-      setAddress(newAddress);
+      setManualAddress(newAddress);
       window.dispatchEvent(new CustomEvent("sisera_wallet_changed", { detail: newAddress }));
     } else {
       localStorage.removeItem(STORAGE_KEY);
-      setAddress(null);
+      setManualAddress(null);
       window.dispatchEvent(new CustomEvent("sisera_wallet_changed", { detail: null }));
     }
   }
@@ -210,16 +221,18 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
             </a>
           </div>
 
-          <div className="mt-3 border-t border-line pt-2">
-            <button
-              type="button"
-              onClick={handleDisconnect}
-              className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10 transition-colors"
-            >
-              <span>Disconnect Wallet</span>
-              <LogOut size={13} />
-            </button>
-          </div>
+          {!privyAddress && (
+            <div className="mt-3 border-t border-line pt-2">
+              <button
+                type="button"
+                onClick={handleDisconnect}
+                className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10 transition-colors"
+              >
+                <span>Disconnect Wallet</span>
+                <LogOut size={13} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

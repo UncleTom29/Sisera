@@ -42,6 +42,7 @@ deployment. Use the same Privy app ID in `NEXT_PUBLIC_PRIVY_APP_ID` and `PRIVY_A
 `0003_solana_webhook_events.sql` and `0004_solana_swap_orders.sql` to an existing PostgreSQL volume before enabling Privy membership mapping, Helius event intake, or paper/live order persistence.
 
 Provider keys are optional in local research mode. Set `NEXT_PUBLIC_PRIVY_APP_ID` in the web environment and the matching `PRIVY_APP_ID` plus `PRIVY_APP_SECRET` in the API environment for real sign-in. Live trading also needs `DATABASE_URL`, `HELIUS_API_KEY` (or `SOLANA_RPC_URL`), and `JUPITER_API_KEY` on the API server. Configure `PYTH_PRO_API_KEY`, `HELIUS_WEBHOOK_SECRET`, `CLAWPUMP_API_KEY`, `MARKETAUX_API_KEY`, `GNEWS_API_KEY`, and `FINNHUB_API_KEY` for additional coverage.
+For the VPS deployment, keep those Privy variables and `DATABASE_URL` in `/opt/sisera/.env.production` and set `SISERA_API_URL=http://127.0.0.1:4000` for server-side workspace data. GitHub Actions validates the values, applies migrations, builds on the VPS, and checks the API and sign-in page before reporting success. The production example is in `infra/.env.production.example`.
 Set `OPENROUTER_API_KEY` and `SISERA_INTELLIGENCE_MODEL` to enable on-demand, read-only stock
 assessments. Model responses are schema-validated and cannot submit orders.
 These server credentials are never sent to the browser. Jupiter transactions are signed in the user's wallet. Use a small funded wallet for mainnet testing; automated Clawpump launch and Meteora pool creation are not part of this workflow.

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "../../../auth";
+import { serverApiUrl } from "../../../lib/server-api-url";
 
 export async function GET(request: NextRequest) {
   const address = new URL(request.url).searchParams.get("address");
@@ -11,16 +12,13 @@ export async function GET(request: NextRequest) {
   if (!session && !local)
     return NextResponse.json({ message: "Sign in to view balances." }, { status: 401 });
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/v1/solana/wallet/${address}`,
-      {
-        headers: session
-          ? { authorization: `Bearer ${session.accessToken}` }
-          : { "x-sisera-dev-role": "viewer" },
-        cache: "no-store",
-        signal: AbortSignal.timeout(10000),
-      },
-    );
+    const response = await fetch(`${serverApiUrl()}/v1/solana/wallet/${address}`, {
+      headers: session
+        ? { authorization: `Bearer ${session.accessToken}` }
+        : { "x-sisera-dev-role": "viewer" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10000),
+    });
     if (!response.ok)
       return NextResponse.json({ message: "Wallet balances are unavailable." }, { status: 503 });
     return NextResponse.json(await response.json(), { headers: { "cache-control": "no-store" } });

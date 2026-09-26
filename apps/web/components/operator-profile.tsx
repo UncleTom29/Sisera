@@ -1,5 +1,6 @@
 "use client";
 
+import { usePrivy } from "@privy-io/react-auth";
 import {
   CircleUserRound,
   ExternalLink,
@@ -10,7 +11,9 @@ import {
   User,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { getPrivyDisplayName } from "../lib/privy-identity";
 
 export function OperatorProfile({
   operator,
@@ -21,6 +24,19 @@ export function OperatorProfile({
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const { authenticated, user, logout } = usePrivy();
+  const displayName = authenticated ? getPrivyDisplayName(user) : operator;
+
+  async function switchOperator() {
+    const response = await fetch("/api/session", { method: "DELETE" });
+    if (!response.ok) return;
+    if (authenticated) await logout();
+    localStorage.removeItem("sisera_active_wallet");
+    setOpen(false);
+    router.replace("/sign-in");
+    router.refresh();
+  }
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -41,7 +57,7 @@ export function OperatorProfile({
         onClick={() => setOpen((prev) => !prev)}
         className="grid size-8 place-items-center rounded border border-line bg-slate-900 text-slate-300 hover:border-cyan-400/40 hover:text-white transition-colors"
         aria-label="Operator profile"
-        title={operator}
+        title={displayName}
         aria-expanded={open}
       >
         <CircleUserRound size={16} />
@@ -54,7 +70,7 @@ export function OperatorProfile({
               <User size={16} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-white">{operator}</p>
+              <p className="truncate text-xs font-semibold text-white">{displayName}</p>
               <div className="mt-0.5 flex items-center gap-1.5">
                 <span className="relative flex size-1.5">
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -110,14 +126,14 @@ export function OperatorProfile({
           </div>
 
           <div className="mt-3 border-t border-line pt-2">
-            <Link
-              href="/sign-in"
-              onClick={() => setOpen(false)}
+            <button
+              type="button"
+              onClick={() => void switchOperator()}
               className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-xs text-rose-300 hover:bg-rose-500/10"
             >
               <span>Switch Operator Session</span>
               <LogOut size={13} />
-            </Link>
+            </button>
           </div>
         </div>
       )}

@@ -1,10 +1,12 @@
 import { StatusBadge } from "@sisera/ui";
 import { BriefcaseBusiness, Download, Layers3, RefreshCcw, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 import { PortfolioConnect } from "../../../components/portfolio-connect";
+import { PortfolioPrivyWallet } from "../../../components/portfolio-privy-wallet";
 import { getPublicPerpAccount, getSolanaWallet } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +34,9 @@ export default async function PortfolioPage({
     : null;
   return (
     <div className="min-h-full">
+      <Suspense fallback={null}>
+        <PortfolioPrivyWallet />
+      </Suspense>
       <PageHeader
         eyebrow="Unified Portfolio / Reconciled Truth"
         title="Portfolio"

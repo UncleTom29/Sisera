@@ -5,6 +5,7 @@ import type {
   OrderBook,
   PredictionMarket,
 } from "@sisera/domain";
+import { serverApiUrl } from "./server-api-url";
 
 export type MarketRow = { instrument: Instrument; snapshot: MarketSnapshot };
 export type PreStock = {
@@ -138,19 +139,17 @@ export type MarketIntelligence = {
   sampleSize: number;
 };
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-
 type ApiIdentity = { accessToken?: string | undefined; localOperator?: boolean | undefined };
 
 function identityHeaders(identity: ApiIdentity): HeadersInit {
   if (identity.accessToken) return { authorization: `Bearer ${identity.accessToken}` };
-  if (identity.localOperator)
+  if (identity.localOperator && process.env.NODE_ENV !== "production")
     return { "x-sisera-dev-role": "admin", "x-sisera-dev-subject": "web-local" };
   return {};
 }
 
 async function getJson<T>(path: string, identity: ApiIdentity, timeoutMs = 5000): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, {
+  const response = await fetch(`${serverApiUrl()}${path}`, {
     headers: { accept: "application/json", ...identityHeaders(identity) },
     cache: "no-store",
     signal: AbortSignal.timeout(timeoutMs),

@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "../../../auth";
+import { isSameOrigin } from "../../../lib/request-origin";
+import { serverApiUrl } from "../../../lib/server-api-url";
 
 export async function POST(request: NextRequest) {
   if (
-    request.headers.get("origin") !== new URL(request.url).origin ||
+    !isSameOrigin(request) ||
     request.headers.get("content-type")?.split(";")[0] !== "application/json"
   )
     return NextResponse.json({ error: "invalid_request" }, { status: 403 });
@@ -20,16 +22,18 @@ export async function POST(request: NextRequest) {
   }
   if (typeof symbol !== "string" || !/^[A-Za-z0-9-]{1,20}$/.test(symbol))
     return NextResponse.json({ error: "invalid_symbol" }, { status: 400 });
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
   try {
-    const response = await fetch(`${apiUrl}/v1/stocks/${encodeURIComponent(symbol)}/assessment`, {
-      method: "POST",
-      headers: session
-        ? { authorization: `Bearer ${session.accessToken}` }
-        : { "x-sisera-dev-role": "viewer" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(25000),
-    });
+    const response = await fetch(
+      `${serverApiUrl()}/v1/stocks/${encodeURIComponent(symbol)}/assessment`,
+      {
+        method: "POST",
+        headers: session
+          ? { authorization: `Bearer ${session.accessToken}` }
+          : { "x-sisera-dev-role": "viewer" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(25000),
+      },
+    );
     if (!response.ok)
       return NextResponse.json(
         { error: response.status === 503 ? "model_unavailable" : "assessment_failed" },

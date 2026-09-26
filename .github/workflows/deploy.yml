@@ -113,6 +113,17 @@ jobs:
               set +a
             fi
 
+            # Both Next's browser bundle and the API must use the same Privy application.
+            : "${NEXT_PUBLIC_PRIVY_APP_ID:?NEXT_PUBLIC_PRIVY_APP_ID is required in the VPS environment}"
+            : "${PRIVY_APP_ID:?PRIVY_APP_ID is required in the VPS environment}"
+            : "${PRIVY_APP_SECRET:?PRIVY_APP_SECRET is required in the VPS environment}"
+            : "${DATABASE_URL:?DATABASE_URL is required in the VPS environment}"
+            if [ "$NEXT_PUBLIC_PRIVY_APP_ID" != "$PRIVY_APP_ID" ]; then
+              echo "ERROR: The browser and server Privy app IDs do not match."
+              exit 1
+            fi
+            export SISERA_API_URL="${SISERA_API_URL:-http://127.0.0.1:4000}"
+
             # Ensure git repository is in sync
             echo "==> Fetching latest changes from main branch..."
             if [ ! -d .git ]; then
@@ -134,9 +145,9 @@ jobs:
             # Apply pending database migrations
             echo "==> Running PostgreSQL database migrations..."
             if command -v pnpm >/dev/null 2>&1; then
-              pnpm db:migrate || echo "Warning: db:migrate skipped or encountered an error"
+              pnpm db:migrate
             else
-              npx pnpm db:migrate || echo "Warning: db:migrate skipped or encountered an error"
+              npx pnpm db:migrate
             fi
 
             # Build all packages, API, and Next.js production bundle
@@ -168,5 +179,7 @@ jobs:
               exit 1
             fi
 
-            echo "==> Sisera Production Stack successfully deployed and active!"
+            curl --fail --silent --show-error --retry 5 --retry-delay 2 "http://127.0.0.1:${API_PORT:-4000}/health/live" >/dev/null
+            curl --fail --silent --show-error --retry 5 --retry-delay 2 http://127.0.0.1:9000/sign-in >/dev/null
 
+            echo "==> Sisera Production Stack successfully deployed and active!"

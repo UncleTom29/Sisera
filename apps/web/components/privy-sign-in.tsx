@@ -15,27 +15,7 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-
-interface SolanaProvider {
-  isPhantom?: boolean;
-  isBackpack?: boolean;
-  publicKey?: { toString(): string };
-  connect: (options?: { onlyIfTrusted?: boolean }) => Promise<{
-    publicKey: { toString(): string };
-  }>;
-  disconnect: () => Promise<void>;
-}
-
-function getBrowserSolanaProvider(): SolanaProvider | null {
-  if (typeof window === "undefined") return null;
-  const anyWin = window as unknown as {
-    phantom?: { solana?: SolanaProvider };
-    solana?: SolanaProvider;
-    backpack?: SolanaProvider;
-    solflare?: SolanaProvider;
-  };
-  return anyWin.phantom?.solana || anyWin.solana || anyWin.backpack || anyWin.solflare || null;
-}
+import { getPrivySolanaAddress } from "../lib/privy-identity";
 
 const STORAGE_KEY = "sisera_active_wallet";
 const SAMPLE_WALLET = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
@@ -44,7 +24,9 @@ export function PrivySignIn() {
   const { ready, authenticated, user, login, getAccessToken } = usePrivy();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get("returnTo") || searchParams.get("next") || "/stocks";
+  const requestedPath = searchParams.get("returnTo") || searchParams.get("next") || "/stocks";
+  const returnTo =
+    requestedPath.startsWith("/") && !requestedPath.startsWith("//") ? requestedPath : "/stocks";
 
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,18 +52,8 @@ export function PrivySignIn() {
           throw new Error("Unable to establish institutional session. Please try again.");
         }
 
-        // Store active wallet if present on Privy user
-        if (typeof window !== "undefined") {
-          const solAccount = user?.linkedAccounts?.find(
-            (acc) =>
-              acc.type === "wallet" && (acc as { chainType?: string }).chainType === "solana",
-          ) as { address?: string } | undefined;
-          const address = solAccount?.address || user?.wallet?.address;
-          if (address && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
-            localStorage.setItem(STORAGE_KEY, address);
-            window.dispatchEvent(new CustomEvent("sisera-wallet-changed", { detail: address }));
-          }
-        }
+        // The workspace reads the Privy wallet directly, including wallets created after login.
+        if (getPrivySolanaAddress(user)) localStorage.removeItem(STORAGE_KEY);
 
         if (!cancelled) {
           router.replace(returnTo);
@@ -136,46 +108,6 @@ export function PrivySignIn() {
     [ready, login],
   );
 
-  // Handle Direct Browser Solana Wallet
-  const handleDirectSolanaWallet = useCallback(async () => {
-    setError(null);
-    setLoadingAction("Connecting Solana wallet...");
-    try {
-      const provider = getBrowserSolanaProvider();
-      if (!provider) {
-        // Fall back to Privy's wallet connector (shows QR code / all wallets)
-        handlePrivyLogin("wallet");
-        setLoadingAction(null);
-        return;
-      }
-
-      const res = await provider.connect();
-      const address = res.publicKey.toString();
-
-      if (typeof window !== "undefined") {
-        localStorage.setItem(STORAGE_KEY, address);
-        window.dispatchEvent(new CustomEvent("sisera-wallet-changed", { detail: address }));
-      }
-
-      const sessionRes = await fetch("/api/session", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "wallet", wallet: address }),
-      });
-
-      if (!sessionRes.ok) {
-        throw new Error("Failed to register direct wallet session.");
-      }
-
-      router.replace(returnTo);
-      router.refresh();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Wallet connection cancelled or rejected.";
-      setError(msg);
-      setLoadingAction(null);
-    }
-  }, [handlePrivyLogin, router, returnTo]);
-
   // Handle Guest / Demo Workspace
   const handleGuestLogin = useCallback(async () => {
     setError(null);
@@ -183,7 +115,7 @@ export function PrivySignIn() {
     try {
       if (typeof window !== "undefined") {
         localStorage.setItem(STORAGE_KEY, SAMPLE_WALLET);
-        window.dispatchEvent(new CustomEvent("sisera-wallet-changed", { detail: SAMPLE_WALLET }));
+        window.dispatchEvent(new CustomEvent("sisera_wallet_changed", { detail: SAMPLE_WALLET }));
       }
 
       const response = await fetch("/api/session", {
@@ -353,7 +285,7 @@ export function PrivySignIn() {
 
         <button
           type="button"
-          onClick={handleDirectSolanaWallet}
+          onClick={() => handlePrivyLogin("wallet")}
           disabled={isBusy}
           className="group flex w-full items-center justify-between rounded border border-line bg-[#0c141d] p-3 text-left transition-all hover:border-purple-400/40 hover:bg-[#111a26] disabled:opacity-50"
         >
@@ -424,46 +356,48 @@ export function PrivySignIn() {
       </div>
 
       {/* 4. Instant Guest / Demo Mode */}
-      <div className="space-y-2">
-        <div className="relative flex items-center justify-center">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-line/60" />
+      {process.env.NODE_ENV !== "production" && (
+        <div className="space-y-2">
+          <div className="relative flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-line/60" />
+            </div>
+            <span className="relative bg-[#090d13] px-3 font-mono text-[10px] uppercase tracking-wider text-slate-500">
+              instant preview
+            </span>
           </div>
-          <span className="relative bg-[#090d13] px-3 font-mono text-[10px] uppercase tracking-wider text-slate-500">
-            instant preview
-          </span>
-        </div>
 
-        <button
-          type="button"
-          onClick={handleGuestLogin}
-          disabled={isBusy}
-          className="group flex w-full items-center justify-between rounded border border-emerald-500/25 bg-emerald-500/[0.05] p-3 text-left transition-all hover:border-emerald-400/50 hover:bg-emerald-500/[0.09] disabled:opacity-50"
-        >
-          <div className="flex items-center gap-3">
-            <div className="grid size-9 place-items-center rounded bg-emerald-400/10 text-emerald-300 border border-emerald-400/20">
-              <UserCheck size={16} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <p className="text-xs font-semibold text-white group-hover:text-emerald-200">
-                  Enter Workspace as Guest
-                </p>
-                <span className="rounded bg-emerald-400/15 px-1.5 py-0.5 text-[9px] font-mono text-emerald-300 uppercase">
-                  1-Click
-                </span>
+          <button
+            type="button"
+            onClick={handleGuestLogin}
+            disabled={isBusy}
+            className="group flex w-full items-center justify-between rounded border border-emerald-500/25 bg-emerald-500/[0.05] p-3 text-left transition-all hover:border-emerald-400/50 hover:bg-emerald-500/[0.09] disabled:opacity-50"
+          >
+            <div className="flex items-center gap-3">
+              <div className="grid size-9 place-items-center rounded bg-emerald-400/10 text-emerald-300 border border-emerald-400/20">
+                <UserCheck size={16} />
               </div>
-              <p className="text-[11px] text-slate-400">
-                Instant demo access to markets, Pyth oracle feeds, and agents
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-semibold text-white group-hover:text-emerald-200">
+                    Enter Workspace as Guest
+                  </p>
+                  <span className="rounded bg-emerald-400/15 px-1.5 py-0.5 text-[9px] font-mono text-emerald-300 uppercase">
+                    1-Click
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Instant demo access to markets, Pyth oracle feeds, and agents
+                </p>
+              </div>
             </div>
-          </div>
-          <ChevronRight
-            size={16}
-            className="text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-white"
-          />
-        </button>
-      </div>
+            <ChevronRight
+              size={16}
+              className="text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-white"
+            />
+          </button>
+        </div>
+      )}
 
       {/* Institutional Invariant Notice */}
       <div className="rounded border border-line/50 bg-[#080d14] p-3 text-[11px] text-slate-500">

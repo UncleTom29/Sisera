@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "../../../auth";
+import { isSameOrigin } from "../../../lib/request-origin";
+import { serverApiUrl } from "../../../lib/server-api-url";
 
 const Actions = {
   paper: "/v1/solana/orders/paper",
@@ -8,7 +10,7 @@ const Actions = {
 
 export async function POST(request: NextRequest) {
   if (
-    request.headers.get("origin") !== new URL(request.url).origin ||
+    !isSameOrigin(request) ||
     request.headers.get("content-type")?.split(";")[0] !== "application/json"
   )
     return NextResponse.json({ message: "Request rejected." }, { status: 403 });
@@ -31,21 +33,18 @@ export async function POST(request: NextRequest) {
     path = `/v1/solana/orders/${body.orderId}/execute`;
   else return NextResponse.json({ message: "Invalid trade request." }, { status: 400 });
   try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}${path}`,
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...(session
-            ? { authorization: `Bearer ${session.accessToken}` }
-            : { "x-sisera-dev-role": "trader", "x-sisera-dev-subject": "web-local" }),
-        },
-        body: JSON.stringify(body),
-        cache: "no-store",
-        signal: AbortSignal.timeout(action === "execute" ? 55000 : 20000),
+    const response = await fetch(`${serverApiUrl()}${path}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(session
+          ? { authorization: `Bearer ${session.accessToken}` }
+          : { "x-sisera-dev-role": "trader", "x-sisera-dev-subject": "web-local" }),
       },
-    );
+      body: JSON.stringify(body),
+      cache: "no-store",
+      signal: AbortSignal.timeout(action === "execute" ? 55000 : 20000),
+    });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       const message =

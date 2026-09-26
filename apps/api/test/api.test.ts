@@ -19,6 +19,32 @@ const instrument: Instrument = {
 };
 
 describe("control plane API", () => {
+  it("keeps liveness separate from database readiness and publishes a request ID", async () => {
+    const app = await buildApi(
+      readConfig({
+        NODE_ENV: "test",
+        LOG_LEVEL: "silent",
+        DATABASE_URL: "postgres://example.test/sisera",
+        PRIVY_APP_ID: "test",
+        PRIVY_APP_SECRET: "test",
+      }),
+      { readinessProbe: async () => false },
+    );
+    const live = await app.inject({ method: "GET", url: "/health/live" });
+    const ready = await app.inject({ method: "GET", url: "/health/ready" });
+    const capabilities = await app.inject({ method: "GET", url: "/v1/capabilities" });
+    expect(live.statusCode).toBe(200);
+    expect(ready.statusCode).toBe(503);
+    expect(ready.json().dependencies.database).toBe("unavailable");
+    expect(ready.headers["x-request-id"]).toBeTruthy();
+    expect(capabilities.json().live).toMatchObject({
+      solana: false,
+      predictions: false,
+      binance: false,
+      hyperliquid: false,
+    });
+    await app.close();
+  });
   it("requires authorization for market data", async () => {
     const app = await buildApi(readConfig({ NODE_ENV: "test", LOG_LEVEL: "silent" }));
     const response = await app.inject({ method: "GET", url: "/v1/markets/BTCUSDT" });

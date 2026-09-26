@@ -24,6 +24,7 @@ export function createAuthenticator(config: ApiConfig) {
     if (
       request.url === "/health/live" ||
       request.url === "/health/ready" ||
+      request.url === "/v1/capabilities" ||
       request.url === "/metrics" ||
       request.url === "/v1/helius/webhook"
     )

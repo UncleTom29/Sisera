@@ -2,7 +2,7 @@ import { ArrowUpRight, Boxes, CircleAlert, Search } from "lucide-react";
 import { auth } from "../../../auth";
 import { LiveRefresh } from "../../../components/live-refresh";
 import { PageHeader } from "../../../components/page-header";
-import { searchClawpump } from "../../../lib/api";
+import { accountErrorMessage, searchClawpump } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,14 @@ export default async function ClawpumpMarkets({
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const result = query.length >= 2 ? await searchClawpump(query, identity).catch(() => null) : null;
+  const response =
+    query.length >= 2
+      ? await searchClawpump(query, identity).then(
+          (value) => ({ value, error: null as unknown }),
+          (error: unknown) => ({ value: null, error }),
+        )
+      : { value: null, error: null };
+  const result = response.value;
   const tokens = result?.data.tokens ?? [];
 
   return (
@@ -118,8 +125,10 @@ export default async function ClawpumpMarkets({
             <div>
               <p className="text-sm text-white">Agent market feed unavailable</p>
               <p className="mt-1 text-xs text-slate-400">
-                Clawpump did not return live assets. Check the provider connection or try again
-                shortly. No sample or stale prices are substituted.
+                {response.error
+                  ? accountErrorMessage(response.error)
+                  : "Enter at least two characters to search."}{" "}
+                No sample or stale prices are substituted.
               </p>
             </div>
           </div>

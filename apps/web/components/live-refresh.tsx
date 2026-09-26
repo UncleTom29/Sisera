@@ -13,6 +13,20 @@ export function LiveRefresh({ intervalMs = 30000 }: { intervalMs?: number }) {
   useEffect(() => {
     const saved = Number(window.localStorage.getItem("sisera_refresh_interval_ms"));
     if ([0, 15000, 30000, 60000].includes(saved)) setConfiguredInterval(saved);
+    let active = true;
+    void fetch("/api/preferences", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        const value = payload?.data?.refreshIntervalMs;
+        if (active && [0, 15000, 30000, 60000].includes(value)) {
+          setConfiguredInterval(value);
+          window.localStorage.setItem("sisera_refresh_interval_ms", String(value));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {

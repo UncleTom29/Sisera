@@ -2,7 +2,12 @@ import { auth } from "../../../auth";
 import { BridgeActivity } from "../../../components/bridge-activity";
 import { HyperliquidActivity } from "../../../components/hyperliquid-activity";
 import { PageHeader } from "../../../components/page-header";
-import { getMarketOrders, getPredictionOrders, getSolanaOrders } from "../../../lib/api";
+import {
+  accountErrorMessage,
+  getMarketOrders,
+  getPredictionOrders,
+  getSolanaOrders,
+} from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +17,23 @@ export default async function ActivityPage() {
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const [orders, marketOrders, predictionOrders] = await Promise.all([
-    getSolanaOrders(identity).catch(() => null),
-    getMarketOrders(identity).catch(() => null),
-    getPredictionOrders(identity).catch(() => null),
+  const [stockResult, marketResult, predictionResult] = await Promise.all([
+    getSolanaOrders(identity).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
+    getMarketOrders(identity).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
+    getPredictionOrders(identity).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
   ]);
+  const orders = stockResult.value;
+  const marketOrders = marketResult.value;
+  const predictionOrders = predictionResult.value;
   return (
     <div>
       <PageHeader
@@ -58,9 +75,9 @@ export default async function ActivityPage() {
             </div>
           ) : (
             <p className="p-5 text-xs text-slate-400">
-              {marketOrders
-                ? "No crypto market orders yet."
-                : "Crypto order ledger is unavailable."}
+              {marketResult.error
+                ? accountErrorMessage(marketResult.error)
+                : "No crypto market orders yet."}
             </p>
           )}
         </section>
@@ -112,7 +129,9 @@ export default async function ActivityPage() {
             </div>
           ) : (
             <p className="p-5 text-xs text-slate-400">
-              {orders ? "No recorded orders yet." : "Activity ledger is unavailable."}
+              {stockResult.error
+                ? accountErrorMessage(stockResult.error)
+                : "No recorded orders yet."}
             </p>
           )}
         </section>
@@ -150,9 +169,9 @@ export default async function ActivityPage() {
             </div>
           ) : (
             <p className="p-5 text-xs text-slate-400">
-              {predictionOrders
-                ? "No prediction orders yet."
-                : "Prediction order ledger is unavailable."}
+              {predictionResult.error
+                ? accountErrorMessage(predictionResult.error)
+                : "No prediction orders yet."}
             </p>
           )}
         </section>

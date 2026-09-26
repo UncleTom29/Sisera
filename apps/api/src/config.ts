@@ -7,6 +7,18 @@ const Environment = z.object({
   PRIVY_APP_ID: z.string().optional(),
   PRIVY_APP_SECRET: z.string().optional(),
   DATABASE_URL: z.string().optional(),
+  SISERA_LIVE_SOLANA_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  SISERA_LIVE_PREDICTIONS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  SISERA_LIVE_BINANCE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   SISERA_ALLOW_DEV_AUTH: z
     .enum(["true", "false"])
     .default("false")

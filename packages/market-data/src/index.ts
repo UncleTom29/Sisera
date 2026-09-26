@@ -770,11 +770,16 @@ export class JupiterPredictionProvider {
   ) {}
 
   async listOpenMarkets(limit = 20): Promise<PredictionMarket[]> {
-    if (this.cache && this.cache.until > Date.now()) return this.cache.markets.slice(0, limit);
+    if (this.cache && this.cache.until > Date.now())
+      return this.cache.markets
+        .filter((market) => Date.parse(market.closesAt ?? "") > Date.now())
+        .slice(0, limit);
     this.pending ??= this.loadMarkets().finally(() => {
       this.pending = null;
     });
-    return (await this.pending).slice(0, limit);
+    return (await this.pending)
+      .filter((market) => Date.parse(market.closesAt ?? "") > Date.now())
+      .slice(0, limit);
   }
 
   private async loadMarkets(): Promise<PredictionMarket[]> {
@@ -826,8 +831,9 @@ export class JupiterPredictionProvider {
         if (![yes, no].every((price) => Number.isFinite(price) && price > 0 && price <= 1))
           return [];
         const close = Number(market.closeTime);
-        const closesAt =
-          Number.isFinite(close) && close > 0 ? new Date(close * 1000).toISOString() : null;
+        if (!Number.isFinite(close) || close * 1000 <= Date.now()) return [];
+        if (typeof market.rulesPrimary !== "string" || !market.rulesPrimary.trim()) return [];
+        const closesAt = new Date(close * 1000).toISOString();
         const marketTitle = typeof market.title === "string" ? market.title : "";
         return [
           {

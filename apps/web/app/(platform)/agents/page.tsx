@@ -3,7 +3,7 @@ import { auth } from "../../../auth";
 import { AgentCreateForm } from "../../../components/agent-create-form";
 import { AgentResearch } from "../../../components/agent-research";
 import { PageHeader } from "../../../components/page-header";
-import { getAgents } from "../../../lib/api";
+import { accountErrorMessage, getAgents } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +11,14 @@ const stages = ["Draft", "Backtest", "Stress", "Paper", "Shadow", "Limited live"
 
 export default async function AgentsPage() {
   const session = await auth();
-  const agents = await getAgents({
+  const result = await getAgents({
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
-  }).catch(() => null);
+  }).then(
+    (value) => ({ value, error: null as unknown }),
+    (error: unknown) => ({ value: null, error }),
+  );
+  const agents = result.value;
   const account = Boolean(
     session &&
       !session.accessToken.startsWith("guest:") &&
@@ -47,6 +51,17 @@ export default async function AgentsPage() {
       </div>
       <div className="grid gap-4 p-4 xl:grid-cols-[1.4fr_.6fr]">
         <div className="space-y-4">
+          {result.error !== null && (
+            <p className="border border-amber-400/30 p-3 text-xs text-amber-200">
+              {accountErrorMessage(result.error)}
+            </p>
+          )}
+          {agents?.persistence === "unavailable" && (
+            <p className="border border-amber-400/30 p-3 text-xs text-amber-200">
+              Saved agent drafts are unavailable because the account database cannot be read.
+              Research templates remain available.
+            </p>
+          )}
           <section className="border border-line bg-panel">
             <h2 className="border-b border-line px-4 py-3 text-sm font-semibold">
               Strategy templates
@@ -79,7 +94,11 @@ export default async function AgentsPage() {
             <h2 className="border-b border-line px-4 py-3 text-sm font-semibold">
               Your custom agents
             </h2>
-            {agents?.custom.length ? (
+            {agents?.persistence === "unavailable" ? (
+              <p className="p-5 text-xs text-amber-200">
+                Saved drafts cannot be checked right now.
+              </p>
+            ) : agents?.custom.length ? (
               <div className="divide-y divide-line">
                 {agents.custom.map((agent) => (
                   <article key={agent.id} className="px-4 py-3">

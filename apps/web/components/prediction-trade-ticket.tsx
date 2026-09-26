@@ -2,6 +2,7 @@
 
 import { useSolanaStandardWallets } from "@privy-io/react-auth/solana";
 import { useState } from "react";
+import { useLiveCapability } from "./use-live-capability";
 
 type Prepared = {
   orderId: string;
@@ -13,6 +14,7 @@ type Prepared = {
 };
 
 export function PredictionTradeTicket({ marketId }: { marketId: string }) {
+  const liveAvailable = useLiveCapability("predictions");
   const { wallets } = useSolanaStandardWallets();
   const wallet = wallets.find((item) => item.accounts.length > 0);
   const account = wallet?.accounts[0];
@@ -26,6 +28,7 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
     setWorking(true);
     setMessage(null);
     try {
+      if (!liveAvailable) throw new Error("Prediction live trading is paused.");
       if (!wallet || !account) throw new Error("Connect a Solana wallet to your Sisera account.");
       if (prepared) {
         if (prepared.wallet !== account.address || Date.now() > Date.parse(prepared.expiresAt)) {
@@ -92,6 +95,11 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
   return (
     <div className="mt-4 border-t border-line pt-3 text-xs">
       <p className="font-semibold text-slate-200">Trade with Jupiter · live</p>
+      {!liveAvailable && (
+        <p className="mt-2 text-amber-300">
+          Live trading is paused while account risk and order reconciliation are completed.
+        </p>
+      )}
       <div className="mt-2 grid grid-cols-2 gap-1">
         {(["yes", "no"] as const).map((side) => (
           <button
@@ -129,7 +137,7 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
       <button
         type="button"
         onClick={() => void submit()}
-        disabled={working || !account || !amount}
+        disabled={working || !account || !amount || !liveAvailable}
         className="mt-2 h-9 w-full rounded border border-cyan-400/40 bg-cyan-400/10 text-cyan-200 disabled:opacity-40"
       >
         {working ? "Working…" : prepared ? "Sign and submit" : "Review live order"}

@@ -56,12 +56,13 @@ describe("stock provider boundaries", () => {
   it("sends Clawpump credentials only to the apex endpoint", async () => {
     const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ tokens: [] }) });
     vi.stubGlobal("fetch", fetcher);
-    await new ClawpumpClient("cpk_test").search("AAPL");
+    const key = `cpk_${"a".repeat(43)}`;
+    await new ClawpumpClient(key).search("AAPL");
     expect(String(fetcher.mock.calls[0]?.[0])).toContain(
       "https://clawpump.tech/api/v1/tokens/search",
     );
     expect(fetcher.mock.calls[0]?.[1].redirect).toBe("error");
-    expect(fetcher.mock.calls[0]?.[1].headers.Authorization).toBe("Bearer cpk_test");
+    expect(fetcher.mock.calls[0]?.[1].headers.Authorization).toBe(`Bearer ${key}`);
   });
 
   it("searches GDELT without an API key", async () => {

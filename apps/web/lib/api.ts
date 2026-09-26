@@ -187,6 +187,33 @@ export type MarketIntelligence = {
 
 type ApiIdentity = { accessToken?: string | undefined; localOperator?: boolean | undefined };
 
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    readonly requestId: string | null,
+    message: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+export function accountErrorMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return "The service is temporarily unavailable. Please retry.";
+  const detail = error.requestId ? ` Reference ${error.requestId}.` : "";
+  if (error.status === 401) return `Your session has expired. Sign in again.${detail}`;
+  if (error.status === 403) return `This account does not have access.${detail}`;
+  if (/database|identity_store|persistence/.test(error.code))
+    return `Account database is unavailable.${detail}`;
+  if (error.code === "provider_credentials_invalid")
+    return `Clawpump API credentials require attention from the operator.${detail}`;
+  if (error.code === "provider_rate_limited")
+    return `Clawpump is rate limited. Try again shortly.${detail}`;
+  if (error.status === 503) return `The data provider is unavailable.${detail}`;
+  return `The request failed.${detail}`;
+}
+
 function identityHeaders(identity: ApiIdentity): HeadersInit {
   if (identity.accessToken?.startsWith("guest:") || identity.accessToken?.startsWith("wallet:"))
     return process.env.NODE_ENV !== "production"
@@ -204,7 +231,18 @@ async function getJson<T>(path: string, identity: ApiIdentity, timeoutMs = 5000)
     cache: "no-store",
     signal: AbortSignal.timeout(timeoutMs),
   });
-  if (!response.ok) throw new Error(`Sisera API returned ${response.status}`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new ApiError(
+      response.status,
+      typeof payload?.error === "string" ? payload.error : "request_failed",
+      response.headers.get("x-request-id") ??
+        (typeof payload?.requestId === "string" ? payload.requestId : null),
+      typeof payload?.message === "string"
+        ? payload.message
+        : `Sisera API returned ${response.status}`,
+    );
+  }
   return response.json() as Promise<T>;
 }
 

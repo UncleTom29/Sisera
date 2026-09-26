@@ -1,15 +1,19 @@
 import { auth } from "../../../auth";
 import { PageHeader } from "../../../components/page-header";
-import { getLeaderboard } from "../../../lib/api";
+import { accountErrorMessage, getLeaderboard } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function LeaderboardPage() {
   const session = await auth();
-  const result = await getLeaderboard({
+  const response = await getLeaderboard({
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
-  }).catch(() => null);
+  }).then(
+    (value) => ({ value, error: null as unknown }),
+    (error: unknown) => ({ value: null, error }),
+  );
+  const result = response.value;
   return (
     <div>
       <PageHeader
@@ -23,7 +27,9 @@ export default async function LeaderboardPage() {
             <span>{result?.scope ?? "Ledger unavailable"}</span>
             <span>{result?.data.length ?? 0} ranked</span>
           </div>
-          {result?.data.length ? (
+          {response.error ? (
+            <p className="p-5 text-xs text-amber-200">{accountErrorMessage(response.error)}</p>
+          ) : result?.data.length ? (
             <div className="divide-y divide-line">
               {result.data.map((row, index) => (
                 <div

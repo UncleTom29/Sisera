@@ -14,6 +14,20 @@ jobs:
     name: Run Quality Checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sisera
+          POSTGRES_PASSWORD: sisera
+          POSTGRES_DB: sisera_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sisera -d sisera_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,6 +45,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify fresh PostgreSQL migrations
+        run: pnpm db:migrate && node scripts/verify-migrations.mjs
+        env:
+          DATABASE_URL: postgresql://sisera:sisera@127.0.0.1:5432/sisera_test
 
       - name: Lint
         run: pnpm lint
@@ -201,6 +220,13 @@ jobs:
             fi
 
             # Apply pending database migrations
+            # Save a restorable snapshot before any schema change. A failed backup stops the release.
+            command -v pg_dump >/dev/null 2>&1 || { echo "ERROR: pg_dump is required before migration."; exit 1; }
+            install -d -m 700 /opt/sisera-backups
+            BACKUP_FILE="/opt/sisera-backups/sisera-$(date -u +%Y%m%dT%H%M%SZ).dump"
+            PGDATABASE="$DATABASE_URL" pg_dump --format=custom --no-owner --file="$BACKUP_FILE"
+            chmod 600 "$BACKUP_FILE"
+            echo "==> PostgreSQL backup saved before migration."
             echo "==> Running PostgreSQL database migrations..."
             if command -v pnpm >/dev/null 2>&1; then
               pnpm db:migrate
@@ -280,7 +306,7 @@ jobs:
                 sleep 3
               done
             }
-            wait_for_service sisera-api "http://127.0.0.1:$API_HEALTH_PORT/health/live"
+            wait_for_service sisera-api "http://127.0.0.1:$API_HEALTH_PORT/health/ready"
             wait_for_service sisera-web "http://127.0.0.1:$WEB_PORT/sign-in"
             echo "==> API and web are accepting requests."
             EXPECTED_SIGNIN_CHUNK="$(node -e 'const files=require("./apps/web/.next/app-build-manifest.json").pages["/sign-in/page"];const chunk=files?.find((file)=>file.includes("app/sign-in/page-"));if(!chunk)process.exit(1);process.stdout.write(chunk)')"

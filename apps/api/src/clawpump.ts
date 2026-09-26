@@ -33,19 +33,30 @@ const PriceResponse = z.object({
 });
 
 export class ClawpumpClient {
-  constructor(private readonly apiKey: string) {
-    if (!apiKey.startsWith("cpk_")) throw new Error("Clawpump partner key is invalid");
+  constructor(
+    private readonly apiKey: string,
+    private readonly fetcher: typeof fetch = globalThis.fetch,
+  ) {
+    if (!/^cpk_[A-Za-z0-9_-]{43}$/.test(apiKey)) throw new Error("Clawpump partner key is invalid");
   }
 
   private async get(path: string, query: Record<string, string> = {}) {
     const url = new URL(`https://clawpump.tech/api/v1/${path}`);
     url.search = new URLSearchParams(query).toString();
-    const response = await fetch(url, {
+    const response = await this.fetcher(url, {
       headers: { Authorization: `Bearer ${this.apiKey}` },
       signal: AbortSignal.timeout(8000),
       redirect: "error",
     });
-    if (!response.ok) throw new Error(`Clawpump returned ${response.status}`);
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as {
+        meta?: { requestId?: unknown };
+      } | null;
+      throw new ClawpumpError(
+        response.status,
+        typeof body?.meta?.requestId === "string" ? body.meta.requestId : null,
+      );
+    }
     return response.json();
   }
 
@@ -69,5 +80,14 @@ export class ClawpumpClient {
         creatorFeeBps: z.object({ min: z.number(), max: z.number(), default: z.number() }),
       })
       .parse(await this.get("pump-pairs"));
+  }
+}
+
+export class ClawpumpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly providerRequestId: string | null,
+  ) {
+    super(`Clawpump returned ${status}`);
   }
 }

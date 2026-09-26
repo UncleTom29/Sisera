@@ -95,7 +95,11 @@ export default async function PredictionsPage() {
                     {new Date(market.quality.receivedAt).toLocaleTimeString()} · not an executable
                     quote
                   </p>
-                  {market.resolutionRules && <PredictionTradeTicket marketId={market.id} />}
+                  {market.resolutionRules &&
+                    market.closesAt &&
+                    Date.parse(market.closesAt) > Date.now() && (
+                      <PredictionTradeTicket marketId={market.id} />
+                    )}
                 </div>
               </article>
             ))}

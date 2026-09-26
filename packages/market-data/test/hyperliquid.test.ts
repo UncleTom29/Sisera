@@ -156,7 +156,7 @@ describe("JupiterPredictionProvider", () => {
                   marketId: "priced",
                   title: "Outcome test",
                   status: "open",
-                  closeTime: 1790437200,
+                  closeTime: Math.floor(Date.now() / 1000) + 86400,
                   provider: "polymarket",
                   rulesPrimary: "Official result",
                   pricing: { buyYesPriceUsd: 400000, buyNoPriceUsd: 600000 },

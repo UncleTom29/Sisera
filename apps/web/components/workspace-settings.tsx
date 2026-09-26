@@ -5,13 +5,61 @@ import { useEffect, useState } from "react";
 export function WorkspaceSettings() {
   const [interval, setIntervalValue] = useState("30000");
   const [failedOrders, setFailedOrders] = useState(true);
+  const [ready, setReady] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
-    const stored = localStorage.getItem("sisera_refresh_interval_ms");
-    if (stored && ["0", "15000", "30000", "60000"].includes(stored)) setIntervalValue(stored);
-    setFailedOrders(localStorage.getItem("sisera_failed_order_alerts") !== "false");
+    let active = true;
+    void fetch("/api/preferences", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok)
+          throw new Error(
+            response.status === 401
+              ? "Sign in to sync settings."
+              : "Account settings are unavailable.",
+          );
+        return response.json();
+      })
+      .then((payload) => {
+        if (!active) return;
+        setIntervalValue(String(payload.data.refreshIntervalMs));
+        setFailedOrders(payload.data.failedOrderAlerts);
+        localStorage.setItem("sisera_refresh_interval_ms", String(payload.data.refreshIntervalMs));
+        setReady(true);
+      })
+      .catch((error) => {
+        if (active)
+          setMessage(error instanceof Error ? error.message : "Account settings are unavailable.");
+      });
+    return () => {
+      active = false;
+    };
   }, []);
+  async function save(nextInterval: string, nextFailedOrders: boolean) {
+    setMessage(null);
+    try {
+      const response = await fetch("/api/preferences", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          refreshIntervalMs: Number(nextInterval),
+          failedOrderAlerts: nextFailedOrders,
+        }),
+      });
+      if (!response.ok) throw new Error("Settings could not be saved. Please retry.");
+      setIntervalValue(nextInterval);
+      setFailedOrders(nextFailedOrders);
+      localStorage.setItem("sisera_refresh_interval_ms", nextInterval);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Settings could not be saved.");
+    }
+  }
   return (
     <div className="grid gap-4 p-4 md:grid-cols-2">
+      {message && (
+        <p role="alert" className="md:col-span-2 text-xs text-amber-300">
+          {message}
+        </p>
+      )}
       <section className="border border-line bg-panel p-5">
         <h2 className="text-sm font-semibold text-white">Market refresh</h2>
         <p className="mt-2 text-xs text-slate-400">
@@ -19,10 +67,8 @@ export function WorkspaceSettings() {
         </p>
         <select
           value={interval}
-          onChange={(event) => {
-            setIntervalValue(event.target.value);
-            localStorage.setItem("sisera_refresh_interval_ms", event.target.value);
-          }}
+          disabled={!ready}
+          onChange={(event) => void save(event.target.value, failedOrders)}
           className="mt-4 w-full rounded border border-line bg-ink p-2 text-xs text-white"
         >
           <option value="0">Manual only</option>
@@ -37,15 +83,13 @@ export function WorkspaceSettings() {
           <input
             type="checkbox"
             checked={failedOrders}
-            onChange={(event) => {
-              setFailedOrders(event.target.checked);
-              localStorage.setItem("sisera_failed_order_alerts", String(event.target.checked));
-            }}
+            disabled={!ready}
+            onChange={(event) => void save(interval, event.target.checked)}
           />
           Show failed and uncertain order alerts
         </label>
         <p className="mt-3 text-[11px] text-slate-500">
-          Preferences are saved in this browser. Order status still appears in Activity.
+          Preferences are saved to your Sisera account. Order status still appears in Activity.
         </p>
       </section>
     </div>

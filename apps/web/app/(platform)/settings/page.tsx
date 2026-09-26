@@ -7,7 +7,7 @@ export default function SettingsPage() {
       <PageHeader
         eyebrow="Workspace preferences"
         title="Settings"
-        description="Control market refresh and activity alerts for this browser."
+        description="Control account-wide market refresh and activity alerts."
       />
       <WorkspaceSettings />
     </div>

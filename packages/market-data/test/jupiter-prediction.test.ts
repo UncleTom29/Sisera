@@ -16,7 +16,7 @@ describe("JupiterPredictionProvider", () => {
                   status: "open",
                   title: "Candidate wins",
                   provider: "polymarket",
-                  closeTime: 1780000000,
+                  closeTime: Math.floor(Date.now() / 1000) + 86400,
                   rulesPrimary: "Official result determines settlement.",
                   pricing: {
                     buyYesPriceUsd: 600000,
@@ -42,5 +42,33 @@ describe("JupiterPredictionProvider", () => {
       { label: "NO", probability: "0.43", sellPrice: "0.4" },
     ]);
     expect(markets[0]?.resolutionRules).toContain("Official result");
+  });
+
+  it("excludes a market whose close time has passed even if Jupiter still labels it open", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              markets: [
+                {
+                  marketId: "STALE",
+                  status: "open",
+                  closeTime: Math.floor(Date.now() / 1000) - 1,
+                  rulesPrimary: "Official result",
+                  pricing: { buyYesPriceUsd: 500000, buyNoPriceUsd: 500000 },
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    const markets = await new JupiterPredictionProvider(
+      "https://example.test",
+      undefined,
+      fetcher,
+    ).listOpenMarkets();
+    expect(markets).toEqual([]);
   });
 });

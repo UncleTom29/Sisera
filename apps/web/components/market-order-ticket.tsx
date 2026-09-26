@@ -1,11 +1,9 @@
 "use client";
 
-import { ExchangeClient, HttpTransport, InfoClient } from "@nktkas/hyperliquid";
 import { useConnectWallet, useCreateWallet, usePrivy, useWallets } from "@privy-io/react-auth";
 import { ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
-import { createWalletClient, custom } from "viem";
-import { arbitrum } from "viem/chains";
+import { useLiveCapability } from "./use-live-capability";
 
 export function MarketOrderTicket({
   venue,
@@ -30,7 +28,7 @@ export function MarketOrderTicket({
   const [quantity, setQuantity] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [accountValue, setAccountValue] = useState<string | null>(null);
+  const liveAvailable = useLiveCapability(venue);
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const price = side === "buy" ? ask : bid;
@@ -77,81 +75,17 @@ export function MarketOrderTicket({
   }
 
   async function submitHyperliquid() {
-    if (!wallet) throw new Error("Connect an EVM wallet first.");
-    const amount = Number(quantity);
-    if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a positive quantity.");
-    const info = new InfoClient({ transport: new HttpTransport() });
-    const [metadata, book, account] = await Promise.all([
-      info.metaAndAssetCtxs(),
-      info.l2Book({ coin: symbol.replace(/USDT$/, "") }),
-      info.clearinghouseState({ user: wallet.address as `0x${string}` }),
-    ]);
-    const coin = symbol.replace(/USDT$/, "");
-    const asset = metadata[0].universe.findIndex((item) => item.name === coin);
-    if (asset < 0) throw new Error("This perpetual is not listed on Hyperliquid.");
-    const decimals = metadata[0].universe[asset]?.szDecimals ?? 0;
-    if ((quantity.split(".")[1]?.length ?? 0) > decimals)
-      throw new Error(`Hyperliquid permits at most ${decimals} size decimals for ${coin}.`);
-    if (!book) throw new Error("Fresh order book unavailable.");
-    const top = side === "buy" ? book.levels[1][0] : book.levels[0][0];
-    const best = Number(top?.px);
-    if (!Number.isFinite(best) || best <= 0) throw new Error("Fresh order book unavailable.");
-    const accountUsd = Number(account.marginSummary.accountValue);
-    const buyingPower = Number(account.withdrawable);
-    setAccountValue(account.marginSummary.accountValue);
-    if (
-      !Number.isFinite(accountUsd) ||
-      accountUsd <= 0 ||
-      !Number.isFinite(buyingPower) ||
-      buyingPower <= 0
-    )
-      throw new Error("Fund the HyperCore trading balance before placing a live perp order.");
-    const orderNotional = amount * best;
-    if (orderNotional < 10 || orderNotional > Math.min(2500, accountUsd * 0.2, buyingPower))
-      throw new Error(
-        "Order must be at least $10 and within 20% of account value, $2,500, and available margin.",
-      );
-    const maxPrice = Number((best * (side === "buy" ? 1.005 : 0.995)).toPrecision(5));
-    const provider = await wallet.getEthereumProvider();
-    const signer = createWalletClient({
-      account: wallet.address as `0x${string}`,
-      chain: arbitrum,
-      transport: custom(provider),
-    });
-    const exchange = new ExchangeClient({
-      transport: new HttpTransport(),
-      wallet: signer,
-      signatureChainId: "0xa4b1",
-    });
-    const result = await exchange.order({
-      orders: [
-        {
-          a: asset,
-          b: side === "buy",
-          p: String(maxPrice),
-          s: quantity,
-          r: false,
-          t: { limit: { tif: "Ioc" } },
-        },
-      ],
-      grouping: "na",
-    });
-    const status = result.response.data.statuses[0];
-    if (!status || typeof status === "string")
-      throw new Error("Hyperliquid has not confirmed a fill. Check Activity before retrying.");
-    if ("error" in status) throw new Error(String(status.error));
-    setMessage(
-      "filled" in status
-        ? `Live ${side} filled: ${status.filled.totalSz} ${coin} at ${status.filled.avgPx} USDC. Order ${status.filled.oid}.`
-        : "Live order accepted by Hyperliquid. Verify its status in Activity before retrying.",
+    throw new Error(
+      "Hyperliquid live trading is paused until server-side risk and order reconciliation are available.",
     );
-    setQuantity("");
   }
 
   async function submit() {
     setBusy(true);
     setMessage(null);
     try {
+      if (mode === "live" && !liveAvailable)
+        throw new Error("Live trading is currently paused for this venue.");
       if (mode === "paper") await submitPaper();
       else if (venue === "hyperliquid") await submitHyperliquid();
       else await submitBinance();
@@ -176,16 +110,23 @@ export function MarketOrderTicket({
             <button
               key={option}
               type="button"
+              disabled={option === "live" && !liveAvailable}
               onClick={() => {
                 setMode(option);
                 setMessage(null);
               }}
-              className={`rounded py-2 text-xs font-semibold ${mode === option ? "bg-cyan-400/15 text-cyan-300" : "text-slate-500"}`}
+              className={`rounded py-2 text-xs font-semibold disabled:cursor-not-allowed ${mode === option ? "bg-cyan-400/15 text-cyan-300" : "text-slate-500"}`}
             >
               {option === "paper" ? "Paper" : "Live"}
             </button>
           ))}
         </div>
+        {!liveAvailable && (
+          <p className="text-[11px] text-amber-300">
+            Live trading is paused for this venue while risk checks and reconciliation are
+            completed.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-1 rounded border border-line p-1">
           {(["buy", "sell"] as const).map((option) => (
             <button
@@ -234,7 +175,6 @@ export function MarketOrderTicket({
               EVM wallet:{" "}
               <span className="font-mono text-cyan-300">{wallet?.address ?? "Not connected"}</span>
             </p>
-            {accountValue && <p>HyperCore account value: ${accountValue}</p>}
             {!wallet && (
               <div className="flex gap-3">
                 <button type="button" onClick={() => connectWallet()} className="text-cyan-300">
@@ -303,6 +243,7 @@ export function MarketOrderTicket({
           disabled={
             busy ||
             !quantity ||
+            (mode === "live" && !liveAvailable) ||
             (mode === "live" &&
               (venue === "binance" ? !authenticated || !apiKey || !apiSecret : !wallet))
           }
@@ -316,9 +257,8 @@ export function MarketOrderTicket({
         </button>
         {message && <output className="block text-xs leading-5 text-slate-300">{message}</output>}
         <p className="text-[11px] leading-5 text-slate-500">
-          Paper fills use a fresh venue bid or ask and a persistent simulated balance. Live
-          Hyperliquid orders use an immediate-or-cancel limit with a 0.5% price bound and require
-          wallet signing. Binance orders use its signed Spot API.
+          Paper fills use a fresh venue bid or ask and a persistent simulated balance. Binance live
+          orders, when enabled, use its signed Spot API.
         </p>
       </div>
     </div>

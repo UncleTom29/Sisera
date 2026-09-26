@@ -10,6 +10,100 @@ export function createDatabase(connectionString: string) {
 
 export { schema };
 
+/** A bounded read that also checks the schema version expected by this API build. */
+export async function checkDatabaseReadiness(connectionString: string): Promise<boolean> {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 2, idle_timeout: 1 });
+  try {
+    const rows = await connection`
+      SELECT EXISTS (
+        SELECT 1 FROM _sisera_migrations WHERE name = '0006_account_preferences_alerts.sql'
+      ) AS migrated
+    `;
+    return rows[0]?.migrated === true;
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function getAccountPreferences(connectionString: string, subject: string) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [row] = await connection`
+      SELECT refresh_interval_ms AS "refreshIntervalMs", failed_order_alerts AS "failedOrderAlerts"
+      FROM account_preferences WHERE subject = ${subject}
+    `;
+    return row
+      ? {
+          refreshIntervalMs: Number(row.refreshIntervalMs),
+          failedOrderAlerts: Boolean(row.failedOrderAlerts),
+        }
+      : { refreshIntervalMs: 30000, failedOrderAlerts: true };
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function saveAccountPreferences(
+  connectionString: string,
+  subject: string,
+  preferences: { refreshIntervalMs: number; failedOrderAlerts: boolean },
+) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    await connection`
+      INSERT INTO account_preferences (subject, refresh_interval_ms, failed_order_alerts)
+      VALUES (${subject}, ${preferences.refreshIntervalMs}, ${preferences.failedOrderAlerts})
+      ON CONFLICT (subject) DO UPDATE SET
+        refresh_interval_ms = EXCLUDED.refresh_interval_ms,
+        failed_order_alerts = EXCLUDED.failed_order_alerts,
+        updated_at = now()
+    `;
+    return preferences;
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function listAlertAcknowledgements(connectionString: string, subject: string) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const rows = await connection`
+      SELECT order_id::text AS id FROM alert_acknowledgements
+      WHERE subject = ${subject} ORDER BY acknowledged_at DESC LIMIT 500
+    `;
+    return rows.map((row) => String(row.id));
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function acknowledgeOrderAlert(
+  connectionString: string,
+  subject: string,
+  orderId: string,
+) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [row] = await connection`
+      SELECT id FROM (
+        SELECT id FROM solana_swap_orders WHERE subject = ${subject} AND status IN ('failed', 'unknown')
+        UNION ALL
+        SELECT id FROM market_live_orders WHERE subject = ${subject} AND status IN ('rejected', 'unknown')
+        UNION ALL
+        SELECT id FROM prediction_orders WHERE subject = ${subject} AND status IN ('failed', 'unknown')
+      ) eligible WHERE id = ${orderId}::uuid LIMIT 1
+    `;
+    if (!row) return false;
+    await connection`
+      INSERT INTO alert_acknowledgements (subject, order_id)
+      VALUES (${subject}, ${orderId}::uuid) ON CONFLICT DO NOTHING
+    `;
+    return true;
+  } finally {
+    await connection.end();
+  }
+}
+
 export async function listAgentManifests(connectionString: string, tenantId: string) {
   const connection = createDatabase(connectionString);
   try {

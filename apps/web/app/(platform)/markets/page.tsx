@@ -1,6 +1,7 @@
 import { StatusBadge } from "@sisera/ui";
 import { ListFilter } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
 import { LiveRefresh } from "../../../components/live-refresh";
@@ -28,7 +29,8 @@ const symbols = [
 export default async function MarketsPage({
   searchParams,
 }: { searchParams: Promise<{ venue?: string }> }) {
-  const venue = (await searchParams).venue === "hyperliquid" ? "hyperliquid" : "binance";
+  if ((await searchParams).venue === "hyperliquid") redirect("/terminal?venue=hyperliquid");
+  const venue = "binance" as const;
   const session = await auth();
   const identity = {
     accessToken: session?.accessToken,
@@ -36,15 +38,14 @@ export default async function MarketsPage({
   };
   const result = await getMarkets(symbols, identity, venue).catch(() => null);
   const rows = result?.data ?? [];
-  const references =
-    venue === "binance" && !rows.length
-      ? await getReferenceMarkets(symbols, identity).catch(() => [])
-      : [];
+  const references = !rows.length
+    ? await getReferenceMarkets(symbols, identity).catch(() => [])
+    : [];
   return (
     <div className="min-h-full">
       <PageHeader
-        eyebrow={`Discover / Crypto ${venue === "hyperliquid" ? "perpetuals" : "spot"}`}
-        title="Markets"
+        eyebrow="Discover / Crypto spot"
+        title="Crypto spot markets"
         description="Venue-specific bid, ask, 24h activity, source, and update times. Spot and perpetual markets are never conflated."
         actions={
           <div className="flex items-center gap-2">
@@ -62,14 +63,14 @@ export default async function MarketsPage({
       <div className="p-4 md:p-6">
         <div className="mb-4 flex gap-2 text-xs">
           <Link
-            href="/markets?venue=hyperliquid"
-            className={`rounded border border-line px-3 py-2 ${venue === "hyperliquid" ? "bg-cyan-400/10 text-cyan-300" : "text-slate-400"}`}
+            href="/terminal?venue=hyperliquid"
+            className="rounded border border-line px-3 py-2 text-slate-400"
           >
             Hyperliquid perps
           </Link>
           <Link
             href="/markets?venue=binance"
-            className={`rounded border border-line px-3 py-2 ${venue === "binance" ? "bg-cyan-400/10 text-cyan-300" : "text-slate-400"}`}
+            className="rounded border border-line bg-cyan-400/10 px-3 py-2 text-cyan-300"
           >
             Binance spot
           </Link>

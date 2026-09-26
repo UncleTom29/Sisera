@@ -4,6 +4,7 @@ import { TradeRejection } from "./solana-trading.js";
 const Market = z.object({
   marketId: z.string(),
   status: z.string(),
+  closeTime: z.number(),
   rulesPrimary: z.string().optional(),
   pricing: z.object({ buyYesPriceUsd: z.number(), buyNoPriceUsd: z.number() }),
 });
@@ -43,6 +44,8 @@ export class JupiterPredictionTradingClient {
     const trading = TradingStatus.parse(await statusResponse.json());
     if (market.marketId !== input.marketId || market.status !== "open" || !trading.trading_active)
       throw new TradeRejection("This prediction market is not open for trading.");
+    if (!Number.isFinite(market.closeTime) || market.closeTime * 1000 <= Date.now())
+      throw new TradeRejection("This prediction market has closed.");
     if (!market.rulesPrimary?.trim()) throw new TradeRejection("Resolution rules are unavailable.");
     const price = input.isYes ? market.pricing.buyYesPriceUsd : market.pricing.buyNoPriceUsd;
     if (!Number.isFinite(price) || price <= 0 || price >= 1_000_000)

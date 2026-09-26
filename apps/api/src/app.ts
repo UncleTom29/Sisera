@@ -4,10 +4,14 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { OpenRouterResearchClient, compileIntent } from "@sisera/copilot";
 import {
+  acknowledgeOrderAlert,
   applyMarketPaperOrder,
+  checkDatabaseReadiness,
   createAgentManifest,
   createMarketLiveOrder,
+  getAccountPreferences,
   listAgentManifests,
+  listAlertAcknowledgements,
   listMarketLiveOrders,
   listMarketPaperAccounts,
   listMarketPaperOrders,
@@ -15,6 +19,7 @@ import {
   listPredictionOrders,
   listSolanaSwapOrders,
   recordSolanaWebhookEvents,
+  saveAccountPreferences,
   updateMarketLiveOrder,
 } from "@sisera/db";
 import {
@@ -45,7 +50,7 @@ import { agentTemplates } from "./agent-templates.js";
 import { createAuthenticator, requirePermission } from "./auth.js";
 import { BinanceTradingClient } from "./binance-trading.js";
 import { BridgeUnavailable, RelayBridgeClient } from "./bridge.js";
-import { ClawpumpClient } from "./clawpump.js";
+import { ClawpumpClient, ClawpumpError } from "./clawpump.js";
 import type { ApiConfig } from "./config.js";
 import { parseHeliusWebhook, validWebhookSecret } from "./helius-webhook.js";
 import { HeliusClient } from "./helius.js";
@@ -75,13 +80,19 @@ export type ApiDependencies = {
   };
   predictions?: { listOpenMarkets(limit?: number): Promise<unknown[]> };
   loadRiskContext?: (portfolioId: string) => Promise<RiskContext | null>;
+  readinessProbe?: (connectionString: string) => Promise<boolean>;
 };
 
 export async function buildApi(config: ApiConfig, dependencies: ApiDependencies = {}) {
   const app = Fastify({
     logger: { level: config.LOG_LEVEL },
     trustProxy: true,
-    genReqId: (request) => request.headers["x-request-id"]?.toString() ?? crypto.randomUUID(),
+    genReqId: (request) => {
+      const supplied = request.headers["x-request-id"];
+      return typeof supplied === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(supplied)
+        ? supplied
+        : crypto.randomUUID();
+    },
   });
   const registry = new Registry();
   collectDefaultMetrics({ register: registry, prefix: "sisera_" });
@@ -161,8 +172,111 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       );
   });
 
+  app.addHook("onSend", async (request, reply, payload) => {
+    reply.header("x-request-id", request.id);
+    return payload;
+  });
+
   app.get("/health/live", async () => ({ status: "ok" }));
-  app.get("/health/ready", async () => ({ status: "ready", dependencies: { process: "ok" } }));
+  app.get("/health/ready", async (request, reply) => {
+    const configured = Boolean(
+      config.DATABASE_URL && config.PRIVY_APP_ID && config.PRIVY_APP_SECRET,
+    );
+    const migrated = config.DATABASE_URL
+      ? await (dependencies.readinessProbe ?? checkDatabaseReadiness)(config.DATABASE_URL).catch(
+          () => false,
+        )
+      : false;
+    if (!configured || !migrated)
+      return reply.code(503).send({
+        status: "unavailable",
+        dependencies: {
+          configuration: configured ? "ok" : "missing",
+          database: migrated ? "ok" : "unavailable",
+        },
+        requestId: request.id,
+      });
+    return { status: "ready", dependencies: { configuration: "ok", database: "ok" } };
+  });
+  app.get("/v1/capabilities", async () => ({
+    live: {
+      solana: config.SISERA_LIVE_SOLANA_ENABLED,
+      predictions: config.SISERA_LIVE_PREDICTIONS_ENABLED,
+      binance: config.SISERA_LIVE_BINANCE_ENABLED,
+      hyperliquid: false,
+    },
+  }));
+  app.get(
+    "/v1/preferences",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply
+          .code(503)
+          .send({ error: "persistence_unavailable", message: "Account settings are unavailable." });
+      return { data: await getAccountPreferences(config.DATABASE_URL, request.principal.subject) };
+    },
+  );
+  app.put(
+    "/v1/preferences",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply
+          .code(503)
+          .send({ error: "persistence_unavailable", message: "Account settings are unavailable." });
+      const preferences = z
+        .object({
+          refreshIntervalMs: z.union([
+            z.literal(0),
+            z.literal(15000),
+            z.literal(30000),
+            z.literal(60000),
+          ]),
+          failedOrderAlerts: z.boolean(),
+        })
+        .parse(request.body);
+      return {
+        data: await saveAccountPreferences(
+          config.DATABASE_URL,
+          request.principal.subject,
+          preferences,
+        ),
+      };
+    },
+  );
+  app.get(
+    "/v1/alerts/acknowledgements",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply
+          .code(503)
+          .send({ error: "persistence_unavailable", message: "Alert history is unavailable." });
+      return {
+        data: await listAlertAcknowledgements(config.DATABASE_URL, request.principal.subject),
+      };
+    },
+  );
+  app.post(
+    "/v1/alerts/:id/acknowledge",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply
+          .code(503)
+          .send({ error: "persistence_unavailable", message: "Alert history is unavailable." });
+      const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+      const acknowledged = await acknowledgeOrderAlert(
+        config.DATABASE_URL,
+        request.principal.subject,
+        id,
+      );
+      return acknowledged
+        ? { acknowledged: true }
+        : reply.code(404).send({ error: "alert_not_found" });
+    },
+  );
   app.get("/v1/social-feed", { preHandler: requirePermission("market:read") }, async () => {
     const feed = await social.list();
     return { data: feed.posts, sources: feed.sources, fetchedAt: new Date().toISOString() };
@@ -233,14 +347,20 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   app.get("/v1/public-stocks", { preHandler: requirePermission("market:read") }, async () => ({
     data: await xstocks.list(),
   }));
-  app.get("/v1/agents", { preHandler: requirePermission("agent:read") }, async (request) => ({
-    templates: agentTemplates,
-    custom:
-      config.DATABASE_URL && request.principal
-        ? await listAgentManifests(config.DATABASE_URL, request.principal.tenantId)
-        : [],
-    persistence: config.DATABASE_URL ? "postgres" : "unavailable",
-  }));
+  app.get("/v1/agents", { preHandler: requirePermission("agent:read") }, async (request) => {
+    if (!config.DATABASE_URL || !request.principal)
+      return { templates: agentTemplates, custom: [], persistence: "unavailable" };
+    try {
+      return {
+        templates: agentTemplates,
+        custom: await listAgentManifests(config.DATABASE_URL, request.principal.tenantId),
+        persistence: "postgres",
+      };
+    } catch {
+      request.log.error({ requestId: request.id }, "agent store unavailable");
+      return { templates: agentTemplates, custom: [], persistence: "unavailable" };
+    }
+  });
   app.get(
     "/v1/agents/templates/:id/research",
     {
@@ -556,6 +676,10 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       config: { rateLimit: { max: 8, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
+      if (!config.SISERA_LIVE_SOLANA_ENABLED)
+        return reply
+          .code(503)
+          .send({ error: "live_trading_disabled", message: "Solana live trading is paused." });
       const principal = request.principal;
       if (!principal?.subject.startsWith("privy:"))
         return reply.code(403).send({ error: "account_required" });
@@ -608,6 +732,10 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       config: { rateLimit: { max: 8, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
+      if (!config.SISERA_LIVE_SOLANA_ENABLED)
+        return reply
+          .code(503)
+          .send({ error: "live_trading_disabled", message: "Solana live trading is paused." });
       const principal = request.principal;
       if (!principal?.subject.startsWith("privy:"))
         return reply.code(403).send({ error: "account_required" });
@@ -985,6 +1113,10 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       config: { rateLimit: { max: 8, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
+      if (!config.SISERA_LIVE_PREDICTIONS_ENABLED)
+        return reply
+          .code(503)
+          .send({ error: "live_trading_disabled", message: "Prediction live trading is paused." });
       const principal = request.principal;
       if (!principal?.subject.startsWith("privy:"))
         return reply.code(403).send({ error: "account_required" });
@@ -1012,6 +1144,10 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       config: { rateLimit: { max: 8, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
+      if (!config.SISERA_LIVE_PREDICTIONS_ENABLED)
+        return reply
+          .code(503)
+          .send({ error: "live_trading_disabled", message: "Prediction live trading is paused." });
       const principal = request.principal;
       if (!principal?.subject.startsWith("privy:"))
         return reply.code(403).send({ error: "account_required" });
@@ -1143,6 +1279,10 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       config: { rateLimit: { max: 4, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
+      if (!config.SISERA_LIVE_BINANCE_ENABLED)
+        return reply
+          .code(503)
+          .send({ error: "live_trading_disabled", message: "Binance live trading is paused." });
       const principal = request.principal;
       if (!principal?.subject.startsWith("privy:"))
         return reply.code(403).send({ error: "account_required" });
@@ -1258,7 +1398,10 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   );
 
   app.setErrorHandler((error, request, reply) => {
-    request.log.error({ err: error, requestId: request.id }, "request failed");
+    request.log.error(
+      { errorType: error instanceof Error ? error.name : "unknown", requestId: request.id },
+      "request failed",
+    );
     if (error instanceof z.ZodError) {
       return reply
         .code(400)
@@ -1276,6 +1419,37 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         .code(503)
         .send({ error: error.code, message: error.message, requestId: request.id });
     }
+    if (error instanceof ClawpumpError) {
+      request.log.warn(
+        { status: error.status, providerRequestId: error.providerRequestId, requestId: request.id },
+        "Clawpump request failed",
+      );
+      return reply.code(503).send({
+        error:
+          error.status === 401 || error.status === 403
+            ? "provider_credentials_invalid"
+            : error.status === 429
+              ? "provider_rate_limited"
+              : "provider_unavailable",
+        message:
+          error.status === 401 || error.status === 403
+            ? "Clawpump credentials require attention."
+            : error.status === 429
+              ? "Clawpump rate limit reached."
+              : "Clawpump is temporarily unavailable.",
+        requestId: request.id,
+      });
+    }
+    const code =
+      error && typeof error === "object" && "code" in error && typeof error.code === "string"
+        ? error.code
+        : "";
+    if (/^(08|28|42P01|53300|57P03|ECONNREFUSED|ETIMEDOUT)/.test(code))
+      return reply.code(503).send({
+        error: "database_unavailable",
+        message: "Account data is temporarily unavailable.",
+        requestId: request.id,
+      });
     return reply.code(500).send({
       error: "internal_error",
       message: "The request could not be completed.",

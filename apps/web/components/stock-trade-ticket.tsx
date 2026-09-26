@@ -4,6 +4,7 @@ import { useSolanaStandardWallets } from "@privy-io/react-auth/solana";
 import { ArrowRightLeft, WalletCards } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PortfolioConnect } from "./portfolio-connect";
+import { useLiveCapability } from "./use-live-capability";
 
 const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
@@ -68,6 +69,7 @@ function TradeTicketView({
   const [result, setResult] = useState<TradeResult | null>(null);
   const [prepared, setPrepared] = useState<PreparedTrade | null>(null);
   const [balance, setBalance] = useState<WalletBalance | null>(null);
+  const liveAvailable = useLiveCapability("solana");
   const estimate = useMemo(() => {
     const numeric = Number(amount);
     const mark = Number(price);
@@ -100,6 +102,7 @@ function TradeTicketView({
     setResult(null);
     try {
       if (halted) throw new Error("Trading is paused for this asset.");
+      if (mode === "live" && !liveAvailable) throw new Error("Solana live trading is paused.");
       if (mode === "live" && prepared) {
         if (Date.now() > Date.parse(prepared.expiresAt))
           throw new Error("This quote expired. Please get a new one.");
@@ -185,6 +188,7 @@ function TradeTicketView({
           <button
             key={option}
             type="button"
+            disabled={option === "live" && !liveAvailable}
             onClick={() => {
               setMode(option);
               setReview(false);
@@ -192,12 +196,18 @@ function TradeTicketView({
               setMessage(null);
               setResult(null);
             }}
-            className={`rounded py-2 text-xs font-semibold ${mode === option ? "bg-[#263b49] text-white" : "text-slate-400 hover:text-white"}`}
+            className={`rounded py-2 text-xs font-semibold disabled:cursor-not-allowed ${mode === option ? "bg-[#263b49] text-white" : "text-slate-400 hover:text-white"}`}
           >
             {option === "paper" ? "Paper trade" : "Live trade"}
           </button>
         ))}
       </fieldset>
+      {!liveAvailable && (
+        <p className="mt-2 text-[11px] text-amber-300">
+          Live stock trading is paused while wallet ownership, risk, and reconciliation checks are
+          completed.
+        </p>
+      )}
       {mode === "live" && (
         <div className="mt-5 flex items-center justify-between gap-3 border-b border-line pb-4">
           <span className="text-xs text-slate-400">Solana wallet</span>

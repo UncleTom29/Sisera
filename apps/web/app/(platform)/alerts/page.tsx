@@ -24,7 +24,7 @@ export default async function AlertsPage() {
       <PageHeader
         eyebrow="Operational awareness"
         title="Alerts"
-        description="Failed or uncertain recorded orders are shown here until acknowledged in this browser."
+        description="Failed or uncertain recorded orders are shown here until acknowledged for your account."
       />
       <div className="p-4">
         <section className="border border-line bg-panel">

@@ -191,10 +191,13 @@ jobs:
 
             # Install dependencies
             echo "==> Installing Node.js workspace dependencies..."
+            # pnpm may ask to replace an existing node_modules directory after a
+            # lockfile or workspace change. SSH has no interactive stdin, so the
+            # prompt otherwise skips the install while the script continues.
             if command -v pnpm >/dev/null 2>&1; then
-              pnpm install --frozen-lockfile
+              CI=true pnpm install --frozen-lockfile --prod=false
             else
-              npx pnpm install --frozen-lockfile
+              CI=true npx --yes pnpm@9.0.0 install --frozen-lockfile --prod=false
             fi
 
             # Apply pending database migrations

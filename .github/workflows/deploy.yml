@@ -198,7 +198,22 @@ jobs:
               exit 1
             fi
 
-            curl --fail --silent --show-error --retry 5 --retry-delay 2 "http://127.0.0.1:${API_PORT:-4000}/health/live" >/dev/null
+            wait_for_service() {
+              SERVICE_NAME="$1"
+              SERVICE_URL="$2"
+              ATTEMPT=0
+              until curl --fail --silent --max-time 3 "$SERVICE_URL" -o /dev/null; do
+                ATTEMPT=$((ATTEMPT + 1))
+                if [ "$ATTEMPT" -ge 30 ]; then
+                  echo "ERROR: $SERVICE_NAME did not become ready at $SERVICE_URL within 90 seconds."
+                  pm2 logs "$SERVICE_NAME" --nostream --lines 60 || true
+                  exit 1
+                fi
+                sleep 3
+              done
+            }
+            wait_for_service sisera-api "http://127.0.0.1:${API_PORT:-4000}/health/live"
+            wait_for_service sisera-web "http://127.0.0.1:9000/sign-in"
             EXPECTED_SIGNIN_CHUNK="$(node -e 'const files=require("./apps/web/.next/app-build-manifest.json").pages["/sign-in/page"];const chunk=files?.find((file)=>file.includes("app/sign-in/page-"));if(!chunk)process.exit(1);process.stdout.write(chunk)')"
             PUBLIC_BASE_URL="${SISERA_PUBLIC_URL:-https://sisera.xyz}"
             for BASE_URL in http://127.0.0.1:9000 "$PUBLIC_BASE_URL"; do

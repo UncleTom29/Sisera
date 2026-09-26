@@ -45,7 +45,7 @@ export default function SignInPage() {
             <div className="grid size-11 place-items-center border border-cyan-400/30 bg-cyan-400/10 text-cyan-300">
               <KeyRound size={19} />
             </div>
-            <p className="mt-8 eyebrow">Terminal Access</p>
+
             <h2 className="mt-4 text-4xl font-medium tracking-[-.045em] text-white">
               Sign in to Sisera
             </h2>

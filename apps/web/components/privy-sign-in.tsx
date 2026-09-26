@@ -168,7 +168,7 @@ export function PrivySignIn() {
       )}
 
       {/* 1. Primary Unified Continue Button */}
-      <div>
+      {/* <div>
         <button
           type="button"
           onClick={() => handlePrivyLogin()}
@@ -184,10 +184,8 @@ export function PrivySignIn() {
             className="transition-transform duration-200 group-hover:translate-x-1"
           />
         </button>
-        <p className="mt-2 text-center text-[11px] text-slate-400">
-          Unified authentication with email, social profiles, and hardware passkeys.
-        </p>
-      </div>
+       
+      </div> */}
 
       {/* 2. Direct Social Buttons (Google, X, Discord, Email) */}
       <div className="space-y-2.5">
@@ -196,7 +194,7 @@ export function PrivySignIn() {
             <div className="w-full border-t border-line/60" />
           </div>
           <span className="relative bg-[#090d13] px-3 font-mono text-[10px] uppercase tracking-wider text-slate-500">
-            or sign in with
+            Sign in with
           </span>
         </div>
 

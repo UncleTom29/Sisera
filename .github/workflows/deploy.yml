@@ -225,6 +225,18 @@ jobs:
                 echo "ERROR: $BASE_URL served sign-in HTML from a different build."
                 grep -oE '/_next/static/chunks/app/sign-in/page-[a-z0-9]+\.js' /tmp/sisera-sign-in.html | head -1 || true
                 grep -i '^cache-control:' /tmp/sisera-sign-in.headers || true
+                echo "==> Checking whether the VPS reverse proxy serves the new build..."
+                if curl -k --fail --silent --max-time 5 --resolve sisera.xyz:443:127.0.0.1 https://sisera.xyz/sign-in -o /tmp/sisera-origin-sign-in.html; then
+                  grep -oE '/_next/static/chunks/app/sign-in/page-[a-z0-9]+\.js' /tmp/sisera-origin-sign-in.html | head -1 || true
+                else
+                  echo "Local HTTPS proxy did not answer on port 443."
+                fi
+                echo "==> Checking for another Next server on port 3000..."
+                if curl --fail --silent --max-time 5 http://127.0.0.1:3000/sign-in -o /tmp/sisera-port-3000.html; then
+                  grep -oE '/_next/static/chunks/app/sign-in/page-[a-z0-9]+\.js' /tmp/sisera-port-3000.html | head -1 || true
+                else
+                  echo "No sign-in page answered on port 3000."
+                fi
                 exit 1
               fi
               curl --fail --silent --show-error --retry 5 --retry-delay 2 "$BASE_URL/_next/$EXPECTED_SIGNIN_CHUNK" -o /dev/null

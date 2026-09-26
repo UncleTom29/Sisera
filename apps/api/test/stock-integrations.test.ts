@@ -117,13 +117,13 @@ describe("stock provider boundaries", () => {
             },
           ],
         };
-      if (url.includes("price-data")) return { ok: true, json: async () => ({ quote: 3.5 }) };
       return { ok: false };
     });
     const data = await new XStocksClient(fetcher).list();
     expect(data).toHaveLength(1);
     expect(data[0]?.mint).toBe(mint);
     expect(data[0]?.dexPriceUsd).toBe("3.4");
+    expect(fetcher.mock.calls.some(([url]) => String(url).includes("price-data"))).toBe(false);
   });
 
   it("accepts only the wallet signature on the original transaction message", () => {

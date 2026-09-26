@@ -10,7 +10,6 @@ const Asset = z.object({
   deployments: z.array(z.object({ address: z.string(), network: z.string() })),
 });
 const Page = z.object({ nodes: z.array(Asset), page: z.object({ hasNextPage: z.boolean() }) });
-const Price = z.object({ quote: z.number().positive().nullable() });
 const DexPairs = z.array(
   z.object({
     chainId: z.string(),
@@ -47,12 +46,10 @@ export class XStocksClient {
   async list(): Promise<PublicStock[]> {
     if (this.cache && this.cache.until > Date.now()) return this.cache.value;
     const assets: z.infer<typeof Asset>[] = [];
-    const response = await this.fetcher(
+    const catalogueRequest = this.fetcher(
       "https://api.xstocks.fi/api/v2/public/assets?network=Solana&page=0&pageSize=100",
-      { signal: AbortSignal.timeout(10000) },
+      { signal: AbortSignal.timeout(8000) },
     );
-    if (!response.ok) throw new Error(`xStocks returned ${response.status}`);
-    assets.push(...Page.parse(await response.json()).nodes);
     const featuredSymbols = [
       "AAPLx",
       "NVDAx",
@@ -69,15 +66,18 @@ export class XStocksClient {
       "PLTRx",
       "AMDx",
     ];
-    const featuredResults = await Promise.allSettled(
+    const featuredRequest = Promise.allSettled(
       featuredSymbols.map(async (symbol) => {
         const detail = await this.fetcher(`https://api.xstocks.fi/api/v2/public/assets/${symbol}`, {
-          signal: AbortSignal.timeout(8000),
+          signal: AbortSignal.timeout(4000),
         });
         if (!detail.ok) throw new Error(`xStocks ${symbol} unavailable`);
         return Asset.parse(await detail.json());
       }),
     );
+    const [response, featuredResults] = await Promise.all([catalogueRequest, featuredRequest]);
+    if (!response.ok) throw new Error(`xStocks returned ${response.status}`);
+    assets.push(...Page.parse(await response.json()).nodes);
     assets.push(
       ...featuredResults.flatMap((result) => (result.status === "fulfilled" ? [result.value] : [])),
     );
@@ -101,7 +101,7 @@ export class XStocksClient {
         const mints = displayed.slice(index * 30, index * 30 + 30).map((item) => item.mint);
         const response = await this.fetcher(
           `https://api.dexscreener.com/tokens/v1/solana/${mints.join(",")}`,
-          { signal: AbortSignal.timeout(8000) },
+          { signal: AbortSignal.timeout(5000) },
         );
         if (!response.ok) throw new Error(`DEX Screener returned ${response.status}`);
         return DexPairs.parse(await response.json());
@@ -117,32 +117,24 @@ export class XStocksClient {
           if (!current || (pair.liquidity?.usd ?? 0) > (current.liquidity?.usd ?? 0))
             bestPairs.set(pair.baseToken.address, pair);
         }
-    const priced = await Promise.allSettled(
-      displayed.map(async ({ asset, mint }): Promise<PublicStock> => {
-        const response = await this.fetcher(
-          `https://api.xstocks.fi/api/v2/public/assets/${encodeURIComponent(asset.symbol)}/price-data`,
-          { signal: AbortSignal.timeout(8000) },
-        );
-        const quote = response.ok ? Price.parse(await response.json()).quote : null;
-        const pair = bestPairs.get(mint);
-        return {
-          name: asset.name,
-          symbol: asset.symbol,
-          underlyingSymbol: asset.underlying?.symbol ?? asset.symbol.replace(/x$/, ""),
-          mint,
-          priceUsd: quote == null ? null : String(quote),
-          dexPriceUsd: pair?.priceUsd ?? null,
-          change24hPct: pair?.priceChange?.h24 ?? null,
-          volume24hUsd: pair?.volume?.h24 ?? null,
-          liquidityUsd: pair?.liquidity?.usd ?? null,
-          chartUrl: pair?.url ?? null,
-          tradingHalted: asset.isTradingHalted,
-          fetchedAt,
-          source: "xstocks",
-        };
-      }),
-    );
-    const value = priced.flatMap((result) => (result.status === "fulfilled" ? [result.value] : []));
+    const value = displayed.map(({ asset, mint }): PublicStock => {
+      const pair = bestPairs.get(mint);
+      return {
+        name: asset.name,
+        symbol: asset.symbol,
+        underlyingSymbol: asset.underlying?.symbol ?? asset.symbol.replace(/x$/, ""),
+        mint,
+        priceUsd: null,
+        dexPriceUsd: pair?.priceUsd ?? null,
+        change24hPct: pair?.priceChange?.h24 ?? null,
+        volume24hUsd: pair?.volume?.h24 ?? null,
+        liquidityUsd: pair?.liquidity?.usd ?? null,
+        chartUrl: pair?.url ?? null,
+        tradingHalted: asset.isTradingHalted,
+        fetchedAt,
+        source: "xstocks",
+      };
+    });
     this.cache = { until: Date.now() + 60_000, value };
     return value;
   }

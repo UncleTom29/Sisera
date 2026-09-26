@@ -1,7 +1,9 @@
 import { readdirSync } from "node:fs";
 import postgres from "postgres";
 
-const files = readdirSync("packages/db/migrations").filter((name) => name.endsWith(".sql")).sort();
+const files = readdirSync("packages/db/migrations")
+  .filter((name) => name.endsWith(".sql"))
+  .sort();
 const connection = postgres(process.env.DATABASE_URL, { max: 1, connect_timeout: 3 });
 try {
   const applied = await connection`SELECT name FROM _sisera_migrations ORDER BY name`;

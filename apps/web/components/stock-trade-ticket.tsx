@@ -60,6 +60,7 @@ function TradeTicketView({
 }: TicketProps & { wallets: StandardWallets }) {
   const wallet = wallets.find((item) => item.accounts.length > 0);
   const account = wallet?.accounts[0];
+  const accountAddress = account?.address;
   const [mode, setMode] = useState<"paper" | "live">("paper");
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("");
@@ -82,35 +83,48 @@ function TradeTicketView({
   }, [amount, price, side, symbol]);
 
   useEffect(() => {
-    if (!account || mode !== "live") return;
+    if (!accountAddress || mode !== "live") {
+      setBalance(null);
+      setBalanceError(null);
+      return;
+    }
     let cancelled = false;
-    void fetch(`/api/wallet?address=${encodeURIComponent(account.address)}`, { cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json();
-        if (!response.ok)
-          throw new Error(
-            `${payload.message ?? "Wallet balances are unavailable."}${payload.requestId ? ` Reference ${payload.requestId}.` : ""}`,
-          );
-        return payload;
+    setBalance(null);
+    setBalanceError(null);
+    const load = () => {
+      void fetch(`/api/wallet?address=${encodeURIComponent(accountAddress)}`, {
+        cache: "no-store",
       })
-      .then((payload) => {
-        if (!cancelled) {
-          setBalance(payload?.data ?? null);
-          setBalanceError(null);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setBalance(null);
-          setBalanceError(
-            error instanceof Error ? error.message : "Wallet balances are unavailable.",
-          );
-        }
-      });
+        .then(async (response) => {
+          const payload = await response.json();
+          if (!response.ok)
+            throw new Error(
+              `${payload.message ?? "Wallet balances are unavailable."}${payload.requestId ? ` Reference ${payload.requestId}.` : ""}`,
+            );
+          return payload;
+        })
+        .then((payload) => {
+          if (!cancelled) {
+            setBalance(payload?.data ?? null);
+            setBalanceError(null);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setBalance(null);
+            setBalanceError(
+              error instanceof Error ? error.message : "Wallet balances are unavailable.",
+            );
+          }
+        });
+    };
+    load();
+    window.addEventListener("sisera:session-renewed", load);
     return () => {
       cancelled = true;
+      window.removeEventListener("sisera:session-renewed", load);
     };
-  }, [account, mode]);
+  }, [accountAddress, mode]);
 
   async function submit() {
     setWorking(true);

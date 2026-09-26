@@ -11,26 +11,32 @@ export function ActivityAlerts({
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
-    void Promise.all([
-      fetch("/api/alert-acknowledgements", { cache: "no-store" }),
-      fetch("/api/preferences", { cache: "no-store" }),
-    ])
-      .then(async ([acks, preferences]) => {
-        if (!acks.ok || !preferences.ok)
-          throw new Error("Alert state cannot be verified right now.");
-        const [ackPayload, prefPayload] = await Promise.all([acks.json(), preferences.json()]);
-        if (active) {
-          setAcknowledged(ackPayload.data);
-          setEnabled(prefPayload.data.failedOrderAlerts);
-          setReady(true);
-        }
-      })
-      .catch((error) => {
-        if (active)
-          setMessage(error instanceof Error ? error.message : "Alert state is unavailable.");
-      });
+    const load = () => {
+      void Promise.all([
+        fetch("/api/alert-acknowledgements", { cache: "no-store" }),
+        fetch("/api/preferences", { cache: "no-store" }),
+      ])
+        .then(async ([acks, preferences]) => {
+          if (!acks.ok || !preferences.ok)
+            throw new Error("Alert state cannot be verified right now.");
+          const [ackPayload, prefPayload] = await Promise.all([acks.json(), preferences.json()]);
+          if (active) {
+            setAcknowledged(ackPayload.data);
+            setEnabled(prefPayload.data.failedOrderAlerts);
+            setMessage(null);
+            setReady(true);
+          }
+        })
+        .catch((error) => {
+          if (active)
+            setMessage(error instanceof Error ? error.message : "Alert state is unavailable.");
+        });
+    };
+    load();
+    window.addEventListener("sisera:session-renewed", load);
     return () => {
       active = false;
+      window.removeEventListener("sisera:session-renewed", load);
     };
   }, []);
   const active = enabled ? alerts.filter((alert) => !acknowledged.includes(alert.id)) : [];

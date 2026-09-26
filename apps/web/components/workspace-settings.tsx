@@ -1,39 +1,52 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function WorkspaceSettings() {
   const [interval, setIntervalValue] = useState("30000");
   const [failedOrders, setFailedOrders] = useState(true);
   const [leaderboardOptIn, setLeaderboardOptIn] = useState(false);
   const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const savePending = useRef(false);
   useEffect(() => {
     let active = true;
-    void fetch("/api/preferences", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok)
-          throw new Error(
-            response.status === 401
-              ? "Sign in to sync settings."
-              : "Account settings are unavailable.",
+    const load = () => {
+      void fetch("/api/preferences", { cache: "no-store" })
+        .then(async (response) => {
+          if (!response.ok)
+            throw new Error(
+              response.status === 401
+                ? "Sign in to sync settings."
+                : "Account settings are unavailable.",
+            );
+          return response.json();
+        })
+        .then((payload) => {
+          if (!active || savePending.current) return;
+          setIntervalValue(String(payload.data.refreshIntervalMs));
+          setFailedOrders(payload.data.failedOrderAlerts);
+          setLeaderboardOptIn(payload.data.leaderboardOptIn);
+          localStorage.setItem(
+            "sisera_refresh_interval_ms",
+            String(payload.data.refreshIntervalMs),
           );
-        return response.json();
-      })
-      .then((payload) => {
-        if (!active) return;
-        setIntervalValue(String(payload.data.refreshIntervalMs));
-        setFailedOrders(payload.data.failedOrderAlerts);
-        setLeaderboardOptIn(payload.data.leaderboardOptIn);
-        localStorage.setItem("sisera_refresh_interval_ms", String(payload.data.refreshIntervalMs));
-        setReady(true);
-      })
-      .catch((error) => {
-        if (active)
-          setMessage(error instanceof Error ? error.message : "Account settings are unavailable.");
-      });
+          setMessage(null);
+          setReady(true);
+        })
+        .catch((error) => {
+          if (active && !savePending.current)
+            setMessage(
+              error instanceof Error ? error.message : "Account settings are unavailable.",
+            );
+        });
+    };
+    load();
+    window.addEventListener("sisera:session-renewed", load);
     return () => {
       active = false;
+      window.removeEventListener("sisera:session-renewed", load);
     };
   }, []);
   async function save(
@@ -41,6 +54,9 @@ export function WorkspaceSettings() {
     nextFailedOrders: boolean,
     nextLeaderboardOptIn: boolean,
   ) {
+    if (savePending.current) return;
+    savePending.current = true;
+    setSaving(true);
     setMessage(null);
     try {
       const response = await fetch("/api/preferences", {
@@ -59,6 +75,9 @@ export function WorkspaceSettings() {
       localStorage.setItem("sisera_refresh_interval_ms", nextInterval);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Settings could not be saved.");
+    } finally {
+      savePending.current = false;
+      setSaving(false);
     }
   }
   return (
@@ -75,7 +94,7 @@ export function WorkspaceSettings() {
         </p>
         <select
           value={interval}
-          disabled={!ready}
+          disabled={!ready || saving}
           onChange={(event) => void save(event.target.value, failedOrders, leaderboardOptIn)}
           className="mt-4 w-full rounded border border-line bg-ink p-2 text-xs text-white"
         >
@@ -91,7 +110,7 @@ export function WorkspaceSettings() {
           <input
             type="checkbox"
             checked={failedOrders}
-            disabled={!ready}
+            disabled={!ready || saving}
             onChange={(event) => void save(interval, event.target.checked, leaderboardOptIn)}
           />
           Show failed and uncertain order alerts
@@ -106,7 +125,7 @@ export function WorkspaceSettings() {
           <input
             type="checkbox"
             checked={leaderboardOptIn}
-            disabled={!ready}
+            disabled={!ready || saving}
             onChange={(event) => void save(interval, failedOrders, event.target.checked)}
           />
           Include my pseudonymous paper account in rankings

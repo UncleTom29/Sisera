@@ -1,5 +1,6 @@
 "use client";
 
+import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useState } from "react";
 
 type BridgeTransfer = {
@@ -15,29 +16,44 @@ type BridgeTransfer = {
 };
 
 export function BridgeActivity() {
+  const { ready, authenticated } = usePrivy();
   const [transfers, setTransfers] = useState<BridgeTransfer[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!ready) return;
+    if (!authenticated) {
+      setTransfers(null);
+      setError("Sign in to view account bridge history.");
+      return;
+    }
     let active = true;
-    void fetch("/api/bridge", { cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.message ?? "Bridge history is unavailable.");
-        return payload.data as BridgeTransfer[];
-      })
-      .then((rows) => {
-        if (active) setTransfers(rows);
-      })
-      .catch((cause) => {
-        if (active)
-          setError(cause instanceof Error ? cause.message : "Bridge history is unavailable.");
-      });
+    const load = () => {
+      void fetch("/api/bridge", { cache: "no-store" })
+        .then(async (response) => {
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.message ?? "Bridge history is unavailable.");
+          return payload.data as BridgeTransfer[];
+        })
+        .then((rows) => {
+          if (active) {
+            setTransfers(rows);
+            setError(null);
+          }
+        })
+        .catch((cause) => {
+          if (active)
+            setError(cause instanceof Error ? cause.message : "Bridge history is unavailable.");
+        });
+    };
+    load();
+    window.addEventListener("sisera:session-renewed", load);
     return () => {
       active = false;
+      window.removeEventListener("sisera:session-renewed", load);
     };
-  }, []);
+  }, [ready, authenticated]);
 
   async function refresh(requestId: string) {
     setRefreshing(requestId);

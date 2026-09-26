@@ -30,6 +30,7 @@ export function SessionRenewal() {
         nextAttemptAt = Date.now() + 10 * 60_000;
         if (lastSyncedToken !== accessToken) {
           lastSyncedToken = accessToken;
+          window.dispatchEvent(new Event("sisera:session-renewed"));
           router.refresh();
         }
       } catch {

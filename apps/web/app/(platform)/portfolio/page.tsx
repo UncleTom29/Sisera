@@ -8,7 +8,12 @@ import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 import { PortfolioConnect } from "../../../components/portfolio-connect";
 import { PortfolioPrivyWallet } from "../../../components/portfolio-privy-wallet";
-import { getHyperEvmWallet, getPublicPerpAccount, getSolanaWallet } from "../../../lib/api";
+import {
+  accountErrorMessage,
+  getHyperEvmWallet,
+  getPublicPerpAccount,
+  getSolanaWallet,
+} from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +30,23 @@ export default async function PortfolioPage({
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const [solana, observed, hyperEvm] = await Promise.all([
-    validSolanaAddress ? getSolanaWallet(solanaAddress, identity).catch(() => null) : null,
-    validAddress ? getPublicPerpAccount(address, identity).catch(() => null) : null,
-    validAddress ? getHyperEvmWallet(address, identity).catch(() => null) : null,
+  const [solanaResult, observedResult, hyperEvmResult] = await Promise.all([
+    (validSolanaAddress ? getSolanaWallet(solanaAddress, identity) : Promise.resolve(null)).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
+    (validAddress ? getPublicPerpAccount(address, identity) : Promise.resolve(null)).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
+    (validAddress ? getHyperEvmWallet(address, identity) : Promise.resolve(null)).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
   ]);
+  const solana = solanaResult.value;
+  const observed = observedResult.value;
+  const hyperEvm = hyperEvmResult.value;
   const unrealizedPnl = observed?.positions.reduce(
     (sum, position) => sum + Number(position.unrealizedPnl),
     0,
@@ -77,7 +94,9 @@ export default async function PortfolioPage({
           </div>
         ) : validAddress ? (
           <p className="mt-4 text-xs text-amber-300">
-            HyperEVM wallet balances are temporarily unavailable.
+            {hyperEvmResult.error
+              ? accountErrorMessage(hyperEvmResult.error)
+              : "HyperEVM wallet balances are unavailable."}
           </p>
         ) : null}
       </section>
@@ -107,7 +126,9 @@ export default async function PortfolioPage({
         )}
         {validSolanaAddress && !solana && (
           <p className="mt-2 text-xs text-amber-300">
-            Wallet balances are temporarily unavailable.
+            {solanaResult.error
+              ? accountErrorMessage(solanaResult.error)
+              : "Solana wallet balances are unavailable."}
           </p>
         )}
         {solana && (
@@ -186,7 +207,9 @@ export default async function PortfolioPage({
         )}
         {validAddress && !observed && (
           <p className="mt-2 text-xs text-amber-300">
-            Hyperliquid account state is unavailable for this address.
+            {observedResult.error
+              ? accountErrorMessage(observedResult.error)
+              : "Hyperliquid account state is unavailable for this address."}
           </p>
         )}
         {observed && (

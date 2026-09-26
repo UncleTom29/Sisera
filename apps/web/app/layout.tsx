@@ -13,12 +13,12 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Sisera — Trading & Intelligence Terminal on Solana",
+    default: "Sisera — Markets and Research",
     template: "%s — Sisera",
   },
   description:
-    "Full-stack trading and intelligence terminal for tokenized equities, PreStocks private markets, stock-linked assets, and persistent autonomous trading agents on Solana.",
-  metadataBase: new URL("https://sisera.trade"),
+    "Market data, paper trading, portfolio observations, and research tools across digital asset markets.",
+  metadataBase: new URL("https://sisera.xyz"),
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     "Tokenized Equities",
     "PreStocks",
     "Pyth",
-    "Autonomous Agents",
+    "Research Agents",
     "Trading Terminal",
     "Meteora DBC",
     "Clawpump",
@@ -50,17 +50,17 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://sisera.trade",
+    url: "https://sisera.xyz",
     siteName: "Sisera",
-    title: "Sisera — Trading & Intelligence Terminal on Solana",
+    title: "Sisera — Markets and Research",
     description:
-      "Tokenized equities, PreStocks private markets, Pyth fair-value reference, and persistent trading agents on Solana.",
+      "Market data, paper trading, portfolio observations, and research tools across digital asset markets.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Sisera — Trading & Intelligence Terminal on Solana",
+    title: "Sisera — Markets and Research",
     description:
-      "Full-stack trading and intelligence terminal for tokenized equities, PreStocks, and autonomous agents on Solana.",
+      "Market data, paper trading, portfolio observations, and research tools across digital asset markets.",
   },
 };
 

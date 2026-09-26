@@ -40,19 +40,31 @@ export function BridgeUsdc() {
   const recipient = destination === 999 ? wallet?.address : solana;
 
   useEffect(() => {
+    if (!authenticated) {
+      setRequestId(null);
+      setQuote(null);
+      return;
+    }
     let active = true;
-    void fetch("/api/bridge", { cache: "no-store" })
-      .then(async (response) => (response.ok ? response.json() : null))
-      .then((payload) => {
-        const latest = payload?.data?.[0]?.requestId;
-        if (active && typeof latest === "string" && /^0x[a-fA-F0-9]{64}$/.test(latest))
-          setRequestId(latest);
-      })
-      .catch(() => undefined);
+    const load = () => {
+      void fetch("/api/bridge", { cache: "no-store" })
+        .then(async (response) => (response.ok ? response.json() : null))
+        .then((payload) => {
+          const latest = payload?.data?.[0]?.requestId;
+          if (active)
+            setRequestId(
+              typeof latest === "string" && /^0x[a-fA-F0-9]{64}$/.test(latest) ? latest : null,
+            );
+        })
+        .catch(() => undefined);
+    };
+    load();
+    window.addEventListener("sisera:session-renewed", load);
     return () => {
       active = false;
+      window.removeEventListener("sisera:session-renewed", load);
     };
-  }, []);
+  }, [authenticated]);
 
   async function getQuote() {
     if (!wallet) throw new Error("Connect an EVM source wallet first.");

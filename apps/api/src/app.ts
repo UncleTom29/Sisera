@@ -50,7 +50,7 @@ import {
 import { applyOrderEvent, createOrderRecord } from "@sisera/oms";
 import { analyzeCandles } from "@sisera/quant";
 import { evaluatePreTradeRisk } from "@sisera/risk";
-import Fastify from "fastify";
+import Fastify, { type FastifyReply } from "fastify";
 import { Counter, Histogram, Registry, collectDefaultMetrics } from "prom-client";
 import { z } from "zod";
 import { agentTemplates } from "./agent-templates.js";
@@ -68,6 +68,7 @@ import { PredictionTradingService } from "./prediction-trading.js";
 import { SocialFeedClient } from "./social-feed.js";
 import { SolanaTradingService, TradeRejection } from "./solana-trading.js";
 import { StockNewsClient } from "./stock-news.js";
+import { type WalletChain, createWalletOwnershipChecker } from "./wallet-ownership.js";
 import { XStocksClient } from "./xstocks.js";
 
 export type RiskContext = {
@@ -88,6 +89,7 @@ export type ApiDependencies = {
   predictions?: { listOpenMarkets(limit?: number): Promise<unknown[]> };
   loadRiskContext?: (portfolioId: string) => Promise<RiskContext | null>;
   readinessProbe?: (connectionString: string) => Promise<boolean>;
+  ownsWallet?: (subject: string, address: string, chain: WalletChain) => Promise<boolean>;
 };
 
 export async function buildApi(config: ApiConfig, dependencies: ApiDependencies = {}) {
@@ -149,6 +151,27 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     config.FINNHUB_API_KEY,
     config.MARKETAUX_API_KEY,
   );
+  const ownsWallet = dependencies.ownsWallet ?? createWalletOwnershipChecker(config);
+  async function requireOwnedWallet(
+    reply: FastifyReply,
+    subject: string,
+    address: string,
+    chain: WalletChain,
+  ): Promise<boolean> {
+    try {
+      if (await ownsWallet(subject, address, chain)) return true;
+      await reply.code(403).send({
+        error: "wallet_not_linked",
+        message: "Link this wallet to your Sisera account before using it.",
+      });
+    } catch {
+      await reply.code(503).send({
+        error: "wallet_verification_unavailable",
+        message: "Wallet ownership could not be verified. Try again shortly.",
+      });
+    }
+    return false;
+  }
   const research =
     config.OPENROUTER_API_KEY && config.SISERA_INTELLIGENCE_MODEL
       ? new OpenRouterResearchClient(config.OPENROUTER_API_KEY, config.SISERA_INTELLIGENCE_MODEL)
@@ -306,6 +329,11 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const { address } = z
         .object({ address: z.string().regex(/^0x[a-fA-F0-9]{40}$/) })
         .parse(request.params);
+      if (
+        request.principal?.subject.startsWith("privy:") &&
+        !(await requireOwnedWallet(reply, request.principal.subject, address, "ethereum"))
+      )
+        return reply;
       try {
         return { data: await hyperEvmWallet.balances(address) };
       } catch {
@@ -328,6 +356,17 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         return reply.code(503).send({ message: "Account bridge history is unavailable." });
       try {
         const input = BridgeQuoteInput.parse(request.body);
+        if (!(await requireOwnedWallet(reply, request.principal.subject, input.user, "ethereum")))
+          return reply;
+        if (
+          !(await requireOwnedWallet(
+            reply,
+            request.principal.subject,
+            input.recipient,
+            input.destinationChainId === 999 ? "ethereum" : "solana",
+          ))
+        )
+          return reply;
         const quote = await bridge.quote(input);
         await createBridgeTransfer(config.DATABASE_URL, {
           requestId: quote.requestId,
@@ -790,6 +829,8 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
         })
         .parse(request.body);
+      if (!(await requireOwnedWallet(reply, principal.subject, input.wallet, "solana")))
+        return reply;
       return {
         data: await solanaTrading.prepare({
           ...input,
@@ -1016,6 +1057,11 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const { address } = z
         .object({ address: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) })
         .parse(request.params);
+      if (
+        request.principal?.subject.startsWith("privy:") &&
+        !(await requireOwnedWallet(reply, request.principal.subject, address, "solana"))
+      )
+        return reply;
       return { data: await helius.getWallet(address) };
     },
   );
@@ -1238,6 +1284,8 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           depositAmount: z.string().regex(/^[1-9]\d{0,11}$/),
         })
         .parse(request.body);
+      if (!(await requireOwnedWallet(reply, principal.subject, input.wallet, "solana")))
+        return reply;
       return {
         data: await predictionTrading.prepare({
           ...input,

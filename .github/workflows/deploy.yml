@@ -224,7 +224,7 @@ jobs:
             command -v pg_dump >/dev/null 2>&1 || { echo "ERROR: pg_dump is required before migration."; exit 1; }
             install -d -m 700 /opt/sisera-backups
             BACKUP_FILE="/opt/sisera-backups/sisera-$(date -u +%Y%m%dT%H%M%SZ).dump"
-            PGDATABASE="$DATABASE_URL" pg_dump --format=custom --no-owner --file="$BACKUP_FILE"
+            pg_dump --dbname="$DATABASE_URL" --format=custom --no-owner --file="$BACKUP_FILE"
             chmod 600 "$BACKUP_FILE"
             echo "==> PostgreSQL backup saved before migration."
             echo "==> Running PostgreSQL database migrations..."

@@ -6,8 +6,11 @@ import type {
   PredictionMarket,
 } from "@sisera/domain";
 import { z } from "zod";
+import { MarketDataUnavailableError } from "./errors.js";
 
+export { MarketDataUnavailableError } from "./errors.js";
 export { PreStocksProvider, type PreStock } from "./prestocks.js";
+export { FredMacroProvider, classifyMacro, type MacroRegime } from "./fred-macro.js";
 export {
   PythProProvider,
   decimalFromMantissa,
@@ -15,10 +18,6 @@ export {
   parsePythReference,
   type PythReference,
 } from "./pyth-pro.js";
-
-export class MarketDataUnavailableError extends Error {
-  readonly code = "MARKET_DATA_UNAVAILABLE";
-}
 
 export interface MarketDataProvider {
   readonly id: string;
@@ -759,77 +758,121 @@ export class BinanceSpotProvider implements MarketDataProvider {
   }
 }
 
-const PolymarketEvent = z.object({
-  id: z.union([z.string(), z.number()]).transform(String),
-  title: z.string(),
-  endDate: z.string().nullish(),
-  closed: z.boolean().optional(),
-  markets: z.array(
-    z.object({
-      id: z.union([z.string(), z.number()]).transform(String),
-      question: z.string().optional(),
-      outcomes: z.union([z.array(z.string()), z.string()]),
-      outcomePrices: z.union([z.array(z.string()), z.string()]).optional(),
-      clobTokenIds: z.union([z.array(z.string()), z.string()]).optional(),
-    }),
-  ),
-});
+/** Jupiter discovery is read-only; orders require a separate user-signed transaction. */
+export class JupiterPredictionProvider {
+  private cache: { until: number; markets: PredictionMarket[] } | null = null;
+  private pending: Promise<PredictionMarket[]> | null = null;
 
-export class PolymarketProvider {
   constructor(
-    private readonly baseUrl = "https://gamma-api.polymarket.com",
+    private readonly baseUrl = "https://api.jup.ag/prediction/v1",
+    private readonly apiKey?: string,
     private readonly fetcher: Fetch = globalThis.fetch,
   ) {}
 
   async listOpenMarkets(limit = 20): Promise<PredictionMarket[]> {
+    if (this.cache && this.cache.until > Date.now()) return this.cache.markets.slice(0, limit);
+    this.pending ??= this.loadMarkets().finally(() => {
+      this.pending = null;
+    });
+    return (await this.pending).slice(0, limit);
+  }
+
+  private async loadMarkets(): Promise<PredictionMarket[]> {
     const startedAt = Date.now();
+    const url = new URL(`${this.baseUrl.replace(/\/$/, "")}/events`);
+    url.searchParams.set("includeMarkets", "true");
+    url.searchParams.set("start", "0");
+    url.searchParams.set("end", "9");
     let response: Response;
     try {
-      response = await this.fetcher(
-        `${this.baseUrl}/events?active=true&closed=false&limit=${Math.min(limit, 100)}&order=volume&ascending=false`,
-        { signal: AbortSignal.timeout(5000), headers: { accept: "application/json" } },
-      );
+      response = await this.fetcher(url.toString(), {
+        headers: {
+          accept: "application/json",
+          ...(this.apiKey ? { "x-api-key": this.apiKey } : {}),
+        },
+        signal: AbortSignal.timeout(10000),
+      });
     } catch {
-      throw new MarketDataUnavailableError("Polymarket request failed");
+      throw new MarketDataUnavailableError("Jupiter prediction events request failed");
     }
-    if (!response.ok)
-      throw new MarketDataUnavailableError(`Polymarket returned ${response.status}`);
-    const events = z.array(PolymarketEvent).parse(await response.json());
-    const receivedAt = new Date();
-    return events.flatMap((event) => {
-      const market = event.markets.find((item) => item.outcomePrices);
-      if (!market) return [];
-      const outcomes = parseStringArray(market.outcomes);
-      const prices = parseStringArray(market.outcomePrices ?? []);
-      if (
-        prices.length !== outcomes.length ||
-        prices.some((price) => !Number.isFinite(Number(price)))
-      )
-        return [];
-      const tokenIds = market.clobTokenIds ? parseStringArray(market.clobTokenIds) : [];
-      return [
-        {
-          id: event.id,
-          provider: "polymarket",
-          title: market.question || event.title,
-          closesAt: event.endDate ? new Date(event.endDate).toISOString() : null,
-          status: event.closed ? "closed" : "open",
-          outcomes: outcomes.map((label, index) => ({
-            id: `${market.id}:${index}`,
-            label,
-            probability: prices[index] ?? "0",
-            ...(tokenIds[index] ? { tokenId: tokenIds[index] } : {}),
-          })),
-          quality: {
-            status: "delayed",
-            source: "polymarket-gamma",
-            observedAt: receivedAt.toISOString(),
-            receivedAt: receivedAt.toISOString(),
-            latencyMs: receivedAt.getTime() - startedAt,
+    if (!response.ok) throw new MarketDataUnavailableError(`Jupiter returned ${response.status}`);
+    const payload = (await response.json()) as unknown;
+    const records =
+      payload && typeof payload === "object" ? (payload as Record<string, unknown>).data : null;
+    if (!Array.isArray(records))
+      throw new MarketDataUnavailableError("Unrecognized Jupiter events response");
+    const receivedAt = new Date().toISOString();
+    const markets = records.flatMap((event): PredictionMarket[] => {
+      if (!event || typeof event !== "object") return [];
+      const row = event as Record<string, unknown>;
+      const metadata =
+        row.metadata && typeof row.metadata === "object"
+          ? (row.metadata as Record<string, unknown>)
+          : {};
+      const eventTitle = typeof metadata.title === "string" ? metadata.title : "";
+      if (!Array.isArray(row.markets)) return [];
+      return row.markets.flatMap((raw): PredictionMarket[] => {
+        if (!raw || typeof raw !== "object") return [];
+        const market = raw as Record<string, unknown>;
+        if (typeof market.marketId !== "string" || market.status !== "open") return [];
+        const pricing =
+          market.pricing && typeof market.pricing === "object"
+            ? (market.pricing as Record<string, unknown>)
+            : {};
+        const yes = Number(pricing.buyYesPriceUsd) / 1_000_000;
+        const no = Number(pricing.buyNoPriceUsd) / 1_000_000;
+        const sellYes = Number(pricing.sellYesPriceUsd) / 1_000_000;
+        const sellNo = Number(pricing.sellNoPriceUsd) / 1_000_000;
+        if (![yes, no].every((price) => Number.isFinite(price) && price > 0 && price <= 1))
+          return [];
+        const close = Number(market.closeTime);
+        const closesAt =
+          Number.isFinite(close) && close > 0 ? new Date(close * 1000).toISOString() : null;
+        const marketTitle = typeof market.title === "string" ? market.title : "";
+        return [
+          {
+            id: market.marketId,
+            provider: "jupiter",
+            underlyingProvider: typeof market.provider === "string" ? market.provider : null,
+            title:
+              marketTitle && marketTitle !== eventTitle
+                ? `${eventTitle} · ${marketTitle}`
+                : eventTitle || marketTitle,
+            category: typeof row.category === "string" ? row.category : null,
+            resolutionRules: typeof market.rulesPrimary === "string" ? market.rulesPrimary : null,
+            closesAt,
+            status: "open",
+            outcomes: [
+              {
+                id: `${market.marketId}:yes`,
+                label: "YES",
+                probability: String(yes),
+                ...(Number.isFinite(sellYes) && sellYes > 0 && sellYes <= yes
+                  ? { sellPrice: String(sellYes) }
+                  : {}),
+              },
+              {
+                id: `${market.marketId}:no`,
+                label: "NO",
+                probability: String(no),
+                ...(Number.isFinite(sellNo) && sellNo > 0 && sellNo <= no
+                  ? { sellPrice: String(sellNo) }
+                  : {}),
+              },
+            ],
+            quality: {
+              status: "delayed",
+              source: "jupiter-prediction-api",
+              observedAt: receivedAt,
+              receivedAt,
+              latencyMs: Date.now() - startedAt,
+            },
           },
-        } satisfies PredictionMarket,
-      ];
+        ];
+      });
     });
+    this.cache = { until: Date.now() + 30_000, markets };
+    return markets;
   }
 }
 
@@ -851,10 +894,4 @@ function readString(
 ): string {
   const value = record?.[key];
   return typeof value === "string" ? value : fallback;
-}
-
-function parseStringArray(value: string[] | string): string[] {
-  if (Array.isArray(value)) return value;
-  const parsed: unknown = JSON.parse(value);
-  return z.array(z.string()).parse(parsed);
 }

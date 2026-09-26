@@ -8,6 +8,12 @@ export function LiveRefresh({ intervalMs = 30000 }: { intervalMs?: number }) {
   const router = useRouter();
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [configuredInterval, setConfiguredInterval] = useState(intervalMs);
+
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem("sisera_refresh_interval_ms"));
+    if ([0, 15000, 30000, 60000].includes(saved)) setConfiguredInterval(saved);
+  }, []);
 
   useEffect(() => {
     const refresh = () => {
@@ -17,9 +23,10 @@ export function LiveRefresh({ intervalMs = 30000 }: { intervalMs?: number }) {
       setUpdatedAt(new Date());
       window.setTimeout(() => setRefreshing(false), 900);
     };
-    const timer = window.setInterval(refresh, intervalMs);
+    if (configuredInterval === 0) return;
+    const timer = window.setInterval(refresh, configuredInterval);
     return () => window.clearInterval(timer);
-  }, [intervalMs, router]);
+  }, [configuredInterval, router]);
 
   return (
     <button

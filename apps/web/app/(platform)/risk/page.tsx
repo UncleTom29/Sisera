@@ -1,9 +1,11 @@
 import { StatusBadge } from "@sisera/ui";
 import { Activity, Ban, CircleGauge, ShieldAlert, Siren, Waves } from "lucide-react";
+import { Suspense } from "react";
 import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
-import { getPublicPerpAccount } from "../../../lib/api";
+import { PortfolioPrivyWallet } from "../../../components/portfolio-privy-wallet";
+import { getPublicPerpAccount, getSolanaWallet } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -23,14 +25,20 @@ const scenarios = [
 
 export default async function RiskPage({
   searchParams,
-}: { searchParams: Promise<{ address?: string }> }) {
-  const address = (await searchParams).address?.trim() ?? "";
+}: { searchParams: Promise<{ address?: string; solana?: string }> }) {
+  const parameters = await searchParams;
+  const address = parameters.address?.trim() ?? "";
+  const solanaAddress = parameters.solana?.trim() ?? "";
   const session = await auth();
+  const identity = {
+    accessToken: session?.accessToken,
+    localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
+  };
   const observed = /^0x[a-fA-F0-9]{40}$/.test(address)
-    ? await getPublicPerpAccount(address, {
-        accessToken: session?.accessToken,
-        localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
-      }).catch(() => null)
+    ? await getPublicPerpAccount(address, identity).catch(() => null)
+    : null;
+  const solana = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(solanaAddress)
+    ? await getSolanaWallet(solanaAddress, identity).catch(() => null)
     : null;
   const accountValue = Number(observed?.accountValue ?? 0);
   const exposureMultiple =
@@ -39,13 +47,16 @@ export default async function RiskPage({
     accountValue > 0 ? (Number(observed?.marginUsed) / accountValue) * 100 : null;
   return (
     <div className="min-h-full">
+      <Suspense fallback={null}>
+        <PortfolioPrivyWallet />
+      </Suspense>
       <PageHeader
         eyebrow="Deterministic Risk Engine"
         title="Risk command center"
-        description="Deterministic pre-trade risk controls and scenario simulation. Enforces hard capital, concentration, and drawdown limits before orders reach Solana."
+        description="Observed wallet exposure and order entry limits. Full portfolio stress and reconciled drawdown controls require connected venue ledgers."
         actions={
           <div className="flex items-center gap-2">
-            <StatusBadge tone="positive">Pre-trade controls active</StatusBadge>
+            <StatusBadge tone="warning">Partial order limits</StatusBadge>
           </div>
         }
       />
@@ -123,6 +134,50 @@ export default async function RiskPage({
         {address && !observed && (
           <p className="mt-3 text-xs text-amber-300">
             Enter a valid 0x address, or retry when Hyperliquid is reachable.
+          </p>
+        )}
+      </section>
+      <section className="mx-4 border border-line bg-panel p-5 md:mx-6">
+        <h2 className="text-sm font-semibold text-white">Solana wallet risk observation</h2>
+        <p className="mt-2 text-xs text-slate-400">
+          Balance and token concentration are observed from chain state. USD exposure requires
+          verified token prices.
+        </p>
+        <form action="/risk" className="mt-3 flex gap-2">
+          <input
+            name="solana"
+            defaultValue={solanaAddress}
+            placeholder="Solana wallet address"
+            className="min-w-0 flex-1 rounded border border-line bg-ink p-2 font-mono text-xs"
+          />
+          <button
+            type="submit"
+            className="rounded border border-cyan-400/30 px-3 text-xs text-cyan-300"
+          >
+            Inspect
+          </button>
+        </form>
+        {solana && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div>
+              <p className="data-label">Native balance</p>
+              <p className="mt-1 font-mono text-lg text-white">
+                {(Number(solana.solLamports) / 1e9).toFixed(4)} SOL
+              </p>
+            </div>
+            <div>
+              <p className="data-label">Token mints held</p>
+              <p className="mt-1 font-mono text-lg text-white">{solana.holdings.length}</p>
+            </div>
+            <div>
+              <p className="data-label">Source</p>
+              <p className="mt-1 font-mono text-xs text-white">{solana.source}</p>
+            </div>
+          </div>
+        )}
+        {solanaAddress && !solana && (
+          <p className="mt-3 text-xs text-amber-300">
+            Solana balance is unavailable for this address.
           </p>
         )}
       </section>

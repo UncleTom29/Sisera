@@ -7,7 +7,7 @@ import { auth } from "../../../auth";
 import { DeltaBadge } from "../../../components/delta-badge";
 import { LiveRefresh } from "../../../components/live-refresh";
 import { MarketChart } from "../../../components/market-chart";
-import { OrderTicket } from "../../../components/order-ticket";
+import { MarketOrderTicket } from "../../../components/market-order-ticket";
 import { TerminalDetails } from "../../../components/terminal-details";
 import {
   type Venue,
@@ -28,8 +28,10 @@ export default async function TerminalPage({
   searchParams,
 }: { searchParams: Promise<{ symbol?: string; interval?: string; venue?: string }> }) {
   const parameters = await searchParams;
-  if (!parameters.venue) redirect("/stocks");
-  const venue: Venue = parameters.venue === "binance" ? "binance" : "hyperliquid";
+  if (parameters.venue === "binance")
+    redirect(`/spot/${universe.includes(parameters.symbol ?? "") ? parameters.symbol : "BTCUSDT"}`);
+  if (!parameters.venue) redirect("/terminal?venue=hyperliquid");
+  const venue: Venue = "hyperliquid";
   const symbol = universe.includes(parameters.symbol ?? "")
     ? (parameters.symbol as string)
     : "BTCUSDT";
@@ -55,10 +57,7 @@ export default async function TerminalPage({
   const depth = depthResult.status === "fulfilled" ? depthResult.value : null;
   const intelligence = intelligenceResult.status === "fulfilled" ? intelligenceResult.value : null;
   const snapshot = market?.snapshot;
-  const references =
-    venue === "binance" && !snapshot
-      ? await getReferenceMarkets(universe, identity).catch(() => [])
-      : [];
+  const references = !snapshot ? await getReferenceMarkets(universe, identity).catch(() => []) : [];
   const reference = references.find((item) => item.symbol === symbol);
 
   return (
@@ -68,7 +67,7 @@ export default async function TerminalPage({
           <div>
             <p className="eyebrow">Markets / Execution</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-[-0.035em] text-slate-50">
-              Trading terminal
+              Perpetual markets
             </h1>
           </div>
           <div className="flex items-center gap-3">
@@ -86,11 +85,8 @@ export default async function TerminalPage({
           >
             Hyperliquid perps
           </Link>
-          <Link
-            href={`/terminal?symbol=${symbol}&interval=${interval}&venue=binance`}
-            className={`rounded px-3 py-2 ${venue === "binance" ? "bg-cyan-400/10 text-cyan-300" : "text-slate-400"}`}
-          >
-            Binance spot
+          <Link href="/markets?venue=binance" className="rounded px-3 py-2 text-slate-400">
+            Crypto spot →
           </Link>
           <span className="ml-auto font-mono text-[10px] uppercase text-slate-500">
             Venues are separate · no synthetic cross-venue quotes
@@ -258,7 +254,8 @@ export default async function TerminalPage({
           </section>
 
           <aside className="min-h-[570px] overflow-hidden rounded-lg border border-line bg-panel">
-            <OrderTicket
+            <MarketOrderTicket
+              venue="hyperliquid"
               bid={snapshot?.bid}
               ask={snapshot?.ask}
               symbol={symbol}

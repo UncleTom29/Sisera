@@ -56,7 +56,7 @@ export function ReferenceScreener({ rows }: { rows: ReferenceMarket[] }) {
                 </td>
                 <td className="px-5">
                   <Link
-                    href={`/terminal?symbol=${row.symbol}`}
+                    href={`/spot/${row.symbol}`}
                     className="inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-200"
                   >
                     Inspect <ArrowUpRight size={13} />

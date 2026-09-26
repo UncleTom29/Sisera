@@ -86,6 +86,22 @@ describe("stock provider boundaries", () => {
     expect(result.data[0]?.publishedAt).toBe("2026-09-25T12:00:00Z");
   });
 
+  it("renders free RSS news when GDELT is unavailable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (url: string | URL) => {
+        if (String(url).includes("news.google.com"))
+          return new Response(
+            `<?xml version="1.0"?><rss><channel><item><title>SpaceX update</title><link>https://example.com/rss</link><pubDate>Fri, 25 Sep 2026 12:00:00 GMT</pubDate><source>Example</source></item></channel></rss>`,
+          );
+        return new Response("unavailable", { status: 503 });
+      }),
+    );
+    const result = await new StockNewsClient().search("SpaceX");
+    expect(result.data[0]?.title).toBe("SpaceX update");
+    expect(result.data[0]?.provider).toBe("google-news");
+  });
+
   it("keeps public stock mints tied to the issuer catalogue", async () => {
     const mint = "XsensupeZBdHxZtdnLptf1UfWpVyancWcit7qWFYZrJ";
     const fetcher = vi.fn().mockImplementation(async (url: string) => {

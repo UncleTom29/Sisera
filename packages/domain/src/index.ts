@@ -224,6 +224,9 @@ export type AgentManifest = z.infer<typeof AgentManifest>;
 export const PredictionMarket = z.object({
   id: z.string(),
   provider: z.string(),
+  underlyingProvider: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
+  resolutionRules: z.string().nullable().optional(),
   title: z.string(),
   closesAt: z.string().datetime().nullable(),
   status: z.enum(["open", "closed", "resolved"]),
@@ -232,6 +235,7 @@ export const PredictionMarket = z.object({
       id: z.string(),
       label: z.string(),
       probability: DecimalString,
+      sellPrice: DecimalString.optional(),
       tokenId: z.string().optional(),
     }),
   ),
@@ -248,6 +252,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<UserRole, readonly Permission[]>>
     "order:live:create",
     "risk:read",
     "agent:read",
+    "agent:manage",
   ],
   risk_manager: [
     "market:read",

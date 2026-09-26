@@ -101,7 +101,11 @@ export function MarketScreener({
         header: "",
         cell: ({ row }) => (
           <Link
-            href={`/terminal?symbol=${row.original.instrument.baseAsset}USDT&venue=${venue}`}
+            href={
+              venue === "binance"
+                ? `/spot/${row.original.instrument.baseAsset}USDT`
+                : `/terminal?symbol=${row.original.instrument.baseAsset}USDT&venue=hyperliquid`
+            }
             className="inline-flex h-9 items-center gap-1 rounded-md border border-cyan-400/30 bg-cyan-400/[0.08] px-3 text-xs font-medium text-cyan-300 hover:bg-cyan-400/[0.14]"
           >
             Open <ArrowUpRight size={13} />

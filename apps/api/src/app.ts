@@ -1,17 +1,37 @@
+import { createHash } from "node:crypto";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { OpenRouterResearchClient, compileIntent } from "@sisera/copilot";
-import { listSolanaSwapOrders, recordSolanaWebhookEvents } from "@sisera/db";
-import { OrderIntent, type PortfolioRiskState, type RiskLimits } from "@sisera/domain";
+import {
+  applyMarketPaperOrder,
+  createAgentManifest,
+  createMarketLiveOrder,
+  listAgentManifests,
+  listMarketLiveOrders,
+  listMarketPaperAccounts,
+  listMarketPaperOrders,
+  listPaperAccounts,
+  listPredictionOrders,
+  listSolanaSwapOrders,
+  recordSolanaWebhookEvents,
+  updateMarketLiveOrder,
+} from "@sisera/db";
+import {
+  OrderIntent,
+  type PortfolioRiskState,
+  PredictionMarket,
+  type RiskLimits,
+} from "@sisera/domain";
 import type { Candle, Instrument, MarketSnapshot, OrderBook } from "@sisera/domain";
 import {
   BinanceSpotProvider,
   CoinGeckoReferenceProvider,
   DeFiLlamaChainProvider,
+  FredMacroProvider,
   HyperliquidPerpProvider,
+  JupiterPredictionProvider,
   MarketDataUnavailableError,
-  PolymarketProvider,
   PreStocksProvider,
   PythProProvider,
 } from "@sisera/market-data";
@@ -21,12 +41,19 @@ import { evaluatePreTradeRisk } from "@sisera/risk";
 import Fastify from "fastify";
 import { Counter, Histogram, Registry, collectDefaultMetrics } from "prom-client";
 import { z } from "zod";
+import { agentTemplates } from "./agent-templates.js";
 import { createAuthenticator, requirePermission } from "./auth.js";
+import { BinanceTradingClient } from "./binance-trading.js";
+import { BridgeUnavailable, RelayBridgeClient } from "./bridge.js";
 import { ClawpumpClient } from "./clawpump.js";
 import type { ApiConfig } from "./config.js";
 import { parseHeliusWebhook, validWebhookSecret } from "./helius-webhook.js";
 import { HeliusClient } from "./helius.js";
+import { HyperEvmWalletClient } from "./hyperevm.js";
 import { JupiterQuoteClient } from "./jupiter.js";
+import { PaperOrderRejection, settleMarketPaperOrder } from "./market-paper.js";
+import { PredictionTradingService } from "./prediction-trading.js";
+import { SocialFeedClient } from "./social-feed.js";
 import { SolanaTradingService, TradeRejection } from "./solana-trading.js";
 import { StockNewsClient } from "./stock-news.js";
 import { XStocksClient } from "./xstocks.js";
@@ -74,6 +101,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     dependencies.marketData ?? new BinanceSpotProvider(config.BINANCE_SPOT_BASE_URL);
   const hyperliquid = new HyperliquidPerpProvider(config.HYPERLIQUID_BASE_URL);
   const chains = new DeFiLlamaChainProvider();
+  const macro = new FredMacroProvider();
   const prestocks = new PreStocksProvider(config.PRESTOCKS_BASE_URL);
   const xstocks = new XStocksClient();
   const pyth = new PythProProvider(config.PYTH_PRO_API_KEY ?? "");
@@ -81,11 +109,23 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     config.SOLANA_RPC_URL ??
     (config.HELIUS_API_KEY
       ? `https://mainnet.helius-rpc.com/?api-key=${config.HELIUS_API_KEY}`
-      : null);
-  const helius = solanaRpcUrl ? new HeliusClient(solanaRpcUrl) : null;
+      : "https://api.mainnet-beta.solana.com");
+  const helius = new HeliusClient(solanaRpcUrl);
+  const hyperEvmWallet = new HyperEvmWalletClient();
   const clawpump = config.CLAWPUMP_API_KEY ? new ClawpumpClient(config.CLAWPUMP_API_KEY) : null;
   const jupiter = config.JUPITER_API_KEY ? new JupiterQuoteClient(config.JUPITER_API_KEY) : null;
   const solanaTrading = new SolanaTradingService(config, xstocks, prestocks, helius, jupiter);
+  const binanceTrading = new BinanceTradingClient();
+  const bridge = new RelayBridgeClient(config.RELAY_API_KEY);
+  const social = new SocialFeedClient({
+    xBearer: config.SISERA_X_BEARER_TOKEN,
+    xAccounts: config.SISERA_X_TRACKED_ACCOUNTS,
+    xDailyBudget: config.SISERA_X_MAX_DAILY_SPEND_USD,
+    telegramChannels: config.SISERA_TELEGRAM_NEWS_CHANNELS,
+    discordBotToken: config.SISERA_DISCORD_BOT_TOKEN,
+    discordChannelIds: config.SISERA_DISCORD_CHANNEL_IDS,
+  });
+  const predictionTrading = new PredictionTradingService(config, helius, solanaRpcUrl);
   const stockNews = new StockNewsClient(
     config.GNEWS_API_KEY,
     config.FINNHUB_API_KEY,
@@ -97,7 +137,8 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       : null;
   const marketProvider = (venue: string) => (venue === "hyperliquid" ? hyperliquid : marketData);
   const predictions =
-    dependencies.predictions ?? new PolymarketProvider(config.POLYMARKET_GAMMA_BASE_URL);
+    dependencies.predictions ??
+    new JupiterPredictionProvider(config.JUPITER_PREDICTION_BASE_URL, config.JUPITER_API_KEY);
   const referenceMarkets = new CoinGeckoReferenceProvider();
   const requestStarts = new WeakMap<object, number>();
 
@@ -122,6 +163,59 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
 
   app.get("/health/live", async () => ({ status: "ok" }));
   app.get("/health/ready", async () => ({ status: "ready", dependencies: { process: "ok" } }));
+  app.get("/v1/social-feed", { preHandler: requirePermission("market:read") }, async () => {
+    const feed = await social.list();
+    return { data: feed.posts, sources: feed.sources, fetchedAt: new Date().toISOString() };
+  });
+  app.get(
+    "/v1/wallets/hyperevm/:address",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      const { address } = z
+        .object({ address: z.string().regex(/^0x[a-fA-F0-9]{40}$/) })
+        .parse(request.params);
+      try {
+        return { data: await hyperEvmWallet.balances(address) };
+      } catch {
+        return reply
+          .code(503)
+          .send({ message: "HyperEVM wallet balances are temporarily unavailable." });
+      }
+    },
+  );
+  app.post(
+    "/v1/bridge/quote",
+    {
+      preHandler: requirePermission("portfolio:read"),
+      config: { rateLimit: { max: 12, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      try {
+        return { data: await bridge.quote(request.body) };
+      } catch (error) {
+        if (error instanceof BridgeUnavailable)
+          return reply.code(error.status).send({ message: error.message });
+        if (error instanceof z.ZodError)
+          return reply.code(400).send({ message: "Invalid bridge request", issues: error.issues });
+        request.log.warn({ error }, "Bridge quote failed");
+        return reply.code(503).send({ message: "Bridge quote is temporarily unavailable." });
+      }
+    },
+  );
+  app.get(
+    "/v1/bridge/status",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      try {
+        const { requestId } = z.object({ requestId: z.string() }).parse(request.query);
+        return { data: await bridge.status(requestId) };
+      } catch (error) {
+        if (error instanceof BridgeUnavailable)
+          return reply.code(error.status).send({ message: error.message });
+        return reply.code(503).send({ message: "Bridge status is temporarily unavailable." });
+      }
+    },
+  );
   app.post("/v1/helius/webhook", async (request, reply) => {
     if (!validWebhookSecret(request.headers.authorization, config.HELIUS_WEBHOOK_SECRET))
       return reply.code(401).send({ error: "unauthorized" });
@@ -139,6 +233,192 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   app.get("/v1/public-stocks", { preHandler: requirePermission("market:read") }, async () => ({
     data: await xstocks.list(),
   }));
+  app.get("/v1/agents", { preHandler: requirePermission("agent:read") }, async (request) => ({
+    templates: agentTemplates,
+    custom:
+      config.DATABASE_URL && request.principal
+        ? await listAgentManifests(config.DATABASE_URL, request.principal.tenantId)
+        : [],
+    persistence: config.DATABASE_URL ? "postgres" : "unavailable",
+  }));
+  app.get(
+    "/v1/agents/templates/:id/research",
+    {
+      preHandler: requirePermission("agent:read"),
+      config: { rateLimit: { max: 15, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.string() }).parse(request.params);
+      if (!agentTemplates.some((template) => template.id === id))
+        return reply.code(404).send({ message: "Unknown agent template." });
+      try {
+        if (id === "trend-confirmation-v1") {
+          const candles = await marketData.getCandles?.("BTCUSDT", "1h", 120);
+          if (!candles) throw new Error("Spot candles unavailable");
+          const assessment = analyzeCandles(candles);
+          const volume = assessment.signals.find((signal) => signal.id === "volume")?.value ?? 0;
+          return {
+            data: {
+              templateId: id,
+              market: "BTCUSDT",
+              source: "binance-spot-candles",
+              observedAt: assessment.observedAt,
+              stance: volume >= 1.2 && assessment.direction === "long" ? "watch_long" : "abstain",
+              rationale: [
+                `EMA/RSI composite ${assessment.score.toFixed(1)} (${assessment.direction}).`,
+                `Relative volume ${volume.toFixed(2)}×; requires at least 1.20×.`,
+                "Research signal only; check fresh depth and risk before any operator order.",
+              ],
+            },
+          };
+        }
+        if (id === "funding-dislocation-v1") {
+          const [metrics, candles] = await Promise.all([
+            hyperliquid.listPerpetualMetrics(["BTC"]),
+            hyperliquid.getCandles("BTCUSDT", "4h", 120),
+          ]);
+          const metric = metrics[0];
+          if (!metric) throw new Error("Perp metric unavailable");
+          const assessment = analyzeCandles(candles);
+          return {
+            data: {
+              templateId: id,
+              market: "BTC perpetual",
+              source: "hyperliquid-perps",
+              observedAt: metric.observedAt,
+              stance: "abstain",
+              rationale: [
+                `Current funding ${metric.fundingRate ?? "unavailable"}; mark ${metric.markPrice}, oracle ${metric.oraclePrice ?? "unavailable"}.`,
+                `4h directional assessment: ${assessment.direction} (${assessment.score.toFixed(1)}).`,
+                "Funding history and reversal confirmation are required before forming a dislocation proposal.",
+              ],
+            },
+          };
+        }
+        if (id === "spot-breakout-v1") {
+          const candles = await marketData.getCandles?.("SOLUSDT", "1h", 60);
+          if (!candles) throw new Error("Spot candles unavailable");
+          const latest = candles.at(-1);
+          const previous = candles.slice(-21, -1);
+          if (!latest || previous.length < 20) throw new Error("Insufficient spot candles");
+          const high = Math.max(...previous.map((candle) => Number(candle.high)));
+          const averageVolume =
+            previous.reduce((sum, candle) => sum + Number(candle.volume), 0) / previous.length;
+          const relativeVolume = averageVolume > 0 ? Number(latest.volume) / averageVolume : 0;
+          return {
+            data: {
+              templateId: id,
+              market: "SOLUSDT",
+              source: "binance-spot-candles",
+              observedAt: new Date(latest.time * 1000).toISOString(),
+              stance:
+                Number(latest.close) > high && relativeVolume >= 1.2 ? "watch_long" : "abstain",
+              rationale: [
+                `Latest close ${latest.close}; prior 20-candle high ${high.toFixed(4)}.`,
+                `Relative volume ${relativeVolume.toFixed(2)}×; requires at least 1.20×.`,
+                "Fresh spread and order-book depth must pass before any operator order.",
+              ],
+            },
+          };
+        }
+        if (id === "private-market-value-v1") {
+          const assets = await prestocks.list();
+          const candidate = [...assets].sort(
+            (a, b) => Number(a.premiumDiscountPct) - Number(b.premiumDiscountPct),
+          )[0];
+          if (!candidate) throw new Error("Private market unavailable");
+          return {
+            data: {
+              templateId: id,
+              market: candidate.instrument.baseAsset,
+              source: "prestocks",
+              observedAt: candidate.fetchedAt,
+              stance: "abstain",
+              rationale: [
+                `Token versus issuer mark: ${candidate.premiumDiscountPct}%.`,
+                "Issuer mark is not a verified fair value or executable quote.",
+                "Review liquidity and company news before proposing an order.",
+              ],
+            },
+          };
+        }
+        const markets = await predictions.listOpenMarkets(20);
+        const market = markets
+          .flatMap((item) => {
+            const parsed = PredictionMarket.safeParse(item);
+            return parsed.success ? [parsed.data] : [];
+          })
+          .find((item) => item.resolutionRules && item.outcomes.length >= 2);
+        if (!market) throw new Error("Prediction evidence unavailable");
+        return {
+          data: {
+            templateId: id,
+            market: market.title,
+            source: "jupiter-prediction",
+            observedAt: market.quality.observedAt,
+            stance: "abstain",
+            rationale: [
+              `Outcome prices: ${market.outcomes.map((outcome) => `${outcome.label} ${outcome.probability}`).join(", ")}.`,
+              `Closes ${market.closesAt ?? "unspecified"}.`,
+              `Resolution rules: ${market.resolutionRules?.slice(0, 240)}`,
+              "Independent probability evidence is required before proposing a trade.",
+            ],
+          },
+        };
+      } catch (error) {
+        request.log.warn({ error, templateId: id }, "Agent research unavailable");
+        return reply
+          .code(503)
+          .send({ message: "Fresh source data for this strategy is unavailable." });
+      }
+    },
+  );
+  app.post(
+    "/v1/agents",
+    { preHandler: requirePermission("agent:manage") },
+    async (request, reply) => {
+      if (!request.principal?.subject.startsWith("privy:"))
+        return reply.code(403).send({ error: "account_required" });
+      if (!config.DATABASE_URL)
+        return reply
+          .code(503)
+          .send({ error: "persistence_unavailable", message: "Agent database is not configured" });
+      const input = z
+        .object({
+          name: z.string().trim().min(3).max(80),
+          description: z.string().trim().min(20).max(1000),
+          universe: z
+            .array(z.string().regex(/^[A-Za-z0-9:*\/_-]{2,40}$/))
+            .min(1)
+            .max(12),
+          timeframe: z.enum(["5m", "15m", "1h", "4h", "1d", "event"]),
+          capitalLimitUsd: z.coerce.number().positive().max(1_000_000),
+          maxTradeNotionalUsd: z.coerce.number().positive().max(100_000),
+          maxDailyDrawdownPct: z.coerce.number().positive().max(10),
+        })
+        .refine(
+          (value) => value.maxTradeNotionalUsd <= value.capitalLimitUsd,
+          "Trade notional cannot exceed capital allocation",
+        )
+        .parse(request.body);
+      const manifest = await createAgentManifest(config.DATABASE_URL, {
+        id: `custom:${crypto.randomUUID()}`,
+        version: "1.0.0",
+        tenantId: request.principal.tenantId,
+        name: input.name,
+        stage: "draft",
+        autonomy: "suggest",
+        policy: {
+          ...input,
+          subject: request.principal.subject,
+          killSwitch: "cancel_and_halt",
+          maxLeverage: 1,
+          proposalOnly: true,
+        },
+      });
+      return reply.code(201).send({ data: manifest });
+    },
+  );
   app.get(
     "/v1/stocks/:symbol/news",
     { preHandler: requirePermission("market:read") },
@@ -146,12 +426,16 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const { symbol } = z
         .object({ symbol: z.string().regex(/^[A-Za-z0-9-]{1,20}$/) })
         .parse(request.params);
-      const asset = (await prestocks.list()).find(
+      const [privateResult, publicResult] = await Promise.allSettled([
+        prestocks.list(),
+        xstocks.list(),
+      ]);
+      const asset = (privateResult.status === "fulfilled" ? privateResult.value : []).find(
         (item) => item.instrument.baseAsset.toLowerCase() === symbol.toLowerCase(),
       );
-      const publicStock = asset
-        ? null
-        : (await xstocks.list()).find((item) => item.symbol.toLowerCase() === symbol.toLowerCase());
+      const publicStock = (publicResult.status === "fulfilled" ? publicResult.value : []).find(
+        (item) => item.symbol.toLowerCase() === symbol.toLowerCase(),
+      );
       if (!asset && !publicStock)
         return reply.code(404).send({ error: "not_found", message: "Unknown stock" });
       const result = await stockNews.search(
@@ -345,6 +629,135 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     }),
   );
   app.get(
+    "/v1/leaderboard",
+    { preHandler: requirePermission("market:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL)
+        return reply
+          .code(503)
+          .send({ error: "persistence_unavailable", message: "Trade ledger is not configured" });
+      const [accounts, marketAccounts, publicStocks, privateStocks] = await Promise.all([
+        listPaperAccounts(config.DATABASE_URL),
+        listMarketPaperAccounts(config.DATABASE_URL),
+        xstocks.list().catch(() => []),
+        prestocks.list().catch(() => []),
+      ]);
+      const prices = new Map<string, number>();
+      for (const asset of publicStocks)
+        if (asset.priceUsd) prices.set(asset.mint, Number(asset.priceUsd));
+      for (const asset of privateStocks)
+        if (asset.instrument.mint) prices.set(asset.instrument.mint, Number(asset.tokenPrice));
+      const totals = new Map<string, { nav: number; baseline: number; observedAt: string }>();
+      let skippedUnpriced = 0;
+      const addAccount = (subject: string, nav: number, observedAt: string) => {
+        const previous = totals.get(subject);
+        totals.set(subject, {
+          nav: (previous?.nav ?? 0) + nav,
+          baseline: (previous?.baseline ?? 0) + 10_000,
+          observedAt:
+            previous && previous.observedAt > observedAt ? previous.observedAt : observedAt,
+        });
+      };
+      for (const account of accounts) {
+        const holdings = Object.entries(account.holdings).filter(
+          ([, quantity]) => Number(quantity) !== 0,
+        );
+        if (holdings.some(([mint]) => !Number.isFinite(prices.get(mint)))) {
+          skippedUnpriced++;
+          continue;
+        }
+        const nav =
+          Number(account.cashUsd) +
+          holdings.reduce(
+            (sum, [mint, quantity]) => sum + Number(quantity) * (prices.get(mint) ?? 0),
+            0,
+          );
+        if (!Number.isFinite(nav)) {
+          skippedUnpriced++;
+          continue;
+        }
+        addAccount(account.subject, nav, account.updatedAt.toISOString());
+      }
+      const spotSymbols = new Set<string>();
+      const perpSymbols = new Set<string>();
+      for (const account of marketAccounts) {
+        for (const [asset, quantity] of Object.entries(
+          account.spotHoldings as Record<string, string>,
+        ))
+          if (Number(quantity) !== 0) spotSymbols.add(`${asset}USDT`);
+        for (const [symbol, position] of Object.entries(
+          account.perpPositions as Record<string, { size: string }>,
+        ))
+          if (Number(position.size) !== 0) perpSymbols.add(symbol);
+      }
+      const marketMarks = new Map<string, number>();
+      await Promise.all([
+        ...[...spotSymbols].map(async (symbol) => {
+          const snapshot = await marketData.getSnapshot(symbol).catch(() => null);
+          if (snapshot?.quality.status === "live")
+            marketMarks.set(`spot:${symbol}`, Number(snapshot.bid));
+        }),
+        ...[...perpSymbols].map(async (symbol) => {
+          const snapshot = await hyperliquid.getSnapshot(symbol).catch(() => null);
+          if (snapshot?.quality.status === "live")
+            marketMarks.set(`perp:${symbol}`, Number(snapshot.last));
+        }),
+      ]);
+      for (const account of marketAccounts) {
+        const spotHoldings = Object.entries(account.spotHoldings as Record<string, string>).filter(
+          ([, quantity]) => Number(quantity) !== 0,
+        );
+        const perpPositions = Object.entries(
+          account.perpPositions as Record<string, { size: string; entryPrice: string }>,
+        ).filter(([, position]) => Number(position.size) !== 0);
+        if (
+          spotHoldings.some(([asset]) => !Number.isFinite(marketMarks.get(`spot:${asset}USDT`))) ||
+          perpPositions.some(([symbol]) => !Number.isFinite(marketMarks.get(`perp:${symbol}`)))
+        ) {
+          skippedUnpriced++;
+          continue;
+        }
+        const nav =
+          Number(account.cashUsd) +
+          spotHoldings.reduce(
+            (sum, [asset, quantity]) =>
+              sum + Number(quantity) * (marketMarks.get(`spot:${asset}USDT`) ?? 0),
+            0,
+          ) +
+          perpPositions.reduce(
+            (sum, [symbol, position]) =>
+              sum +
+              Number(position.size) *
+                ((marketMarks.get(`perp:${symbol}`) ?? 0) - Number(position.entryPrice)),
+            0,
+          );
+        if (!Number.isFinite(nav)) {
+          skippedUnpriced++;
+          continue;
+        }
+        addAccount(
+          String(account.subject),
+          nav,
+          new Date(account.updatedAt as string | Date).toISOString(),
+        );
+      }
+      const rows = [...totals.entries()]
+        .map(([subject, total]) => ({
+          name: `Trader ${createHash("sha256").update(subject).digest("hex").slice(0, 8)}`,
+          pnlUsd: total.nav - total.baseline,
+          returnPct: ((total.nav - total.baseline) / total.baseline) * 100,
+          observedAt: total.observedAt,
+        }))
+        .sort((left, right) => right.pnlUsd - left.pnlUsd);
+      return {
+        data: rows,
+        scope: "Paper accounts: Solana stocks, Binance spot, Hyperliquid perps",
+        baselineUsd: 10_000,
+        skippedUnpriced,
+      };
+    },
+  );
+  app.get(
     "/v1/pyth/reference",
     { preHandler: requirePermission("market:read") },
     async (request, reply) => {
@@ -365,10 +778,6 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const { address } = z
         .object({ address: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) })
         .parse(request.params);
-      if (!helius)
-        return reply
-          .code(503)
-          .send({ error: "provider_unavailable", message: "Helius RPC is not configured" });
       return { data: await helius.getWallet(address) };
     },
   );
@@ -523,6 +932,21 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   });
 
   app.get(
+    "/v1/macro-regime",
+    { preHandler: requirePermission("market:read") },
+    async (_request, reply) => {
+      try {
+        return { data: await macro.getRegime() };
+      } catch (error) {
+        if (error instanceof MarketDataUnavailableError) {
+          return reply.code(503).send({ error: error.message, code: error.code });
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.get(
     "/v1/public-wallet/:address",
     { preHandler: requirePermission("portfolio:read") },
     async (request) => {
@@ -536,11 +960,92 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   app.get(
     "/v1/prediction-markets",
     { preHandler: requirePermission("market:read") },
-    async (request) => {
+    async (request, reply) => {
       const { limit } = z
         .object({ limit: z.coerce.number().int().min(1).max(100).default(20) })
         .parse(request.query);
-      return { data: await predictions.listOpenMarkets(limit) };
+      try {
+        return { data: await predictions.listOpenMarkets(limit) };
+      } catch (error) {
+        return reply.code(503).send({
+          error: "jupiter_prediction_unavailable",
+          message:
+            error instanceof Error && /401/.test(error.message)
+              ? "Jupiter API key is required or invalid"
+              : "Jupiter prediction market data is unavailable",
+        });
+      }
+    },
+  );
+
+  app.post(
+    "/v1/prediction-orders/prepare",
+    {
+      preHandler: requirePermission("order:live:create"),
+      config: { rateLimit: { max: 8, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const principal = request.principal;
+      if (!principal?.subject.startsWith("privy:"))
+        return reply.code(403).send({ error: "account_required" });
+      const input = z
+        .object({
+          wallet: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/),
+          marketId: z.string().regex(/^[A-Za-z0-9:_-]{5,128}$/),
+          outcome: z.enum(["yes", "no"]),
+          depositAmount: z.string().regex(/^[1-9]\d{0,11}$/),
+        })
+        .parse(request.body);
+      return {
+        data: await predictionTrading.prepare({
+          ...input,
+          subject: principal.subject,
+          tenantId: principal.tenantId,
+        }),
+      };
+    },
+  );
+  app.post(
+    "/v1/prediction-orders/:id/execute",
+    {
+      preHandler: requirePermission("order:live:create"),
+      config: { rateLimit: { max: 8, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const principal = request.principal;
+      if (!principal?.subject.startsWith("privy:"))
+        return reply.code(403).send({ error: "account_required" });
+      const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+      const { signedTransaction } = z
+        .object({ signedTransaction: z.string().min(40).max(20000) })
+        .parse(request.body);
+      return {
+        data: await predictionTrading.execute({
+          subject: principal.subject,
+          orderId: id,
+          signedTransaction,
+        }),
+      };
+    },
+  );
+  app.get(
+    "/v1/prediction-orders",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request) => {
+      const orders =
+        config.DATABASE_URL && request.principal
+          ? await listPredictionOrders(config.DATABASE_URL, request.principal.subject)
+          : [];
+      const data = await Promise.all(
+        orders.map(async (order, index) => ({
+          ...order,
+          venueStatus:
+            index < 10 && ["submitted", "unknown"].includes(order.status)
+              ? await predictionTrading.orderStatus(String(order.orderPubkey)).catch(() => null)
+              : null,
+        })),
+      );
+      return { data };
     },
   );
 
@@ -551,6 +1056,162 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const { text } = z.object({ text: z.string().min(1).max(2000) }).parse(request.body);
       return { intent: compileIntent(text), executable: false };
     },
+  );
+
+  app.post(
+    "/v1/market-orders/paper",
+    {
+      preHandler: requirePermission("order:paper:create"),
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const principal = request.principal;
+      if (!principal) return reply.code(401).send({ error: "account_required" });
+      if (!config.DATABASE_URL)
+        return reply
+          .code(503)
+          .send({ error: "persistence_unavailable", message: "Paper ledger is not configured." });
+      const input = z
+        .object({
+          venue: z.enum(["binance", "hyperliquid"]),
+          symbol: z.string().regex(/^[A-Z0-9]{5,20}$/),
+          side: z.enum(["buy", "sell"]),
+          quantity: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,8})?$/),
+        })
+        .parse(request.body);
+      const provider = input.venue === "binance" ? marketData : hyperliquid;
+      const [instrument, quote] = await Promise.all([
+        provider.getInstrument(input.symbol),
+        provider.getSnapshot(input.symbol),
+      ]);
+      if (
+        quote.quality.status !== "live" ||
+        Date.now() - Date.parse(quote.quality.observedAt) > 30_000
+      )
+        return reply
+          .code(503)
+          .send({ error: "stale_quote", message: "A fresh venue quote is required." });
+      const fillPrice = input.side === "buy" ? quote.ask : quote.bid;
+      const feeUsd = new (await import("decimal.js")).default(input.quantity)
+        .mul(fillPrice)
+        .mul(input.venue === "binance" ? "0.001" : "0.0005")
+        .toString();
+      const next = await applyMarketPaperOrder(
+        config.DATABASE_URL,
+        {
+          id: crypto.randomUUID(),
+          tenantId: principal.tenantId,
+          subject: principal.subject,
+          ...input,
+          fillPrice,
+          feeUsd,
+        },
+        (state) =>
+          settleMarketPaperOrder(state, { ...input, baseAsset: instrument.baseAsset, fillPrice })
+            .state,
+      );
+      return reply.code(201).send({
+        data: {
+          mode: "paper",
+          status: "filled",
+          venue: input.venue,
+          symbol: input.symbol,
+          side: input.side,
+          quantity: input.quantity,
+          fillPrice,
+          feeUsd,
+          account: next,
+        },
+      });
+    },
+  );
+  app.get(
+    "/v1/market-orders/paper",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request) => ({
+      data:
+        config.DATABASE_URL && request.principal
+          ? await listMarketPaperOrders(config.DATABASE_URL, request.principal.subject)
+          : [],
+    }),
+  );
+
+  app.post(
+    "/v1/market-orders/binance/live",
+    {
+      preHandler: requirePermission("order:live:create"),
+      config: { rateLimit: { max: 4, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const principal = request.principal;
+      if (!principal?.subject.startsWith("privy:"))
+        return reply.code(403).send({ error: "account_required" });
+      if (!config.DATABASE_URL)
+        return reply.code(503).send({
+          error: "persistence_unavailable",
+          message: "Order audit ledger is not configured.",
+        });
+      const input = z
+        .object({
+          apiKey: z.string().min(16).max(256),
+          apiSecret: z.string().min(16).max(256),
+          symbol: z.string().regex(/^[A-Z0-9]{5,20}$/),
+          side: z.enum(["buy", "sell"]),
+          quantity: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,8})?$/),
+        })
+        .parse(request.body);
+      const quote = await marketData.getSnapshot(input.symbol);
+      if (
+        quote.quality.status !== "live" ||
+        Date.now() - Date.parse(quote.quality.observedAt) > 15_000
+      )
+        return reply
+          .code(503)
+          .send({ error: "stale_quote", message: "A fresh Binance quote is required." });
+      const id = crypto.randomUUID();
+      const clientOrderId = `sis_${id.replaceAll("-", "")}`;
+      await createMarketLiveOrder(config.DATABASE_URL, {
+        id,
+        clientOrderId,
+        tenantId: principal.tenantId,
+        subject: principal.subject,
+        venue: "binance",
+        symbol: input.symbol,
+        side: input.side,
+        quantity: input.quantity,
+      });
+      try {
+        const result = await binanceTrading.placeMarketOrder({
+          ...input,
+          indicativePrice: input.side === "buy" ? quote.ask : quote.bid,
+          clientOrderId,
+        });
+        await updateMarketLiveOrder(
+          config.DATABASE_URL,
+          id,
+          result.status === "FILLED" ? "filled" : "unknown",
+          String(result.orderId),
+        );
+        return { data: { id, venue: "binance", ...result } };
+      } catch (error) {
+        await updateMarketLiveOrder(
+          config.DATABASE_URL,
+          id,
+          error instanceof TradeRejection && error.statusCode === 504 ? "unknown" : "rejected",
+        ).catch(() => {});
+        throw error;
+      }
+    },
+  );
+  app.get(
+    "/v1/market-orders/live",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request) => ({
+      data:
+        config.DATABASE_URL && request.principal
+          ? await listMarketLiveOrders(config.DATABASE_URL, request.principal.subject)
+          : [],
+    }),
   );
 
   app.post(
@@ -608,6 +1269,8 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         .code(error.statusCode)
         .send({ error: "trade_unavailable", message: error.message });
     }
+    if (error instanceof PaperOrderRejection)
+      return reply.code(422).send({ error: "paper_order_rejected", message: error.message });
     if (error instanceof MarketDataUnavailableError) {
       return reply
         .code(503)

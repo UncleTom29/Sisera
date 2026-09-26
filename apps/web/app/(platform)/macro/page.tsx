@@ -2,17 +2,16 @@ import { StatusBadge } from "@sisera/ui";
 import { Activity, Database, Globe2, RadioTower } from "lucide-react";
 import { auth } from "../../../auth";
 import { PageHeader } from "../../../components/page-header";
-import { getChains, getPerpetualMetrics } from "../../../lib/api";
+import { getChains, getMacroRegime, getPerpetualMetrics } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
 const sources = [
   {
     name: "Federal Reserve Economic Data",
-    key: "FRED_API_KEY",
-    scope: "Rates · inflation · liquidity",
+    key: "fred",
+    scope: "VIX · 10-year Treasury yield · 10Y–2Y spread",
   },
-  { name: "U.S. Treasury Fiscal Data", key: null, scope: "Debt · cash balance · issuance" },
   { name: "DeFiLlama", key: null, scope: "Chain TVL snapshot" },
   { name: "Venue funding feeds", key: null, scope: "Funding · open interest" },
 ];
@@ -23,10 +22,29 @@ export default async function MacroPage() {
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const [metrics, chains] = await Promise.all([
+  const [metrics, chains, regime] = await Promise.all([
     getPerpetualMetrics(identity).catch(() => []),
     getChains(identity).catch(() => []),
+    getMacroRegime(identity).catch(() => null),
   ]);
+  const freshMetrics = metrics.filter(
+    (item) => Date.now() - Date.parse(item.observedAt) < 10 * 60_000,
+  );
+  const freshChains = chains.filter(
+    (item) => Date.now() - Date.parse(item.observedAt) < 10 * 60_000,
+  );
+  const funding = freshMetrics.map((item) => Number(item.fundingRate)).filter(Number.isFinite);
+  const meanFunding = funding.length
+    ? funding.reduce((sum, value) => sum + value, 0) / funding.length
+    : null;
+  const tone =
+    meanFunding == null || freshChains.length === 0
+      ? null
+      : meanFunding > 0.00005
+        ? "Crowded long"
+        : meanFunding < -0.00005
+          ? "Crowded short"
+          : "Balanced";
   return (
     <div className="min-h-full">
       <PageHeader
@@ -146,13 +164,12 @@ export default async function MacroPage() {
           </div>
           <div className="divide-y divide-line">
             {sources.map((source) => {
-              const configured = source.key
-                ? Boolean(process.env[source.key])
-                : source.name === "DeFiLlama"
-                  ? chains.length > 0
-                  : source.name === "Venue funding feeds"
-                    ? metrics.length > 0
-                    : false;
+              const configured =
+                source.key === "fred"
+                  ? regime !== null
+                  : source.name === "DeFiLlama"
+                    ? chains.length > 0
+                    : metrics.length > 0;
               return (
                 <div
                   key={source.name}
@@ -167,7 +184,7 @@ export default async function MacroPage() {
                       className={`size-1.5 rounded-full ${configured ? "bg-emerald-400" : "bg-amber-400"}`}
                     />
                     <span className="font-mono text-[9px] uppercase tracking-wider text-slate-500">
-                      {configured ? "Configured" : "Adapter pending"}
+                      {configured ? "Fresh data" : "Unavailable"}
                     </span>
                   </div>
                   <StatusBadge tone={configured ? "positive" : "warning"}>
@@ -183,16 +200,33 @@ export default async function MacroPage() {
           <div className="p-5">
             <Globe2 size={20} className="text-cyan-300" />
             <p className="mt-8 data-label">Current classification</p>
-            <p className="mt-2 text-2xl font-medium text-slate-500">Unavailable</p>
-            <p className="mt-4 text-xs leading-6 text-slate-600">
-              Sisera will not infer a macro regime until the required point-in-time sources pass
-              freshness and completeness checks.
+            <p className="mt-2 text-2xl font-medium text-slate-100">
+              {regime ? regime.state.replace("_", " ").toUpperCase() : "Unavailable"}
+            </p>
+            <p className="mt-4 text-xs leading-6 text-slate-400">
+              {regime?.rationale ??
+                "FRED volatility and Treasury sources have not passed the five-day freshness check."}
+            </p>
+            {regime && (
+              <div className="mt-4 space-y-2 font-mono text-[10px] text-slate-500">
+                {regime.sources.map((source) => (
+                  <p key={source.id}>
+                    {source.id}: {source.value.toFixed(2)} · {source.asOf}
+                  </p>
+                ))}
+                <p>20-session 10Y change: {regime.tenYearChange20d.toFixed(3)} percentage points</p>
+              </div>
+            )}
+            <p className="mt-4 text-xs leading-6 text-slate-500">
+              {tone
+                ? `Derivatives positioning: ${tone.toLowerCase()} across ${funding.length} markets and ${freshChains.length} chain snapshots.`
+                : "Derivatives positioning is unavailable."}
             </p>
             <div className="mt-8 grid grid-cols-2 gap-px bg-line">
-              <StateCell icon={Activity} label="Rates" />
-              <StateCell icon={RadioTower} label="Liquidity" />
-              <StateCell icon={Database} label="Onchain" />
-              <StateCell icon={Globe2} label="Derivatives" />
+              <StateCell icon={Activity} label="Rates" available={regime !== null} />
+              <StateCell icon={RadioTower} label="Liquidity" available={freshChains.length > 0} />
+              <StateCell icon={Database} label="Onchain" available={freshChains.length > 0} />
+              <StateCell icon={Globe2} label="Derivatives" available={freshMetrics.length > 0} />
             </div>
           </div>
         </aside>
@@ -201,12 +235,18 @@ export default async function MacroPage() {
   );
 }
 
-function StateCell({ icon: Icon, label }: { icon: typeof Activity; label: string }) {
+function StateCell({
+  icon: Icon,
+  label,
+  available,
+}: { icon: typeof Activity; label: string; available: boolean }) {
   return (
     <div className="bg-panel p-3">
       <Icon size={12} className="text-slate-700" />
       <p className="mt-3 data-label">{label}</p>
-      <p className="mt-1 text-[9px] text-slate-700">No observation</p>
+      <p className={`mt-1 text-[9px] ${available ? "text-emerald-300" : "text-slate-700"}`}>
+        {available ? "Fresh observation" : "No observation"}
+      </p>
     </div>
   );
 }

@@ -10,6 +10,7 @@ const TokenAccounts = z.object({
         data: z.object({
           parsed: z.object({
             info: z.object({
+              mint: SolanaAddress.optional(),
               tokenAmount: z.object({
                 amount: z.string().regex(/^\d+$/),
                 decimals: z.number().int().nonnegative(),
@@ -89,23 +90,27 @@ export class HeliusClient {
 
   async getWallet(address: string) {
     const owner = SolanaAddress.parse(address);
-    const [balancePayload, assetsPayload] = await Promise.all([
-      this.rpc("getBalance", [owner, { commitment: "confirmed" }]),
-      this.rpc("getAssetsByOwner", [
+    const balancePayload = await this.rpc("getBalance", [owner, { commitment: "confirmed" }]);
+    const balance = Balance.parse(balancePayload);
+    let holdings: Array<{
+      mint: string;
+      symbol: string | null;
+      name: string | null;
+      rawBalance: string;
+      decimals: number;
+    }>;
+    let source: "helius-das" | "solana-rpc" = "helius-das";
+    try {
+      const assetsPayload = await this.rpc("getAssetsByOwner", [
         {
           ownerAddress: owner,
           page: 1,
           limit: 1000,
           displayOptions: { showFungible: true, showNativeBalance: false, showZeroBalance: false },
         },
-      ]),
-    ]);
-    const balance = Balance.parse(balancePayload);
-    const assets = Assets.parse(assetsPayload);
-    return {
-      address: owner,
-      solLamports: String(balance.value),
-      holdings: assets.items
+      ]);
+      const assets = Assets.parse(assetsPayload);
+      holdings = assets.items
         .filter((item) => item.interface === "FungibleToken" || item.interface === "FungibleAsset")
         .filter((item) => item.token_info)
         .map((item) => ({
@@ -114,9 +119,53 @@ export class HeliusClient {
           name: item.content?.metadata?.name ?? null,
           rawBalance: String(item.token_info?.balance ?? 0),
           decimals: item.token_info?.decimals ?? 0,
-        })),
+        }));
+    } catch {
+      source = "solana-rpc";
+      const programs = [
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "TokenzQdBNbLqP5VEhdkAS6EPFHpqZ2LxfCZXna4",
+      ];
+      const results = await Promise.allSettled(
+        programs.map((programId) =>
+          this.rpc("getTokenAccountsByOwner", [
+            owner,
+            { programId },
+            { encoding: "jsonParsed", commitment: "confirmed" },
+          ]),
+        ),
+      );
+      if (results.every((result) => result.status === "rejected"))
+        throw new Error("Solana token-account providers are unavailable");
+      const balances = new Map<string, { rawBalance: bigint; decimals: number }>();
+      for (const result of results) {
+        if (result.status !== "fulfilled") continue;
+        for (const item of TokenAccounts.parse(result.value).value) {
+          const info = item.account.data.parsed.info;
+          if (!info.mint) continue;
+          const previous = balances.get(info.mint);
+          balances.set(info.mint, {
+            rawBalance: (previous?.rawBalance ?? 0n) + BigInt(info.tokenAmount.amount),
+            decimals: info.tokenAmount.decimals,
+          });
+        }
+      }
+      holdings = [...balances]
+        .filter(([, value]) => value.rawBalance > 0n)
+        .map(([mint, value]) => ({
+          mint,
+          symbol: null,
+          name: null,
+          rawBalance: value.rawBalance.toString(),
+          decimals: value.decimals,
+        }));
+    }
+    return {
+      address: owner,
+      solLamports: String(balance.value),
+      holdings,
       fetchedAt: new Date().toISOString(),
-      source: "helius-das",
+      source,
       reconciled: false,
     } as const;
   }

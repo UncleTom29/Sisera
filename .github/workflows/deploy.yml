@@ -78,11 +78,23 @@ jobs:
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          SISERA_DEPLOY_HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+          SISERA_DEPLOY_JUPITER_API_KEY: ${{ secrets.JUPITER_API_KEY }}
+          SISERA_DEPLOY_CLAWPUMP_API_KEY: ${{ secrets.CLAWPUMP_API_KEY }}
+          SISERA_DEPLOY_RELAY_API_KEY: ${{ secrets.RELAY_API_KEY }}
+          SISERA_DEPLOY_X_BEARER_TOKEN: ${{ secrets.SISERA_X_BEARER_TOKEN }}
+          SISERA_DEPLOY_X_TRACKED_ACCOUNTS: ${{ secrets.SISERA_X_TRACKED_ACCOUNTS }}
+          SISERA_DEPLOY_X_MAX_DAILY_SPEND_USD: ${{ secrets.SISERA_X_MAX_DAILY_SPEND_USD }}
+          SISERA_DEPLOY_TELEGRAM_NEWS_CHANNELS: ${{ secrets.SISERA_TELEGRAM_NEWS_CHANNELS }}
+          SISERA_DEPLOY_DISCORD_BOT_TOKEN: ${{ secrets.SISERA_DISCORD_BOT_TOKEN }}
+          SISERA_DEPLOY_DISCORD_CHANNEL_IDS: ${{ secrets.SISERA_DISCORD_CHANNEL_IDS }}
         with:
           host: ${{ secrets.CONTABO_HOST || secrets.VPS_HOST || secrets.HOST || secrets.SERVER_HOST }}
           username: ${{ secrets.CONTABO_USER || secrets.VPS_USER || secrets.SSH_USER || 'root' }}
           key: ${{ secrets.CONTABO_SSH_KEY || secrets.VPS_SSH_KEY || secrets.SSH_KEY || secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.CONTABO_SSH_PORT || secrets.VPS_PORT || secrets.SSH_PORT || 22 }}
+          envs: SISERA_DEPLOY_HELIUS_API_KEY,SISERA_DEPLOY_JUPITER_API_KEY,SISERA_DEPLOY_CLAWPUMP_API_KEY,SISERA_DEPLOY_RELAY_API_KEY,SISERA_DEPLOY_X_BEARER_TOKEN,SISERA_DEPLOY_X_TRACKED_ACCOUNTS,SISERA_DEPLOY_X_MAX_DAILY_SPEND_USD,SISERA_DEPLOY_TELEGRAM_NEWS_CHANNELS,SISERA_DEPLOY_DISCORD_BOT_TOKEN,SISERA_DEPLOY_DISCORD_CHANNEL_IDS
           script: |
             set -e
             APP_DIR="/opt/sisera"
@@ -102,6 +114,48 @@ jobs:
 
             cd "$APP_DIR"
 
+            # Optional GitHub Actions provider secrets persist in the VPS-only environment file.
+            # The web and API services both load this file after restart.
+            node <<'NODE'
+            const fs = require('node:fs');
+            const path = fs.existsSync('.env.production') ? '.env.production' : '.env';
+            if (!fs.existsSync(path)) {
+              console.error('ERROR: VPS environment file is missing.');
+              process.exit(1);
+            }
+            const values = {
+              HELIUS_API_KEY: process.env.SISERA_DEPLOY_HELIUS_API_KEY,
+              JUPITER_API_KEY: process.env.SISERA_DEPLOY_JUPITER_API_KEY,
+              CLAWPUMP_API_KEY: process.env.SISERA_DEPLOY_CLAWPUMP_API_KEY,
+              RELAY_API_KEY: process.env.SISERA_DEPLOY_RELAY_API_KEY,
+              SISERA_X_BEARER_TOKEN: process.env.SISERA_DEPLOY_X_BEARER_TOKEN,
+              SISERA_X_TRACKED_ACCOUNTS: process.env.SISERA_DEPLOY_X_TRACKED_ACCOUNTS,
+              SISERA_X_MAX_DAILY_SPEND_USD: process.env.SISERA_DEPLOY_X_MAX_DAILY_SPEND_USD,
+              SISERA_TELEGRAM_NEWS_CHANNELS: process.env.SISERA_DEPLOY_TELEGRAM_NEWS_CHANNELS,
+              SISERA_DISCORD_BOT_TOKEN: process.env.SISERA_DEPLOY_DISCORD_BOT_TOKEN,
+              SISERA_DISCORD_CHANNEL_IDS: process.env.SISERA_DEPLOY_DISCORD_CHANNEL_IDS,
+            };
+            if (values.HELIUS_API_KEY) {
+              values.SOLANA_RPC_URL = `https://mainnet.helius-rpc.com/?api-key=${values.HELIUS_API_KEY}`;
+            }
+            const entries = Object.entries(values).filter(([, value]) => value);
+            for (const [name, value] of entries) {
+              if (/[\r\n\0]/.test(value)) {
+                console.error(`ERROR: ${name} contains a control character.`);
+                process.exit(1);
+              }
+            }
+            if (entries.length) {
+              const replaced = new Set(entries.map(([name]) => name));
+              const lines = fs.readFileSync(path, 'utf8').split(/\r?\n/)
+                .filter((line) => !replaced.has(line.split('=', 1)[0]));
+              const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
+              fs.writeFileSync(path, `${lines.filter(Boolean).join('\n')}\n${entries.map(([name, value]) => `${name}=${quote(value)}`).join('\n')}\n`, { mode: 0o600 });
+              fs.chmodSync(path, 0o600);
+              console.log('Provider secrets synchronized to VPS environment.');
+            }
+            NODE
+
             # Load environment variables if available
             if [ -f .env.production ]; then
               set -a
@@ -118,6 +172,7 @@ jobs:
             : "${PRIVY_APP_ID:?PRIVY_APP_ID is required in the VPS environment}"
             : "${PRIVY_APP_SECRET:?PRIVY_APP_SECRET is required in the VPS environment}"
             : "${DATABASE_URL:?DATABASE_URL is required in the VPS environment}"
+            node -e 'const host = new URL(process.env.DATABASE_URL).hostname; if (!["localhost", "127.0.0.1", "[::1]"].includes(host)) { console.error("ERROR: Production PostgreSQL must run on this VPS."); process.exit(1); }'
             if [ "$NEXT_PUBLIC_PRIVY_APP_ID" != "$PRIVY_APP_ID" ]; then
               echo "ERROR: The browser and server Privy app IDs do not match."
               exit 1

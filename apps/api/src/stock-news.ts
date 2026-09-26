@@ -1,3 +1,4 @@
+import { XMLParser } from "fast-xml-parser";
 import { z } from "zod";
 
 const GNewsResponse = z.object({
@@ -49,6 +50,19 @@ const MarketauxNews = z.object({
     )
     .default([]),
 });
+const RssFeed = z.object({
+  rss: z.object({
+    channel: z.object({
+      item: z.union([z.array(z.unknown()), z.unknown()]).optional(),
+    }),
+  }),
+});
+const RssItem = z.object({
+  title: z.string(),
+  link: z.string().url(),
+  pubDate: z.string(),
+  source: z.string().optional(),
+});
 
 export type NewsItem = {
   title: string;
@@ -56,7 +70,7 @@ export type NewsItem = {
   url: string;
   publishedAt: string;
   publisher: string;
-  provider: "gnews" | "finnhub" | "gdelt" | "marketaux";
+  provider: "gnews" | "finnhub" | "gdelt" | "marketaux" | "google-news" | "bing-news";
 };
 
 export class StockNewsClient {
@@ -78,7 +92,49 @@ export class StockNewsClient {
     const cached = this.cache.get(key);
     if (cached && cached.until > Date.now()) return cached.value;
     const searches: Array<Promise<NewsItem[]>> = [];
-    const providers: string[] = ["gdelt"];
+    const providers: string[] = ["gdelt", "google-news", "bing-news"];
+    const rssQuery = company.replace(/["\\]/g, "").slice(0, 80);
+    const rssSources = [
+      {
+        provider: "google-news" as const,
+        url: `https://news.google.com/rss/search?${new URLSearchParams({ q: rssQuery, hl: "en-US", gl: "US", ceid: "US:en" })}`,
+      },
+      {
+        provider: "bing-news" as const,
+        url: `https://www.bing.com/news/search?${new URLSearchParams({ q: rssQuery, format: "rss" })}`,
+      },
+    ];
+    for (const source of rssSources) {
+      searches.push(
+        fetch(source.url, {
+          headers: { accept: "application/rss+xml, application/xml" },
+          signal: AbortSignal.timeout(5000),
+        }).then(async (response) => {
+          if (!response.ok) throw new Error(`${source.provider} returned ${response.status}`);
+          const parsed = RssFeed.parse(
+            new XMLParser({ ignoreAttributes: true }).parse(await response.text()),
+          );
+          const raw = parsed.rss.channel.item;
+          const items = Array.isArray(raw) ? raw : raw ? [raw] : [];
+          return items.flatMap((item): NewsItem[] => {
+            const article = RssItem.safeParse(item);
+            if (!article.success) return [];
+            const date = new Date(article.data.pubDate);
+            if (Number.isNaN(date.getTime())) return [];
+            return [
+              {
+                title: article.data.title,
+                summary: null,
+                url: article.data.link,
+                publishedAt: date.toISOString(),
+                publisher: article.data.source ?? source.provider,
+                provider: source.provider,
+              },
+            ];
+          });
+        }),
+      );
+    }
     const gdelt = new URL("https://api.gdeltproject.org/api/v2/doc/doc");
     gdelt.search = new URLSearchParams({
       query: `"${company.replace(/["\\]/g, "").slice(0, 80)}"`,

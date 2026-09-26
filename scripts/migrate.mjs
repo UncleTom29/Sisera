@@ -13,8 +13,11 @@ if (envFile) {
   process.loadEnvFile(envFile);
 }
 
-const connectionString =
-  process.env.DATABASE_URL || "postgresql://sisera:sisera@localhost:5432/sisera";
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error("[migrate] DATABASE_URL is required.");
+  process.exit(1);
+}
 
 console.log("[migrate] Connecting to PostgreSQL database...");
 const sql = postgres(connectionString, { max: 1 });

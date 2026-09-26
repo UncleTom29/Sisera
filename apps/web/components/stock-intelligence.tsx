@@ -1,7 +1,7 @@
 import { ArrowUpRight, CircleAlert, RadioTower } from "lucide-react";
 import Link from "next/link";
 import { auth } from "../auth";
-import { getPrivateMarkets, getStockNews } from "../lib/api";
+import { getPrivateMarkets, getPublicStocks, getStockNews } from "../lib/api";
 import { PageHeader } from "./page-header";
 
 export async function StockIntelligence() {
@@ -10,13 +10,19 @@ export async function StockIntelligence() {
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const assets = await getPrivateMarkets(identity).catch(() => []);
+  const [assets, publicStocks] = await Promise.all([
+    getPrivateMarkets(identity).catch(() => []),
+    getPublicStocks(identity).catch(() => []),
+  ]);
   const ranked = [...assets].sort(
     (left, right) =>
       Math.abs(Number(right.premiumDiscountPct)) - Math.abs(Number(left.premiumDiscountPct)),
   );
   const coverage = await Promise.allSettled(
-    assets.slice(0, 3).map((asset) => getStockNews(asset.instrument.baseAsset, identity)),
+    [
+      ...publicStocks.slice(0, 4).map((stock) => stock.symbol),
+      ...assets.slice(0, 3).map((asset) => asset.instrument.baseAsset),
+    ].map((symbol) => getStockNews(symbol, identity)),
   );
   const articles = coverage
     .flatMap((result) => (result.status === "fulfilled" ? result.value.data : []))
@@ -28,7 +34,7 @@ export async function StockIntelligence() {
       <PageHeader
         eyebrow="Multi-Dimensional Intelligence / Evidence"
         title="Stock intelligence"
-        description="Market microstructure, valuation divergence against Pyth and PreStocks marks, macroeconomic context, verified company announcements, and corroborated news events."
+        description="Public stock coverage, private-market mark gaps, and recent source-linked company news."
         actions={
           <Link
             href="/intelligence?universe=perps"
@@ -39,6 +45,24 @@ export async function StockIntelligence() {
         }
       />
       <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,.7fr)] md:p-6">
+        <section className="border border-line bg-panel p-4 xl:col-span-2">
+          <h2 className="text-sm font-semibold text-white">Public stock coverage</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {publicStocks.slice(0, 12).map((stock) => (
+              <Link
+                key={stock.mint}
+                href={`/stocks/${encodeURIComponent(stock.symbol)}`}
+                className="rounded border border-line px-3 py-2 text-xs text-slate-300 hover:text-cyan-300"
+              >
+                {stock.symbol} ·{" "}
+                {stock.priceUsd ? `$${Number(stock.priceUsd).toFixed(2)}` : "unpriced"}
+              </Link>
+            ))}
+          </div>
+          {!publicStocks.length && (
+            <p className="mt-3 text-xs text-slate-400">Public stock feed unavailable.</p>
+          )}
+        </section>
         <section className="overflow-hidden rounded-lg border border-line bg-panel">
           <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div>

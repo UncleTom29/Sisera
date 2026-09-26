@@ -109,6 +109,14 @@ describe("control plane API", () => {
     expect(candleResponse.statusCode).toBe(200);
     expect(depthResponse.json().data.sequence).toBe("1");
     expect(intelligenceResponse.json().data.direction).toBe("long");
+    const agentResponse = await app.inject({
+      method: "GET",
+      url: "/v1/agents/templates/trend-confirmation-v1/research",
+      headers,
+    });
+    expect(agentResponse.statusCode).toBe(200);
+    expect(agentResponse.json().data.source).toBe("binance-spot-candles");
+    expect(agentResponse.json().data.stance).toBe("abstain");
     await app.close();
   });
 });

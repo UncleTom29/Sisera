@@ -60,4 +60,34 @@ describe("HeliusClient", () => {
     expect(account.reconciled).toBe(false);
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+
+  it("falls back to standard Solana token accounts when DAS is unavailable", async () => {
+    const fetcher = vi.fn(async (_url: string | URL | Request, options?: RequestInit) => {
+      const body = JSON.parse(String(options?.body)) as { method: string };
+      if (body.method === "getBalance") return Response.json({ result: { value: 500_000_000 } });
+      if (body.method === "getAssetsByOwner") return Response.json({ error: { code: -32601 } });
+      return Response.json({
+        result: {
+          value: [
+            {
+              account: {
+                data: {
+                  parsed: {
+                    info: {
+                      mint: wallet,
+                      tokenAmount: { amount: "9007199254740993", decimals: 6 },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      });
+    });
+    const account = await new HeliusClient("https://public-rpc.test", fetcher).getWallet(wallet);
+    expect(account.source).toBe("solana-rpc");
+    expect(account.solLamports).toBe("500000000");
+    expect(account.holdings[0]?.rawBalance).toBe("18014398509481986");
+  });
 });

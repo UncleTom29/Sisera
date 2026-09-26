@@ -1,0 +1,62 @@
+import { auth } from "../../../auth";
+import { PageHeader } from "../../../components/page-header";
+import { getLeaderboard } from "../../../lib/api";
+
+export const dynamic = "force-dynamic";
+
+export default async function LeaderboardPage() {
+  const session = await auth();
+  const result = await getLeaderboard({
+    accessToken: session?.accessToken,
+    localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
+  }).catch(() => null);
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Paper performance"
+        title="Leaderboard"
+        description="Ranked mark-to-market P&L across recorded Solana stock, Binance spot, and Hyperliquid perp paper accounts. Live venue and prediction P&L are not yet included; accounts with missing marks are excluded."
+      />
+      <div className="p-4">
+        <section className="border border-line bg-panel">
+          <div className="flex justify-between border-b border-line px-4 py-3 text-xs">
+            <span>{result?.scope ?? "Ledger unavailable"}</span>
+            <span>{result?.data.length ?? 0} ranked</span>
+          </div>
+          {result?.data.length ? (
+            <div className="divide-y divide-line">
+              {result.data.map((row, index) => (
+                <div
+                  key={row.name}
+                  className="grid grid-cols-[50px_1fr_120px_100px] items-center gap-2 px-4 py-3 text-xs"
+                >
+                  <span className="font-mono text-slate-500">{index + 1}</span>
+                  <span className="text-white">{row.name}</span>
+                  <span
+                    className={`text-right font-mono ${row.pnlUsd >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                  >
+                    ${row.pnlUsd.toFixed(2)}
+                  </span>
+                  <span className="text-right font-mono text-slate-300">
+                    {row.returnPct.toFixed(2)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="p-5 text-xs text-slate-400">
+              No fully priced paper accounts are available.
+            </p>
+          )}
+          {result && (
+            <p className="border-t border-line px-4 py-3 text-[10px] text-slate-500">
+              ${result.baselineUsd.toLocaleString()} initial capital per paper ledger ·{" "}
+              {result.skippedUnpriced} accounts excluded because a holding lacks a current mark.
+              Pseudonymous display names.
+            </p>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}

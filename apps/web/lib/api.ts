@@ -38,8 +38,16 @@ export type SolanaWallet = {
     decimals: number;
   }>;
   fetchedAt: string;
-  source: "helius-das";
+  source: "helius-das" | "solana-rpc";
   reconciled: false;
+};
+export type HyperEvmWallet = {
+  address: string;
+  hypeWei: string;
+  usdcRaw: string;
+  usdcMint: string;
+  source: "hyperevm-rpc";
+  fetchedAt: string;
 };
 export type StockNewsItem = {
   title: string;
@@ -47,7 +55,15 @@ export type StockNewsItem = {
   url: string;
   publishedAt: string;
   publisher: string;
-  provider: "gnews" | "finnhub" | "gdelt" | "marketaux";
+  provider: "gnews" | "finnhub" | "gdelt" | "marketaux" | "google-news" | "bing-news";
+};
+export type SocialPost = {
+  id: string;
+  platform: "x" | "telegram" | "reddit" | "discord";
+  community: string;
+  text: string;
+  url: string;
+  publishedAt: string;
 };
 export type PublicStock = {
   name: string;
@@ -75,6 +91,36 @@ export type ClawpumpToken = {
   liquidity?: string | number | null;
 };
 export type Venue = "binance" | "hyperliquid";
+export type MacroRegime = {
+  state: "risk_on" | "mixed" | "risk_off";
+  rationale: string;
+  sources: Array<{
+    id: "VIXCLS" | "DGS10" | "T10Y2Y";
+    value: number;
+    asOf: string;
+    source: "fred";
+  }>;
+  tenYearChange20d: number;
+  fetchedAt: string;
+};
+export type AgentTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  universe: readonly string[];
+  timeframe: string;
+  factors: readonly string[];
+  risk: string;
+};
+export type CustomAgent = {
+  id: string;
+  name: string;
+  version: string;
+  stage: string;
+  autonomy: string;
+  createdAt: string;
+  policy: { description?: string; universe?: string[]; timeframe?: string };
+};
 export type PerpetualMetric = {
   symbol: string;
   markPrice: string;
@@ -142,6 +188,10 @@ export type MarketIntelligence = {
 type ApiIdentity = { accessToken?: string | undefined; localOperator?: boolean | undefined };
 
 function identityHeaders(identity: ApiIdentity): HeadersInit {
+  if (identity.accessToken?.startsWith("guest:") || identity.accessToken?.startsWith("wallet:"))
+    return process.env.NODE_ENV !== "production"
+      ? { "x-sisera-dev-role": "viewer", "x-sisera-dev-subject": "web-local" }
+      : {};
   if (identity.accessToken) return { authorization: `Bearer ${identity.accessToken}` };
   if (identity.localOperator && process.env.NODE_ENV !== "production")
     return { "x-sisera-dev-role": "admin", "x-sisera-dev-subject": "web-local" };
@@ -203,6 +253,14 @@ export async function getStockNews(symbol: string, identity: ApiIdentity) {
   );
 }
 
+export function getSocialFeed(identity: ApiIdentity) {
+  return getJson<{ data: SocialPost[]; sources: Record<string, string>; fetchedAt: string }>(
+    "/v1/social-feed",
+    identity,
+    14000,
+  );
+}
+
 export async function searchClawpump(query: string, identity: ApiIdentity) {
   return getJson<{
     data: { tokens: ClawpumpToken[]; droppedUnverified?: number };
@@ -238,6 +296,15 @@ export async function getJupiterQuote(
 export async function getSolanaWallet(address: string, identity: ApiIdentity) {
   const payload = await getJson<{ data: SolanaWallet }>(
     `/v1/solana/wallet/${encodeURIComponent(address)}`,
+    identity,
+    9000,
+  );
+  return payload.data;
+}
+
+export async function getHyperEvmWallet(address: string, identity: ApiIdentity) {
+  const payload = await getJson<{ data: HyperEvmWallet }>(
+    `/v1/wallets/hyperevm/${encodeURIComponent(address)}`,
     identity,
     9000,
   );
@@ -291,6 +358,11 @@ export async function getChains(identity: ApiIdentity) {
   return payload.data;
 }
 
+export async function getMacroRegime(identity: ApiIdentity) {
+  const payload = await getJson<{ data: MacroRegime }>("/v1/macro-regime", identity, 15000);
+  return payload.data;
+}
+
 export async function getPublicPerpAccount(address: string, identity: ApiIdentity) {
   const payload = await getJson<{ data: PublicPerpAccount }>(
     `/v1/public-wallet/${encodeURIComponent(address)}`,
@@ -305,5 +377,80 @@ export async function getPredictionMarkets(identity: ApiIdentity) {
     "/v1/prediction-markets?limit=24",
     identity,
   );
+  return payload.data;
+}
+
+export async function getAgents(identity: ApiIdentity) {
+  return getJson<{ templates: AgentTemplate[]; custom: CustomAgent[]; persistence: string }>(
+    "/v1/agents",
+    identity,
+  );
+}
+
+export async function getLeaderboard(identity: ApiIdentity) {
+  return getJson<{
+    data: Array<{ name: string; pnlUsd: number; returnPct: number; observedAt: string }>;
+    scope: string;
+    baselineUsd: number;
+    skippedUnpriced: number;
+  }>("/v1/leaderboard", identity, 15000);
+}
+
+export type MarketActivityOrder = {
+  id: string;
+  venue: string;
+  symbol: string;
+  side: string;
+  quantity: string;
+  status: string;
+  createdAt: string;
+  mode: "paper" | "live";
+  venueOrderId?: string | null;
+};
+
+export async function getMarketOrders(identity: ApiIdentity): Promise<MarketActivityOrder[]> {
+  const [paper, live] = await Promise.all([
+    getJson<{ data: Omit<MarketActivityOrder, "mode">[] }>("/v1/market-orders/paper", identity),
+    getJson<{ data: Omit<MarketActivityOrder, "mode">[] }>("/v1/market-orders/live", identity),
+  ]);
+  return [
+    ...paper.data.map((order) => ({ ...order, mode: "paper" as const })),
+    ...live.data.map((order) => ({ ...order, mode: "live" as const })),
+  ];
+}
+
+export async function getPredictionOrders(identity: ApiIdentity) {
+  const payload = await getJson<{
+    data: Array<{
+      id: string;
+      wallet: string;
+      marketId: string;
+      outcome: string;
+      depositAmount: string;
+      orderPubkey: string;
+      status: string;
+      signature: string | null;
+      venueStatus: string | null;
+      createdAt: string;
+    }>;
+  }>("/v1/prediction-orders", identity);
+  return payload.data;
+}
+
+export async function getSolanaOrders(identity: ApiIdentity) {
+  const payload = await getJson<{
+    data: Array<{
+      id: string;
+      mode: string;
+      status: string;
+      wallet: string;
+      inputMint: string;
+      outputMint: string;
+      inAmount: string;
+      outAmount: string;
+      signature: string | null;
+      createdAt: string;
+    }>;
+  }>("/v1/solana/orders", identity);
   return payload.data;
 }

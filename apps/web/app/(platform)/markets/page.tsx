@@ -28,7 +28,7 @@ const symbols = [
 export default async function MarketsPage({
   searchParams,
 }: { searchParams: Promise<{ venue?: string }> }) {
-  const venue = (await searchParams).venue === "binance" ? "binance" : "hyperliquid";
+  const venue = (await searchParams).venue === "hyperliquid" ? "hyperliquid" : "binance";
   const session = await auth();
   const identity = {
     accessToken: session?.accessToken,

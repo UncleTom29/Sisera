@@ -19,11 +19,14 @@ export function SiseraPrivyProvider({
           theme: "dark",
           accentColor: "#67e8f9",
           logo: "/icon.svg",
-          walletChainType: "solana-only",
+          walletChainType: "ethereum-and-solana",
         },
         embeddedWallets: {
+          ethereum: {
+            createOnLogin: "all-users",
+          },
           solana: {
-            createOnLogin: "users-without-wallets",
+            createOnLogin: "all-users",
           },
         },
       }}

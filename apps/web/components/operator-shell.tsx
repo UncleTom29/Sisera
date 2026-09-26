@@ -18,10 +18,12 @@ import {
   ListFilter,
   Menu,
   Network,
+  Rss,
   Search,
   Settings,
   ShieldCheck,
   Target,
+  Trophy,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -40,7 +42,6 @@ const navigation = [
       { href: "/stocks", label: "Stocks", hint: "⌥1", icon: CandlestickChart },
       { href: "/private-markets", label: "Private markets", hint: "⌥2", icon: Landmark },
       { href: "/clawpump", label: "Agent markets", hint: "", icon: Boxes },
-      { href: "/intelligence", label: "Intelligence", hint: "⌥3", icon: Compass },
     ],
   },
   {
@@ -55,6 +56,7 @@ const navigation = [
       },
       { href: "/predictions", label: "Predictions", hint: "", icon: Target },
       { href: "/macro", label: "Macro & chains", hint: "⌥4", icon: Globe2 },
+      { href: "/social", label: "Social feeds", hint: "", icon: Rss },
     ],
   },
   {
@@ -62,6 +64,7 @@ const navigation = [
     items: [
       { href: "/portfolio", label: "Portfolio", hint: "", icon: BriefcaseBusiness },
       { href: "/risk", label: "Risk", hint: "", icon: ShieldCheck },
+      { href: "/leaderboard", label: "Leaderboard", hint: "", icon: Trophy },
     ],
   },
   {

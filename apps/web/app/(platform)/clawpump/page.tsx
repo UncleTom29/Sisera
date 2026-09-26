@@ -10,7 +10,7 @@ export default async function ClawpumpMarkets({
   searchParams,
 }: { searchParams: Promise<{ query?: string }> }) {
   const { query: rawQuery } = await searchParams;
-  const query = (rawQuery ?? "AAPL").trim().slice(0, 80);
+  const query = (rawQuery ?? "SOL").trim().slice(0, 80);
   const session = await auth();
   const identity = {
     accessToken: session?.accessToken,
@@ -24,7 +24,7 @@ export default async function ClawpumpMarkets({
       <PageHeader
         eyebrow="Solana / Clawpump Integration"
         title="Clawpump agent markets"
-        description="Agent-launch infrastructure and stock-paired liquidity markets. Discover existing Clawpump agents, compare outperformance against paired stocks, or launch Sisera strategies onchain."
+        description="Search Clawpump agent tokens through a server-side partner feed. Market discovery is read-only while venue trading support is evaluated."
         actions={<LiveRefresh />}
       />
       <div className="space-y-5 p-4 md:p-6">
@@ -49,7 +49,7 @@ export default async function ClawpumpMarkets({
         </form>
         <div className="flex flex-wrap gap-2 text-xs text-slate-400">
           <span>Try:</span>
-          {["AAPL", "TSLA", "stock", "agent"].map((term) => (
+          {["SOL", "AAPL", "stock", "agent"].map((term) => (
             <a
               key={term}
               href={`/clawpump?query=${term}`}
@@ -118,8 +118,8 @@ export default async function ClawpumpMarkets({
             <div>
               <p className="text-sm text-white">Agent market feed unavailable</p>
               <p className="mt-1 text-xs text-slate-400">
-                Configure a Clawpump partner key to search live assets. No sample or stale prices
-                are substituted.
+                Clawpump did not return live assets. Check the provider connection or try again
+                shortly. No sample or stale prices are substituted.
               </p>
             </div>
           </div>

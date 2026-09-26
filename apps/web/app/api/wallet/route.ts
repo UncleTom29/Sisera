@@ -12,15 +12,27 @@ export async function GET(request: NextRequest) {
   if (!session && !local)
     return NextResponse.json({ message: "Sign in to view balances." }, { status: 401 });
   try {
+    const localSession =
+      process.env.NODE_ENV !== "production" &&
+      (session?.accessToken.startsWith("guest:") || session?.accessToken.startsWith("wallet:"));
     const response = await fetch(`${serverApiUrl()}/v1/solana/wallet/${address}`, {
-      headers: session
-        ? { authorization: `Bearer ${session.accessToken}` }
-        : { "x-sisera-dev-role": "viewer" },
+      headers:
+        session && !localSession
+          ? { authorization: `Bearer ${session.accessToken}` }
+          : { "x-sisera-dev-role": "viewer", "x-sisera-dev-subject": "web-local" },
       cache: "no-store",
       signal: AbortSignal.timeout(10000),
     });
     if (!response.ok)
-      return NextResponse.json({ message: "Wallet balances are unavailable." }, { status: 503 });
+      return NextResponse.json(
+        {
+          message:
+            response.status === 401 || response.status === 403
+              ? "Wallet access requires a valid Sisera session."
+              : "Wallet balances are unavailable from the Solana RPC.",
+        },
+        { status: response.status === 401 || response.status === 403 ? response.status : 503 },
+      );
     return NextResponse.json(await response.json(), { headers: { "cache-control": "no-store" } });
   } catch {
     return NextResponse.json({ message: "Wallet balances are unavailable." }, { status: 503 });

@@ -3,11 +3,12 @@ import { BriefcaseBusiness, Download, Layers3, RefreshCcw, ShieldCheck } from "l
 import Link from "next/link";
 import { Suspense } from "react";
 import { auth } from "../../../auth";
+import { BridgeUsdc } from "../../../components/bridge-usdc";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 import { PortfolioConnect } from "../../../components/portfolio-connect";
 import { PortfolioPrivyWallet } from "../../../components/portfolio-privy-wallet";
-import { getPublicPerpAccount, getSolanaWallet } from "../../../lib/api";
+import { getHyperEvmWallet, getPublicPerpAccount, getSolanaWallet } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -20,33 +21,66 @@ export default async function PortfolioPage({
   const validSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(solanaAddress);
   const validAddress = /^0x[a-fA-F0-9]{40}$/.test(address);
   const session = await auth();
-  const solana = validSolanaAddress
-    ? await getSolanaWallet(solanaAddress, {
-        accessToken: session?.accessToken,
-        localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
-      }).catch(() => null)
-    : null;
-  const observed = validAddress
-    ? await getPublicPerpAccount(address, {
-        accessToken: session?.accessToken,
-        localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
-      }).catch(() => null)
-    : null;
+  const identity = {
+    accessToken: session?.accessToken,
+    localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
+  };
+  const [solana, observed, hyperEvm] = await Promise.all([
+    validSolanaAddress ? getSolanaWallet(solanaAddress, identity).catch(() => null) : null,
+    validAddress ? getPublicPerpAccount(address, identity).catch(() => null) : null,
+    validAddress ? getHyperEvmWallet(address, identity).catch(() => null) : null,
+  ]);
+  const unrealizedPnl = observed?.positions.reduce(
+    (sum, position) => sum + Number(position.unrealizedPnl),
+    0,
+  );
+  const summary = [
+    ["Perp account value", observed ? `$${Number(observed.accountValue).toLocaleString()}` : "—"],
+    ["Solana cash", solana ? `${(Number(solana.solLamports) / 1e9).toFixed(4)} SOL` : "—"],
+    ["HyperEVM USDC", hyperEvm ? `$${(Number(hyperEvm.usdcRaw) / 1e6).toLocaleString()}` : "—"],
+    [
+      "Perp gross exposure",
+      observed ? `$${Math.abs(Number(observed.notionalExposure)).toLocaleString()}` : "—",
+    ],
+    ["Perp positions", observed ? String(observed.positions.length) : "—"],
+    ["Unrealized perp P&L", unrealizedPnl == null ? "—" : `$${unrealizedPnl.toLocaleString()}`],
+  ];
   return (
     <div className="min-h-full">
       <Suspense fallback={null}>
         <PortfolioPrivyWallet />
       </Suspense>
       <PageHeader
-        eyebrow="Unified Portfolio / Reconciled Truth"
+        eyebrow="Connected account observations"
         title="Portfolio"
-        description="Unified portfolio across tokenized public equities, PreStocks private markets, Clawpump assets, autonomous agent allocations, and Solana cash."
+        description="Live balances from your Solana and HyperEVM wallets and public Hyperliquid perp account. Values are observed from their sources and are not yet reconciled into one P&L."
         actions={
           <div className="flex items-center gap-2">
             <PortfolioConnect />
           </div>
         }
       />
+      <BridgeUsdc />
+      <section className="m-4 border border-line bg-panel p-5 md:m-6">
+        <p className="eyebrow">HyperEVM · chain 999</p>
+        <h2 className="mt-2 text-base font-semibold text-slate-100">Funding wallet</h2>
+        <p className="mt-2 break-all font-mono text-[10px] text-slate-500">
+          {validAddress ? address : "Connect an EVM wallet or enter its address below."}
+        </p>
+        {hyperEvm ? (
+          <div className="mt-4 flex flex-wrap gap-6 font-mono text-sm text-slate-200">
+            <span>{(Number(hyperEvm.usdcRaw) / 1e6).toLocaleString()} USDC</span>
+            <span>{(Number(hyperEvm.hypeWei) / 1e18).toFixed(5)} HYPE</span>
+            <span className="text-[10px] text-slate-500">
+              {hyperEvm.source} · {new Date(hyperEvm.fetchedAt).toLocaleTimeString()}
+            </span>
+          </div>
+        ) : validAddress ? (
+          <p className="mt-4 text-xs text-amber-300">
+            HyperEVM wallet balances are temporarily unavailable.
+          </p>
+        ) : null}
+      </section>
       <section className="m-4 border border-line bg-panel p-5 md:m-6">
         <p className="eyebrow">Solana</p>
         <h2 className="mt-2 text-base font-semibold text-slate-100">Your wallet</h2>
@@ -224,17 +258,15 @@ export default async function PortfolioPage({
         )}
       </section>
       <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2 xl:grid-cols-5">
-        {["Net asset value", "Available cash", "Gross exposure", "Net exposure", "Today P&L"].map(
-          (label) => (
-            <div key={label} className="bg-panel p-5">
-              <p className="data-label">{label}</p>
-              <p className="data-value mt-4 text-2xl text-slate-600">—</p>
-              <p className="mt-2 font-mono text-[8px] uppercase tracking-wider text-slate-700">
-                Awaiting reconciliation
-              </p>
-            </div>
-          ),
-        )}
+        {summary.map(([label, value]) => (
+          <div key={label} className="bg-panel p-5">
+            <p className="data-label">{label}</p>
+            <p className="data-value mt-4 text-2xl text-slate-100">{value}</p>
+            <p className="mt-2 font-mono text-[8px] uppercase tracking-wider text-slate-700">
+              {value === "—" ? "Connect a source" : "Observed · not reconciled"}
+            </p>
+          </div>
+        ))}
       </div>
       <div className="grid gap-4 p-4 xl:grid-cols-[1.45fr_.55fr]">
         <section className="border border-line bg-panel">
@@ -265,12 +297,32 @@ export default async function PortfolioPage({
             <span className="text-right">Unrealized</span>
             <span className="text-right">Exposure</span>
           </div>
-          <EmptyState
-            icon={BriefcaseBusiness}
-            title="No reconciled positions"
-            copy="Connect a portfolio source and complete its first balance and position reconciliation cycle."
-            code="PORTFOLIO / EMPTY"
-          />
+          {observed?.positions.length ? (
+            <div className="divide-y divide-line">
+              {observed.positions.map((position) => (
+                <div
+                  key={position.coin}
+                  className="grid grid-cols-[1.4fr_repeat(5,1fr)] gap-2 px-4 py-3 text-[11px] font-mono text-slate-300"
+                >
+                  <span>{position.coin} perpetual</span>
+                  <span className="text-right">{position.size}</span>
+                  <span className="text-right">{position.entryPrice}</span>
+                  <span className="text-right">—</span>
+                  <span className="text-right">
+                    ${Number(position.unrealizedPnl).toLocaleString()}
+                  </span>
+                  <span className="text-right">${Number(position.notional).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={BriefcaseBusiness}
+              title="No observed positions"
+              copy="Connect a Hyperliquid public address to inspect its reported open positions."
+              code="PORTFOLIO / EMPTY"
+            />
+          )}
         </section>
         <div className="space-y-4">
           <section className="border border-line bg-panel">

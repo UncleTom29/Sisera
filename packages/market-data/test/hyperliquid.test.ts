@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DeFiLlamaChainProvider,
   HyperliquidPerpProvider,
-  PolymarketProvider,
+  JupiterPredictionProvider,
 } from "../src/index.js";
 
 const metadata = [
@@ -142,26 +142,45 @@ describe("DeFiLlamaChainProvider", () => {
   });
 });
 
-describe("PolymarketProvider", () => {
-  it("skips unpriced event contracts without failing the whole feed", async () => {
+describe("JupiterPredictionProvider", () => {
+  it("uses only open markets with verified micro USD YES and NO prices", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(
-        JSON.stringify([
-          {
-            id: "event-1",
-            title: "Outcome test",
-            endDate: null,
-            closed: false,
-            markets: [
-              { id: "unpriced", outcomes: '["Yes","No"]' },
-              { id: "priced", outcomes: '["Yes","No"]', outcomePrices: '["0.4","0.6"]' },
-            ],
-          },
-        ]),
+        JSON.stringify({
+          data: [
+            {
+              metadata: { title: "Test event" },
+              markets: [
+                { marketId: "unpriced", status: "open", pricing: {} },
+                {
+                  marketId: "priced",
+                  title: "Outcome test",
+                  status: "open",
+                  closeTime: 1790437200,
+                  provider: "polymarket",
+                  rulesPrimary: "Official result",
+                  pricing: { buyYesPriceUsd: 400000, buyNoPriceUsd: 600000 },
+                },
+                {
+                  marketId: "closed",
+                  status: "closed",
+                  pricing: { buyYesPriceUsd: 900000, buyNoPriceUsd: 100000 },
+                },
+              ],
+            },
+          ],
+        }),
       ),
     );
-    const result = await new PolymarketProvider("https://example.test", fetcher).listOpenMarkets(1);
+    const provider = new JupiterPredictionProvider("https://example.test", undefined, fetcher);
+    const result = await provider.listOpenMarkets(1);
     expect(result[0]?.outcomes.map((outcome) => outcome.probability)).toEqual(["0.4", "0.6"]);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.provider).toBe("jupiter");
+    expect(result[0]?.underlyingProvider).toBe("polymarket");
+    expect(result[0]?.resolutionRules).toBe("Official result");
     expect(result[0]?.quality.status).toBe("delayed");
+    expect(await provider.listOpenMarkets(1)).toHaveLength(1);
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });

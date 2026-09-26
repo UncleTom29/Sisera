@@ -8,18 +8,25 @@ import {
   applyMarketPaperOrder,
   checkDatabaseReadiness,
   createAgentManifest,
+  createBridgeTransfer,
   createMarketLiveOrder,
   getAccountPreferences,
+  getBridgeTransfer,
+  listAccountEvents,
   listAgentManifests,
   listAlertAcknowledgements,
+  listBridgeTransfers,
+  listLeaderboardParticipants,
   listMarketLiveOrders,
   listMarketPaperAccounts,
   listMarketPaperOrders,
   listPaperAccounts,
   listPredictionOrders,
   listSolanaSwapOrders,
+  markBridgeSourceSubmitted,
   recordSolanaWebhookEvents,
   saveAccountPreferences,
+  updateBridgeTransferStatus,
   updateMarketLiveOrder,
 } from "@sisera/db";
 import {
@@ -49,7 +56,7 @@ import { z } from "zod";
 import { agentTemplates } from "./agent-templates.js";
 import { createAuthenticator, requirePermission } from "./auth.js";
 import { BinanceTradingClient } from "./binance-trading.js";
-import { BridgeUnavailable, RelayBridgeClient } from "./bridge.js";
+import { BridgeQuoteInput, BridgeUnavailable, RelayBridgeClient } from "./bridge.js";
 import { ClawpumpClient, ClawpumpError } from "./clawpump.js";
 import type { ApiConfig } from "./config.js";
 import { parseHeliusWebhook, validWebhookSecret } from "./helius-webhook.js";
@@ -234,14 +241,14 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
             z.literal(60000),
           ]),
           failedOrderAlerts: z.boolean(),
+          leaderboardOptIn: z.boolean().optional(),
         })
         .parse(request.body);
       return {
-        data: await saveAccountPreferences(
-          config.DATABASE_URL,
-          request.principal.subject,
-          preferences,
-        ),
+        data: await saveAccountPreferences(config.DATABASE_URL, request.principal.subject, {
+          ...preferences,
+          leaderboardOptIn: preferences.leaderboardOptIn,
+        }),
       };
     },
   );
@@ -256,6 +263,17 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       return {
         data: await listAlertAcknowledgements(config.DATABASE_URL, request.principal.subject),
       };
+    },
+  );
+  app.get(
+    "/v1/activity/events",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply
+          .code(503)
+          .send({ error: "persistence_unavailable", message: "Account timeline is unavailable." });
+      return { data: await listAccountEvents(config.DATABASE_URL, request.principal.subject) };
     },
   );
   app.post(
@@ -304,8 +322,25 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       config: { rateLimit: { max: 12, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
+      if (!request.principal?.subject.startsWith("privy:"))
+        return reply.code(403).send({ error: "account_required" });
+      if (!config.DATABASE_URL)
+        return reply.code(503).send({ message: "Account bridge history is unavailable." });
       try {
-        return { data: await bridge.quote(request.body) };
+        const input = BridgeQuoteInput.parse(request.body);
+        const quote = await bridge.quote(input);
+        await createBridgeTransfer(config.DATABASE_URL, {
+          requestId: quote.requestId,
+          tenantId: request.principal.tenantId,
+          subject: request.principal.subject,
+          originAddress: input.user,
+          recipient: quote.recipient,
+          originChainId: quote.originChainId,
+          destinationChainId: quote.destinationChainId,
+          originAmountUsdc: quote.originAmountUsdc,
+          quotedOutputUsdc: quote.outputAmountUsdc,
+        });
+        return { data: quote };
       } catch (error) {
         if (error instanceof BridgeUnavailable)
           return reply.code(error.status).send({ message: error.message });
@@ -317,12 +352,76 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     },
   );
   app.get(
+    "/v1/bridge/transfers",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply.code(503).send({ message: "Account bridge history is unavailable." });
+      return { data: await listBridgeTransfers(config.DATABASE_URL, request.principal.subject) };
+    },
+  );
+  app.post(
+    "/v1/bridge/submission",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply.code(503).send({ message: "Account bridge history is unavailable." });
+      const { requestId, sourceTxHash } = z
+        .object({
+          requestId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+          sourceTxHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+        })
+        .parse(request.body);
+      const recorded = await markBridgeSourceSubmitted(
+        config.DATABASE_URL,
+        request.principal.subject,
+        requestId,
+        sourceTxHash,
+      );
+      return recorded
+        ? { recorded: true, verification: "pending" }
+        : reply.code(404).send({ message: "Bridge request not found for this account." });
+    },
+  );
+  app.get(
     "/v1/bridge/status",
     { preHandler: requirePermission("portfolio:read") },
     async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply.code(503).send({ message: "Account bridge history is unavailable." });
+      const query = z
+        .object({ requestId: z.string().regex(/^0x[a-fA-F0-9]{64}$/) })
+        .safeParse(request.query);
+      if (!query.success) return reply.code(400).send({ message: "Invalid bridge request ID." });
       try {
-        const { requestId } = z.object({ requestId: z.string() }).parse(request.query);
-        return { data: await bridge.status(requestId) };
+        const { requestId } = query.data;
+        const owned = await getBridgeTransfer(
+          config.DATABASE_URL,
+          request.principal.subject,
+          requestId,
+        );
+        if (!owned) return reply.code(404).send({ message: "Bridge request not found." });
+        const status = await bridge.status(requestId);
+        const persisted = await updateBridgeTransferStatus(
+          config.DATABASE_URL,
+          request.principal.subject,
+          requestId,
+          status.status,
+          status.inTxHashes?.[0] ?? null,
+          status.txHashes?.[0] ?? null,
+        );
+        return {
+          data: {
+            ...status,
+            status: persisted?.status ?? status.status,
+            inTxHashes: persisted?.sourceTxHash
+              ? [persisted.sourceTxHash]
+              : (status.inTxHashes ?? []),
+            txHashes: persisted?.destinationTxHash
+              ? [persisted.destinationTxHash]
+              : (status.txHashes ?? []),
+          },
+        };
       } catch (error) {
         if (error instanceof BridgeUnavailable)
           return reply.code(error.status).send({ message: error.message });
@@ -527,7 +626,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         tenantId: request.principal.tenantId,
         name: input.name,
         stage: "draft",
-        autonomy: "suggest",
+        autonomy: "research",
         policy: {
           ...input,
           subject: request.principal.subject,
@@ -764,18 +863,21 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         return reply
           .code(503)
           .send({ error: "persistence_unavailable", message: "Trade ledger is not configured" });
-      const [accounts, marketAccounts, publicStocks, privateStocks] = await Promise.all([
-        listPaperAccounts(config.DATABASE_URL),
-        listMarketPaperAccounts(config.DATABASE_URL),
-        xstocks.list().catch(() => []),
-        prestocks.list().catch(() => []),
-      ]);
+      const [accounts, marketAccounts, publicStocks, privateStocks, participants] =
+        await Promise.all([
+          listPaperAccounts(config.DATABASE_URL),
+          listMarketPaperAccounts(config.DATABASE_URL),
+          xstocks.list().catch(() => []),
+          prestocks.list().catch(() => []),
+          listLeaderboardParticipants(config.DATABASE_URL),
+        ]);
       const prices = new Map<string, number>();
       for (const asset of publicStocks)
         if (asset.priceUsd) prices.set(asset.mint, Number(asset.priceUsd));
       for (const asset of privateStocks)
         if (asset.instrument.mint) prices.set(asset.instrument.mint, Number(asset.tokenPrice));
       const totals = new Map<string, { nav: number; baseline: number; observedAt: string }>();
+      const incompleteSubjects = new Set<string>();
       let skippedUnpriced = 0;
       const addAccount = (subject: string, nav: number, observedAt: string) => {
         const previous = totals.get(subject);
@@ -787,11 +889,13 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         });
       };
       for (const account of accounts) {
+        if (!participants.has(account.subject)) continue;
         const holdings = Object.entries(account.holdings).filter(
           ([, quantity]) => Number(quantity) !== 0,
         );
         if (holdings.some(([mint]) => !Number.isFinite(prices.get(mint)))) {
           skippedUnpriced++;
+          incompleteSubjects.add(account.subject);
           continue;
         }
         const nav =
@@ -802,6 +906,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           );
         if (!Number.isFinite(nav)) {
           skippedUnpriced++;
+          incompleteSubjects.add(account.subject);
           continue;
         }
         addAccount(account.subject, nav, account.updatedAt.toISOString());
@@ -809,6 +914,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const spotSymbols = new Set<string>();
       const perpSymbols = new Set<string>();
       for (const account of marketAccounts) {
+        if (!participants.has(String(account.subject))) continue;
         for (const [asset, quantity] of Object.entries(
           account.spotHoldings as Record<string, string>,
         ))
@@ -832,6 +938,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         }),
       ]);
       for (const account of marketAccounts) {
+        if (!participants.has(String(account.subject))) continue;
         const spotHoldings = Object.entries(account.spotHoldings as Record<string, string>).filter(
           ([, quantity]) => Number(quantity) !== 0,
         );
@@ -843,6 +950,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           perpPositions.some(([symbol]) => !Number.isFinite(marketMarks.get(`perp:${symbol}`)))
         ) {
           skippedUnpriced++;
+          incompleteSubjects.add(String(account.subject));
           continue;
         }
         const nav =
@@ -861,6 +969,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           );
         if (!Number.isFinite(nav)) {
           skippedUnpriced++;
+          incompleteSubjects.add(String(account.subject));
           continue;
         }
         addAccount(
@@ -870,6 +979,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         );
       }
       const rows = [...totals.entries()]
+        .filter(([subject]) => !incompleteSubjects.has(subject))
         .map(([subject, total]) => ({
           name: `Trader ${createHash("sha256").update(subject).digest("hex").slice(0, 8)}`,
           pnlUsd: total.nav - total.baseline,

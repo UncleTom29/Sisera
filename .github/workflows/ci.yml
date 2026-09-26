@@ -50,3 +50,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: Verify account persistence and bridge ownership
+        run: node scripts/verify-account-persistence.mjs
+        env:
+          DATABASE_URL: postgresql://sisera:sisera@127.0.0.1:5432/sisera_test

@@ -24,4 +24,11 @@ describe("agent governance", () => {
   it("emits proposals instead of execution commands", () => {
     expect(createAgentProposal(manifest, { side: "buy" }, "proposal-1").status).toBe("proposed");
   });
+
+  it("keeps drafts and research agents from proposing trades", () => {
+    expect(() => createAgentProposal({ ...manifest, stage: "draft" }, {}, "draft-1")).toThrow();
+    expect(() =>
+      createAgentProposal({ ...manifest, stage: "paper", autonomy: "research" }, {}, "research-1"),
+    ).toThrow();
+  });
 });

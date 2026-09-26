@@ -1,9 +1,11 @@
 import { auth } from "../../../auth";
+import { ActivityTimeline } from "../../../components/activity-timeline";
 import { BridgeActivity } from "../../../components/bridge-activity";
 import { HyperliquidActivity } from "../../../components/hyperliquid-activity";
 import { PageHeader } from "../../../components/page-header";
 import {
   accountErrorMessage,
+  getAccountEvents,
   getMarketOrders,
   getPredictionOrders,
   getSolanaOrders,
@@ -17,7 +19,7 @@ export default async function ActivityPage() {
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const [stockResult, marketResult, predictionResult] = await Promise.all([
+  const [stockResult, marketResult, predictionResult, eventResult] = await Promise.all([
     getSolanaOrders(identity).then(
       (value) => ({ value, error: null as unknown }),
       (error: unknown) => ({ value: null, error }),
@@ -27,6 +29,10 @@ export default async function ActivityPage() {
       (error: unknown) => ({ value: null, error }),
     ),
     getPredictionOrders(identity).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
+    getAccountEvents(identity).then(
       (value) => ({ value, error: null as unknown }),
       (error: unknown) => ({ value: null, error }),
     ),
@@ -42,6 +48,13 @@ export default async function ActivityPage() {
         description="Your recorded paper and live orders across Solana stocks, Binance spot, and Hyperliquid perps."
       />
       <div className="p-4">
+        {eventResult.error !== null ? (
+          <p className="mb-4 border border-amber-400/30 p-4 text-xs text-amber-200">
+            {accountErrorMessage(eventResult.error)}
+          </p>
+        ) : (
+          <ActivityTimeline events={eventResult.value ?? []} />
+        )}
         <section className="mb-4 border border-line bg-panel">
           <h2 className="border-b border-line px-4 py-3 text-sm font-semibold text-white">
             Crypto market orders

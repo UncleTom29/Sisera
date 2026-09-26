@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Toaster } from "sonner";
 import { SiseraPrivyProvider } from "../components/privy-provider";
+import { SessionRenewal } from "../components/session-renewal";
 import "./globals.css";
 
 export const viewport: Viewport = {
@@ -68,6 +69,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className="dark">
       <body>
         <SiseraPrivyProvider appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID}>
+          <SessionRenewal />
           {children}
         </SiseraPrivyProvider>
         <Toaster theme="dark" position="bottom-right" />

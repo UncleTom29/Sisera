@@ -42,7 +42,7 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
     <form action={submit} className="space-y-3 border border-line bg-panel p-5">
       <h2 className="text-sm font-semibold text-white">Create a strategy agent</h2>
       <p className="text-xs text-slate-400">
-        New agents start in Draft with proposal-only authority.
+        New agents start as research-only drafts. They cannot propose or execute trades.
       </p>
       <input
         name="name"

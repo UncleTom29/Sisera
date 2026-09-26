@@ -16,10 +16,176 @@ export async function checkDatabaseReadiness(connectionString: string): Promise<
   try {
     const rows = await connection`
       SELECT EXISTS (
-        SELECT 1 FROM _sisera_migrations WHERE name = '0006_account_preferences_alerts.sql'
+        SELECT 1 FROM _sisera_migrations WHERE name = '0009_bridge_transfers.sql'
       ) AS migrated
     `;
     return rows[0]?.migrated === true;
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function listAccountEvents(connectionString: string, subject: string) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const rows = await connection`
+      SELECT id::text, source, source_id::text AS "sourceId", mode, status, detail,
+             occurred_at AS "occurredAt"
+      FROM account_events WHERE subject = ${subject}
+      ORDER BY occurred_at DESC LIMIT 200
+    `;
+    return rows.map((row) => ({
+      id: String(row.id),
+      source: String(row.source),
+      sourceId: String(row.sourceId),
+      mode: String(row.mode),
+      status: String(row.status),
+      detail: row.detail as Record<string, string>,
+      occurredAt: new Date(row.occurredAt as string | Date).toISOString(),
+    }));
+  } finally {
+    await connection.end();
+  }
+}
+
+export type BridgeTransferInput = {
+  requestId: string;
+  tenantId: string;
+  subject: string;
+  originAddress: string;
+  recipient: string;
+  originChainId: number;
+  destinationChainId: number;
+  originAmountUsdc: string;
+  quotedOutputUsdc: string;
+};
+
+export async function createBridgeTransfer(
+  connectionString: string,
+  transfer: BridgeTransferInput,
+) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [created] = await connection`
+      INSERT INTO bridge_transfers
+        (request_id, tenant_id, subject, origin_address, recipient, origin_chain_id,
+         destination_chain_id, origin_amount_usdc, quoted_output_usdc)
+      VALUES (${transfer.requestId}, ${transfer.tenantId}, ${transfer.subject},
+              ${transfer.originAddress}, ${transfer.recipient}, ${transfer.originChainId},
+              ${transfer.destinationChainId}, ${transfer.originAmountUsdc}, ${transfer.quotedOutputUsdc})
+      ON CONFLICT (request_id) DO NOTHING RETURNING id
+    `;
+    if (!created) {
+      const [existing] = await connection`
+        SELECT subject, origin_address AS "originAddress", recipient,
+               origin_chain_id AS "originChainId", destination_chain_id AS "destinationChainId",
+               origin_amount_usdc::text AS "originAmountUsdc"
+        FROM bridge_transfers WHERE request_id = ${transfer.requestId}
+      `;
+      if (
+        !existing ||
+        existing.subject !== transfer.subject ||
+        String(existing.originAddress).toLowerCase() !== transfer.originAddress.toLowerCase() ||
+        existing.recipient !== transfer.recipient ||
+        Number(existing.originChainId) !== transfer.originChainId ||
+        Number(existing.destinationChainId) !== transfer.destinationChainId ||
+        Number(existing.originAmountUsdc) !== Number(transfer.originAmountUsdc)
+      )
+        throw new Error("Bridge request ID belongs to a different quote");
+    }
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function listBridgeTransfers(connectionString: string, subject: string) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const rows = await connection`
+      SELECT request_id AS "requestId", origin_address AS "originAddress", recipient,
+             origin_chain_id AS "originChainId", destination_chain_id AS "destinationChainId",
+             origin_amount_usdc::text AS "originAmountUsdc",
+             quoted_output_usdc::text AS "quotedOutputUsdc", status,
+             source_tx_hash AS "sourceTxHash", destination_tx_hash AS "destinationTxHash",
+             quoted_at AS "quotedAt", updated_at AS "updatedAt"
+      FROM bridge_transfers WHERE subject = ${subject}
+      ORDER BY quoted_at DESC LIMIT 100
+    `;
+    return rows.map((row) => ({
+      ...row,
+      quotedAt: new Date(row.quotedAt as string | Date).toISOString(),
+      updatedAt: new Date(row.updatedAt as string | Date).toISOString(),
+    }));
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function getBridgeTransfer(
+  connectionString: string,
+  subject: string,
+  requestId: string,
+) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [row] = await connection`
+      SELECT id FROM bridge_transfers WHERE subject = ${subject} AND request_id = ${requestId}
+    `;
+    return Boolean(row);
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function markBridgeSourceSubmitted(
+  connectionString: string,
+  subject: string,
+  requestId: string,
+  sourceTxHash: string,
+) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [row] = await connection`
+      UPDATE bridge_transfers SET
+        status = CASE WHEN status = 'quoted' THEN 'source_submitted' ELSE status END,
+        source_tx_hash = COALESCE(source_tx_hash, ${sourceTxHash}),
+        updated_at = clock_timestamp()
+      WHERE subject = ${subject} AND request_id = ${requestId}
+        AND (source_tx_hash IS NULL OR source_tx_hash = ${sourceTxHash})
+      RETURNING id
+    `;
+    return Boolean(row);
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function updateBridgeTransferStatus(
+  connectionString: string,
+  subject: string,
+  requestId: string,
+  status: string,
+  sourceTxHash: string | null,
+  destinationTxHash: string | null,
+) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [updated] = await connection`
+      UPDATE bridge_transfers SET
+        status = CASE WHEN lower(status) IN ('success', 'completed') THEN status ELSE ${status} END,
+        source_tx_hash = COALESCE(${sourceTxHash}, source_tx_hash),
+        destination_tx_hash = COALESCE(destination_tx_hash, ${destinationTxHash}),
+        updated_at = clock_timestamp()
+      WHERE subject = ${subject} AND request_id = ${requestId}
+      RETURNING status, source_tx_hash AS "sourceTxHash", destination_tx_hash AS "destinationTxHash"
+    `;
+    return updated
+      ? {
+          status: String(updated.status),
+          sourceTxHash: updated.sourceTxHash ? String(updated.sourceTxHash) : null,
+          destinationTxHash: updated.destinationTxHash ? String(updated.destinationTxHash) : null,
+        }
+      : null;
   } finally {
     await connection.end();
   }
@@ -29,15 +195,17 @@ export async function getAccountPreferences(connectionString: string, subject: s
   const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
   try {
     const [row] = await connection`
-      SELECT refresh_interval_ms AS "refreshIntervalMs", failed_order_alerts AS "failedOrderAlerts"
+      SELECT refresh_interval_ms AS "refreshIntervalMs", failed_order_alerts AS "failedOrderAlerts",
+             leaderboard_opt_in AS "leaderboardOptIn"
       FROM account_preferences WHERE subject = ${subject}
     `;
     return row
       ? {
           refreshIntervalMs: Number(row.refreshIntervalMs),
           failedOrderAlerts: Boolean(row.failedOrderAlerts),
+          leaderboardOptIn: Boolean(row.leaderboardOptIn),
         }
-      : { refreshIntervalMs: 30000, failedOrderAlerts: true };
+      : { refreshIntervalMs: 30000, failedOrderAlerts: true, leaderboardOptIn: false };
   } finally {
     await connection.end();
   }
@@ -46,19 +214,38 @@ export async function getAccountPreferences(connectionString: string, subject: s
 export async function saveAccountPreferences(
   connectionString: string,
   subject: string,
-  preferences: { refreshIntervalMs: number; failedOrderAlerts: boolean },
+  preferences: {
+    refreshIntervalMs: number;
+    failedOrderAlerts: boolean;
+    leaderboardOptIn: boolean | undefined;
+  },
 ) {
   const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
   try {
-    await connection`
-      INSERT INTO account_preferences (subject, refresh_interval_ms, failed_order_alerts)
-      VALUES (${subject}, ${preferences.refreshIntervalMs}, ${preferences.failedOrderAlerts})
+    const leaderboardOptIn = preferences.leaderboardOptIn ?? null;
+    const [saved] = await connection`
+      INSERT INTO account_preferences (subject, refresh_interval_ms, failed_order_alerts, leaderboard_opt_in)
+      VALUES (${subject}, ${preferences.refreshIntervalMs}, ${preferences.failedOrderAlerts}, COALESCE(${leaderboardOptIn}, false))
       ON CONFLICT (subject) DO UPDATE SET
         refresh_interval_ms = EXCLUDED.refresh_interval_ms,
         failed_order_alerts = EXCLUDED.failed_order_alerts,
+        leaderboard_opt_in = COALESCE(${leaderboardOptIn}, account_preferences.leaderboard_opt_in),
         updated_at = now()
+      RETURNING leaderboard_opt_in AS "leaderboardOptIn"
     `;
-    return preferences;
+    return { ...preferences, leaderboardOptIn: Boolean(saved?.leaderboardOptIn) };
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function listLeaderboardParticipants(connectionString: string): Promise<Set<string>> {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const rows = await connection`
+      SELECT subject FROM account_preferences WHERE leaderboard_opt_in = true
+    `;
+    return new Set(rows.map((row) => String(row.subject)));
   } finally {
     await connection.end();
   }

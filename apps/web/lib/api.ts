@@ -446,6 +446,21 @@ export type MarketActivityOrder = {
   venueOrderId?: string | null;
 };
 
+export type AccountEvent = {
+  id: string;
+  source: string;
+  sourceId: string;
+  mode: "paper" | "live";
+  status: string;
+  detail: Record<string, string>;
+  occurredAt: string;
+};
+
+export async function getAccountEvents(identity: ApiIdentity) {
+  const payload = await getJson<{ data: AccountEvent[] }>("/v1/activity/events", identity, 8000);
+  return payload.data;
+}
+
 export async function getMarketOrders(identity: ApiIdentity): Promise<MarketActivityOrder[]> {
   const [paper, live] = await Promise.all([
     getJson<{ data: Omit<MarketActivityOrder, "mode">[] }>("/v1/market-orders/paper", identity),

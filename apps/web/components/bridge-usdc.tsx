@@ -40,8 +40,18 @@ export function BridgeUsdc() {
   const recipient = destination === 999 ? wallet?.address : solana;
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("sisera:last-bridge-request");
-    if (saved && /^0x[a-fA-F0-9]{64}$/.test(saved)) setRequestId(saved);
+    let active = true;
+    void fetch("/api/bridge", { cache: "no-store" })
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        const latest = payload?.data?.[0]?.requestId;
+        if (active && typeof latest === "string" && /^0x[a-fA-F0-9]{64}$/.test(latest))
+          setRequestId(latest);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function getQuote() {
@@ -81,6 +91,7 @@ export function BridgeUsdc() {
       throw new Error("Bridge details changed. Request a fresh quote.");
     await wallet.switchChain(origin);
     const provider = await wallet.getEthereumProvider();
+    let accountTrackingDelayed = false;
     for (const step of quote.steps) {
       if (step.kind !== "transaction")
         throw new Error("Unsupported wallet step. Request a new quote.");
@@ -103,7 +114,16 @@ export function BridgeUsdc() {
         })) as string;
         if (quote.requestId) {
           setRequestId(quote.requestId);
-          window.localStorage.setItem("sisera:last-bridge-request", quote.requestId);
+          try {
+            const recorded = await fetch("/api/bridge/submission", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ requestId: quote.requestId, sourceTxHash: hash }),
+            });
+            if (!recorded.ok) accountTrackingDelayed = true;
+          } catch {
+            accountTrackingDelayed = true;
+          }
         }
         setQuote(null);
         setMessage(`Transaction submitted: ${hash.slice(0, 12)}… Waiting for confirmation.`);
@@ -126,7 +146,9 @@ export function BridgeUsdc() {
       }
     }
     setMessage(
-      "Source transaction confirmed. Relay is delivering USDC to your destination wallet.",
+      accountTrackingDelayed
+        ? "Source transaction confirmed. Relay is delivering USDC. Account history may take time to update; refresh the bridge status before retrying."
+        : "Source transaction confirmed. Relay is delivering USDC to your destination wallet.",
     );
   }
 

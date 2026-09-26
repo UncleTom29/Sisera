@@ -29,7 +29,7 @@ export default async function AgentsPage() {
       <PageHeader
         eyebrow="Governed strategies / Draft"
         title="Agents"
-        description="Five research strategy templates and your custom proposal agents. Promotion requires backtesting, stress testing, paper and shadow evaluation before live authority."
+        description="Five research strategy templates and your custom research-only drafts. Promotion requires backtesting, stress testing, paper and shadow evaluation before live authority."
         actions={
           <StatusBadge tone="neutral">{agents?.custom.length ?? 0} custom drafts</StatusBadge>
         }
@@ -108,8 +108,10 @@ export default async function AgentsPage() {
                     </div>
                     <p className="mt-1 text-xs text-slate-400">{agent.policy.description}</p>
                     <p className="mt-2 font-mono text-[10px] text-slate-500">
-                      {agent.policy.universe?.join(" · ")} · {agent.policy.timeframe} · proposal
-                      only
+                      {agent.policy.universe?.join(" · ")} · {agent.policy.timeframe} ·{" "}
+                      {agent.stage === "draft" || agent.autonomy === "research"
+                        ? "research only"
+                        : "proposal only"}
                     </p>
                   </article>
                 ))}

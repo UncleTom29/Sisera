@@ -40,11 +40,14 @@ export async function GET(request: NextRequest) {
   const headers = await accessToken();
   if (!headers)
     return NextResponse.json({ message: "Sign in to track the bridge." }, { status: 401 });
-  const requestId = request.nextUrl.searchParams.get("requestId") ?? "";
-  if (!/^0x[a-fA-F0-9]{64}$/.test(requestId))
+  const requestId = request.nextUrl.searchParams.get("requestId");
+  if (requestId && !/^0x[a-fA-F0-9]{64}$/.test(requestId))
     return NextResponse.json({ message: "Invalid request ID." }, { status: 400 });
   try {
-    const response = await fetch(`${serverApiUrl()}/v1/bridge/status?requestId=${requestId}`, {
+    const endpoint = requestId
+      ? `/v1/bridge/status?requestId=${requestId}`
+      : "/v1/bridge/transfers";
+    const response = await fetch(`${serverApiUrl()}${endpoint}`, {
       headers,
       cache: "no-store",
       signal: AbortSignal.timeout(11000),

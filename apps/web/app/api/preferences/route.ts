@@ -20,7 +20,7 @@ async function forward(method: "GET" | "PUT", request: NextRequest) {
         authorization: `Bearer ${session.accessToken}`,
         "content-type": "application/json",
       },
-      body: method === "PUT" ? JSON.stringify(await request.json()) : undefined,
+      ...(method === "PUT" ? { body: JSON.stringify(await request.json()) } : {}),
       cache: "no-store",
       signal: AbortSignal.timeout(6000),
     });

@@ -69,6 +69,7 @@ function TradeTicketView({
   const [result, setResult] = useState<TradeResult | null>(null);
   const [prepared, setPrepared] = useState<PreparedTrade | null>(null);
   const [balance, setBalance] = useState<WalletBalance | null>(null);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
   const liveAvailable = useLiveCapability("solana");
   const estimate = useMemo(() => {
     const numeric = Number(amount);
@@ -84,12 +85,27 @@ function TradeTicketView({
     if (!account || mode !== "live") return;
     let cancelled = false;
     void fetch(`/api/wallet?address=${encodeURIComponent(account.address)}`, { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload) => {
-        if (!cancelled) setBalance(payload?.data ?? null);
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok)
+          throw new Error(
+            `${payload.message ?? "Wallet balances are unavailable."}${payload.requestId ? ` Reference ${payload.requestId}.` : ""}`,
+          );
+        return payload;
       })
-      .catch(() => {
-        if (!cancelled) setBalance(null);
+      .then((payload) => {
+        if (!cancelled) {
+          setBalance(payload?.data ?? null);
+          setBalanceError(null);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setBalance(null);
+          setBalanceError(
+            error instanceof Error ? error.message : "Wallet balances are unavailable.",
+          );
+        }
       });
     return () => {
       cancelled = true;
@@ -140,7 +156,8 @@ function TradeTicketView({
       let body: Record<string, string> = { action: "paper", mint, side, amount };
       if (mode === "live") {
         if (!wallet || !account) throw new Error("Connect your Solana wallet first.");
-        if (!balance) throw new Error("Wallet balances are unavailable. Try again shortly.");
+        if (!balance)
+          throw new Error(balanceError ?? "Wallet balances are unavailable. Try again shortly.");
         const inputMint = side === "buy" ? USDC : mint;
         const holding = balance.holdings.find((item) => item.mint === inputMint);
         if (!holding)

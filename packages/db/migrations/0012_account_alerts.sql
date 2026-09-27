@@ -11,3 +11,14 @@ ON CONFLICT DO NOTHING;
 
 CREATE INDEX alert_acknowledgements_alert_idx
   ON alert_acknowledgements (alert_id);
+
+ALTER TABLE bridge_transfers ADD COLUMN source_submitted_at timestamptz;
+UPDATE bridge_transfers AS transfer
+SET source_submitted_at = (
+  SELECT min(event.occurred_at)
+  FROM account_events AS event
+  WHERE event.source = 'bridge_transfers'
+    AND event.source_id = transfer.id
+    AND event.status = 'source_submitted'
+)
+WHERE source_tx_hash IS NOT NULL;

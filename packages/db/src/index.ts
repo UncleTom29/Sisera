@@ -149,6 +149,10 @@ export async function markBridgeSourceSubmitted(
       UPDATE bridge_transfers SET
         status = CASE WHEN status = 'quoted' THEN 'source_submitted' ELSE status END,
         source_tx_hash = COALESCE(source_tx_hash, ${sourceTxHash}),
+        source_submitted_at = CASE
+          WHEN status IN ('quoted', 'source_submitted')
+            THEN COALESCE(source_submitted_at, clock_timestamp())
+          ELSE source_submitted_at END,
         updated_at = clock_timestamp()
       WHERE subject = ${subject} AND request_id = ${requestId}
         AND (source_tx_hash IS NULL OR source_tx_hash = ${sourceTxHash})
@@ -175,6 +179,10 @@ export async function updateBridgeTransferStatus(
         status = CASE WHEN lower(status) IN ('success', 'completed') THEN status ELSE ${status} END,
         source_tx_hash = COALESCE(${sourceTxHash}, source_tx_hash),
         destination_tx_hash = COALESCE(destination_tx_hash, ${destinationTxHash}),
+        source_submitted_at = CASE
+          WHEN ${status} = 'source_submitted'
+            THEN COALESCE(source_submitted_at, clock_timestamp())
+          ELSE source_submitted_at END,
         updated_at = clock_timestamp()
       WHERE subject = ${subject} AND request_id = ${requestId}
       RETURNING status, source_tx_hash AS "sourceTxHash", destination_tx_hash AS "destinationTxHash"
@@ -270,10 +278,10 @@ export async function listAccountAlerts(connectionString: string, subject: strin
                         WHERE subject = ${subject}), true)
         UNION ALL
         SELECT id, 'bridge_transfers', id, 'delayed',
-               jsonb_build_object('requestId', request_id), updated_at
+               jsonb_build_object('requestId', request_id), source_submitted_at
         FROM bridge_transfers
         WHERE subject = ${subject} AND status = 'source_submitted'
-          AND updated_at <= now() - interval '15 minutes'
+          AND source_submitted_at <= now() - interval '15 minutes'
       )
       SELECT eligible.id::text, eligible.source, eligible.source_id::text AS "sourceId",
              eligible.status, eligible.detail, eligible.occurred_at AS "occurredAt",
@@ -314,7 +322,7 @@ export async function acknowledgeAccountAlert(
       SELECT id FROM bridge_transfers
       WHERE id = ${alertId}::uuid AND subject = ${subject}
         AND status = 'source_submitted'
-        AND updated_at <= now() - interval '15 minutes'
+        AND source_submitted_at <= now() - interval '15 minutes'
       LIMIT 1
     `;
     if (!row) return false;

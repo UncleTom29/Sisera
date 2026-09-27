@@ -190,9 +190,17 @@ try {
   });
   await markBridgeSourceSubmitted(databaseUrl, subject, delayedRequestId, sourceTxHash);
   await connection`
-    UPDATE bridge_transfers SET updated_at = now() - interval '16 minutes'
+    UPDATE bridge_transfers SET source_submitted_at = now() - interval '16 minutes'
     WHERE request_id = ${delayedRequestId}
   `;
+  await updateBridgeTransferStatus(
+    databaseUrl,
+    subject,
+    delayedRequestId,
+    "source_submitted",
+    sourceTxHash,
+    null,
+  );
   const delayed = (await listAccountAlerts(databaseUrl, subject)).find(
     (item) => item.source === "bridge_transfers" && item.detail.requestId === delayedRequestId,
   );

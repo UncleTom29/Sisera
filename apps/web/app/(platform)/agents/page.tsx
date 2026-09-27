@@ -1,6 +1,7 @@
 import { StatusBadge } from "@sisera/ui";
 import { auth } from "../../../auth";
 import { AgentCreateForm } from "../../../components/agent-create-form";
+import { AgentReadiness } from "../../../components/agent-readiness";
 import { AgentResearch } from "../../../components/agent-research";
 import { PageHeader } from "../../../components/page-header";
 import { accountErrorMessage, getAgents } from "../../../lib/api";
@@ -133,6 +134,7 @@ export default async function AgentsPage() {
                         Manifest {agent.manifestHash.slice(0, 16)}… · evaluation evidence pending
                       </p>
                     )}
+                    <AgentReadiness id={agent.id} />
                   </article>
                 ))}
               </div>

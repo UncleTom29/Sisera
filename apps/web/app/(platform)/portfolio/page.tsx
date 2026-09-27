@@ -1,5 +1,5 @@
 import { StatusBadge } from "@sisera/ui";
-import { BriefcaseBusiness, Download, Layers3, RefreshCcw, ShieldCheck } from "lucide-react";
+import { BriefcaseBusiness, Layers3, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { auth } from "../../../auth";
@@ -7,14 +7,18 @@ import { BridgeUsdc } from "../../../components/bridge-usdc";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 import { PortfolioConnect } from "../../../components/portfolio-connect";
+import { PortfolioExport } from "../../../components/portfolio-export";
 import { PortfolioPrivyWallet } from "../../../components/portfolio-privy-wallet";
 import { PredictionPaperAccount } from "../../../components/prediction-paper-account";
 import {
   accountErrorMessage,
   getHyperEvmWallet,
   getPublicPerpAccount,
+  getPublicStocks,
+  getReferenceMarkets,
   getSolanaWallet,
 } from "../../../lib/api";
+import { valueSolanaWallet } from "../../../lib/wallet-observation";
 
 export const dynamic = "force-dynamic";
 
@@ -34,24 +38,32 @@ export default async function PortfolioPage({
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const [solanaResult, observedResult, hyperEvmResult] = await Promise.all([
-    (validSolanaAddress ? getSolanaWallet(solanaAddress, identity) : Promise.resolve(null)).then(
-      (value) => ({ value, error: null as unknown }),
-      (error: unknown) => ({ value: null, error }),
-    ),
-    (validObservedAddress
-      ? getPublicPerpAccount(observedAddress, identity)
-      : Promise.resolve(null)
-    ).then(
-      (value) => ({ value, error: null as unknown }),
-      (error: unknown) => ({ value: null, error }),
-    ),
-    (validAddress ? getHyperEvmWallet(address, identity) : Promise.resolve(null)).then(
-      (value) => ({ value, error: null as unknown }),
-      (error: unknown) => ({ value: null, error }),
-    ),
-  ]);
+  const [solanaResult, observedResult, hyperEvmResult, stocksResult, referencesResult] =
+    await Promise.all([
+      (validSolanaAddress ? getSolanaWallet(solanaAddress, identity) : Promise.resolve(null)).then(
+        (value) => ({ value, error: null as unknown }),
+        (error: unknown) => ({ value: null, error }),
+      ),
+      (validObservedAddress
+        ? getPublicPerpAccount(observedAddress, identity)
+        : Promise.resolve(null)
+      ).then(
+        (value) => ({ value, error: null as unknown }),
+        (error: unknown) => ({ value: null, error }),
+      ),
+      (validAddress ? getHyperEvmWallet(address, identity) : Promise.resolve(null)).then(
+        (value) => ({ value, error: null as unknown }),
+        (error: unknown) => ({ value: null, error }),
+      ),
+      (validSolanaAddress ? getPublicStocks(identity) : Promise.resolve([])).catch(() => []),
+      (validSolanaAddress ? getReferenceMarkets(["SOLUSDT"], identity) : Promise.resolve([])).catch(
+        () => [],
+      ),
+    ]);
   const solana = solanaResult.value;
+  const walletObservation = solana
+    ? valueSolanaWallet(solana, stocksResult, referencesResult)
+    : null;
   const observed = observedResult.value;
   const hyperEvm = hyperEvmResult.value;
   const unrealizedPnl = observed?.positions.reduce(
@@ -64,6 +76,12 @@ export default async function PortfolioPage({
       observed ? `$${Number(observed.accountValue).toLocaleString()}` : "—",
     ],
     ["Solana cash", solana ? `${(Number(solana.solLamports) / 1e9).toFixed(4)} SOL` : "—"],
+    [
+      "Priced Solana tokens",
+      walletObservation
+        ? `$${walletObservation.pricedValueUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`
+        : "—",
+    ],
     ["HyperEVM USDC", hyperEvm ? `$${(Number(hyperEvm.usdcRaw) / 1e6).toLocaleString()}` : "—"],
     [
       "Perp gross exposure",
@@ -87,7 +105,7 @@ export default async function PortfolioPage({
           </div>
         }
       />
-      <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2 xl:grid-cols-4">
         {summary.map(([label, value]) => (
           <div key={label} className="bg-panel p-5">
             <p className="data-label">{label}</p>
@@ -123,24 +141,39 @@ export default async function PortfolioPage({
             </p>
             <p className="mt-3 font-mono text-xl text-white">
               {(Number(solana.solLamports) / 1e9).toFixed(4)} SOL
+              {walletObservation?.solValueUsd != null && (
+                <span className="ml-3 text-sm text-slate-400">
+                  ≈ $
+                  {walletObservation.solValueUsd.toLocaleString("en-US", {
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              )}
+            </p>
+            <p className="mt-2 text-[10px] text-slate-500">
+              Indicative token values use observed xStocks prices. Unpriced or halted tokens are
+              excluded.
             </p>
             <div className="mt-4 divide-y divide-line border-t border-line">
-              {solana.holdings.map((holding) => (
+              {walletObservation?.holdings.map((holding) => (
                 <div
                   key={holding.mint}
                   className="flex flex-wrap items-center justify-between gap-3 py-3 text-xs"
                 >
                   <div>
-                    <p className="font-semibold text-slate-100">
-                      {holding.symbol ?? holding.name ?? "Unknown token"}
-                    </p>
+                    <p className="font-semibold text-slate-100">{holding.symbol}</p>
                     <p className="mt-1 break-all font-mono text-[10px] text-slate-500">
                       {holding.mint}
                     </p>
                   </div>
-                  <p className="font-mono text-slate-200">
-                    {(Number(holding.rawBalance) / 10 ** holding.decimals).toLocaleString()}
-                  </p>
+                  <div className="text-right font-mono text-slate-200">
+                    <p>{holding.amount.toLocaleString()}</p>
+                    <p className="mt-1 text-[10px] text-slate-500">
+                      {holding.valueUsd === null
+                        ? "Unpriced"
+                        : `≈ $${holding.valueUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })} · xStocks`}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -293,22 +326,26 @@ export default async function PortfolioPage({
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <span className="text-xs font-semibold">Observed Hyperliquid positions</span>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                disabled
-                className="flex items-center gap-1.5 text-[9px] text-slate-700"
-              >
-                <RefreshCcw size={11} /> Reconcile
-              </button>
-              <button
-                type="button"
-                disabled
-                className="flex items-center gap-1.5 text-[9px] text-slate-700"
-              >
-                <Download size={11} /> Export
-              </button>
-            </div>
+            <PortfolioExport
+              rows={[
+                ...(walletObservation?.holdings.map((holding) => ({
+                  source: holding.source,
+                  asset: holding.symbol,
+                  quantity: String(holding.amount),
+                  observedPriceUsd: holding.priceUsd == null ? "" : String(holding.priceUsd),
+                  observedValueUsd: holding.valueUsd == null ? "" : String(holding.valueUsd),
+                  observedAt: solana?.fetchedAt ?? "",
+                })) ?? []),
+                ...(observed?.positions.map((position) => ({
+                  source: observed.source,
+                  asset: `${position.coin} perpetual`,
+                  quantity: position.size,
+                  observedPriceUsd: "",
+                  observedValueUsd: position.notional,
+                  observedAt: observed.fetchedAt,
+                })) ?? []),
+              ]}
+            />
           </div>
           <div className="grid grid-cols-[1.4fr_repeat(5,1fr)] border-b border-line bg-[#090e14] px-4 py-2 data-label">
             <span>Instrument</span>
@@ -347,13 +384,50 @@ export default async function PortfolioPage({
         </section>
         <div className="space-y-4">
           <section className="border border-line bg-panel">
-            <div className="border-b border-line px-4 py-3 text-xs font-semibold">Allocation</div>
-            <EmptyState
-              icon={Layers3}
-              title="No allocation data"
-              copy="Allocation remains blank until portfolio truth is available."
-              code="ALLOCATION / EMPTY"
-            />
+            <div className="border-b border-line px-4 py-3 text-xs font-semibold">
+              Observed Solana token mix
+            </div>
+            {walletObservation?.pricedValueUsd ? (
+              <div className="space-y-3 p-4">
+                {walletObservation.holdings
+                  .filter((holding) => holding.valueUsd !== null)
+                  .sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0))
+                  .slice(0, 6)
+                  .map((holding) => (
+                    <div key={holding.mint}>
+                      <div className="flex justify-between font-mono text-[10px] text-slate-300">
+                        <span>{holding.symbol}</span>
+                        <span>
+                          {(
+                            ((holding.valueUsd ?? 0) / walletObservation.pricedValueUsd) *
+                            100
+                          ).toFixed(1)}
+                          %
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1.5 bg-slate-800">
+                        <div
+                          className="h-full bg-cyan-400"
+                          style={{
+                            width: `${Math.min(100, ((holding.valueUsd ?? 0) / walletObservation.pricedValueUsd) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                <p className="text-[10px] text-slate-500">
+                  {walletObservation.unpricedCount} unpriced holdings excluded · wallet observation
+                  only
+                </p>
+              </div>
+            ) : (
+              <EmptyState
+                icon={Layers3}
+                title="No priced token mix"
+                copy="Connect a Solana wallet with priced xStocks holdings to see an indicative breakdown."
+                code="ALLOCATION / EMPTY"
+              />
+            )}
           </section>
           <section className="border border-emerald-500/15 bg-emerald-500/[0.035] p-4">
             <ShieldCheck size={16} className="text-emerald-300" />
@@ -361,8 +435,8 @@ export default async function PortfolioPage({
               Reconciliation is mandatory
             </h3>
             <p className="mt-2 text-[10px] leading-5 text-slate-500">
-              Venue balances are compared with Sisera’s double-entry ledger before positions can
-              influence risk limits or order sizing.
+              A verified account ledger and venue reconciliation are required before these
+              observations can influence order sizing or live risk limits.
             </p>
           </section>
         </div>

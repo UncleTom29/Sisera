@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "../../../../auth";
+import { StockAssessment } from "../../../../components/stock-assessment";
 import { StockTradeTicket } from "../../../../components/stock-trade-ticket";
 import { getPublicStocks, getPythReference, getStockNews } from "../../../../lib/api";
 
@@ -25,7 +26,7 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
   const referencePrice = reference ? Number(reference.price) : null;
   const tokenPrice = stock.dexPriceUsd ? Number(stock.dexPriceUsd) : null;
   const premium =
-    referencePrice && referencePrice > 0 && tokenPrice
+    reference?.referenceFreshness === "live" && referencePrice && referencePrice > 0 && tokenPrice
       ? (tokenPrice / referencePrice - 1) * 100
       : null;
   return (
@@ -84,11 +85,12 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
           <h2 className="text-base font-semibold text-white">Market and reference</h2>
           <p className="mt-2 text-xs text-slate-400">
             The onchain quote and the underlying equity reference come from different markets. The
-            comparison is indicative, not an executable spread.
+            comparison is indicative, not an executable spread. Premiums appear only while the
+            equity reference is live.
           </p>
           <div className="mt-5 grid gap-4 text-xs sm:grid-cols-2">
             <div>
-              <p className="text-slate-500">Pyth equity reference</p>
+              <p className="text-slate-500">Pyth Core equity oracle</p>
               <p className="mt-2 font-mono text-white">
                 {referencePrice ? `$${referencePrice.toFixed(2)}` : "Unavailable"}
               </p>
@@ -112,13 +114,11 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
             <div>
               <p className="text-slate-500">Reference status</p>
               <p className="mt-2 font-mono text-white">
-                {reference
-                  ? `${reference.referenceFreshness.replace("_", " ")} · ${reference.marketSession ?? "session unknown"}`
-                  : "Feed unavailable"}
+                {reference ? `${reference.referenceFreshness} · Core feed` : "Feed unavailable"}
               </p>
               {reference && (
                 <p className="mt-1 text-[10px] text-slate-500">
-                  Generated {new Date(reference.feedUpdateTimestamp).toLocaleString()}
+                  Published {new Date(reference.feedUpdateTimestamp).toLocaleString()}
                 </p>
               )}
             </div>
@@ -147,6 +147,7 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
           />
         </div>
       </div>
+      <StockAssessment symbol={stock.symbol} />
       <section className="mt-5 rounded-lg border border-line bg-panel">
         <div className="border-b border-line px-6 py-4">
           <h2 className="text-base font-semibold text-white">Company news</h2>

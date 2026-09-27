@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const symbols = (new URL(request.url).searchParams.get("symbols") ?? "")
     .split(",")
     .filter((symbol) => /^[A-Za-z0-9.-]{1,12}$/.test(symbol))
-    .slice(0, 20);
+    .slice(0, 40);
   if (!symbols.length) return NextResponse.json({ error: "invalid_symbols" }, { status: 400 });
   try {
     const data = await getPythReferences(symbols, {

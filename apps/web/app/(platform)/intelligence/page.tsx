@@ -1,8 +1,13 @@
-import { ArrowUpRight, Bot, Newspaper, ScanSearch } from "lucide-react";
+import { Activity, ArrowUpRight, Bot, Newspaper, ScanSearch } from "lucide-react";
 import Link from "next/link";
 import { auth } from "../../../auth";
 import { PageHeader } from "../../../components/page-header";
-import { getPrivateMarkets, getPublicStocks, getStockNews } from "../../../lib/api";
+import {
+  getPrivateMarkets,
+  getPublicStocks,
+  getPythReferences,
+  getStockNews,
+} from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +31,36 @@ export default async function IntelligencePage() {
   ]);
   const stocks = publicResult.status === "fulfilled" ? publicResult.value : [];
   const privateMarkets = privateResult.status === "fulfilled" ? privateResult.value : [];
+  const referenceSymbols = [
+    ...new Set(
+      stocks
+        .filter((stock) => stock.dexPriceUsd && !stock.tradingHalted)
+        .sort((a, b) => (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0))
+        .slice(0, 20)
+        .map((stock) => stock.underlyingSymbol),
+    ),
+  ];
+  const references = referenceSymbols.length
+    ? await getPythReferences(referenceSymbols, identity).catch(() => [])
+    : [];
+  const referenceBySymbol = new Map(
+    references
+      .filter((reference) => reference.referenceFreshness === "live")
+      .map((reference) => [reference.symbol.toUpperCase(), reference]),
+  );
+  const publicDivergences = stocks
+    .flatMap((stock) => {
+      const reference = referenceBySymbol.get(
+        `EQUITY.US.${stock.underlyingSymbol.toUpperCase()}/USD`,
+      );
+      const spot = Number(stock.dexPriceUsd);
+      const fair = Number(reference?.price);
+      if (!reference || !Number.isFinite(spot) || !Number.isFinite(fair) || spot <= 0 || fair <= 0)
+        return [];
+      return [{ stock, reference, premiumPct: (spot / fair - 1) * 100 }];
+    })
+    .sort((a, b) => Math.abs(b.premiumPct) - Math.abs(a.premiumPct))
+    .slice(0, 5);
   const movers = stocks
     .filter((stock) => stock.dexPriceUsd && stock.change24hPct != null)
     .sort((a, b) => Math.abs(b.change24hPct ?? 0) - Math.abs(a.change24hPct ?? 0))
@@ -53,6 +88,49 @@ export default async function IntelligencePage() {
         }
       />
       <div className="grid gap-4 p-4 md:p-6 xl:grid-cols-2">
+        <section className="rounded-lg border border-line bg-panel xl:col-span-2">
+          <div className="border-b border-line p-5">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
+              <Activity size={16} className="text-cyan-300" />
+              Live public equity dislocations
+            </h2>
+            <p className="mt-2 text-xs text-slate-400">
+              Token price versus a fresh Pyth Core equity reference. Large differences may reflect
+              market hours, token liquidity, or venue frictions; inspect both sources before acting.
+            </p>
+          </div>
+          {publicDivergences.length ? (
+            <div className="grid gap-px bg-line md:grid-cols-2 xl:grid-cols-5">
+              {publicDivergences.map(({ stock, reference, premiumPct }) => (
+                <Link
+                  key={stock.mint}
+                  href={`/stocks/${encodeURIComponent(stock.symbol)}`}
+                  className="bg-panel p-4 hover:bg-white/[.025]"
+                >
+                  <p className="text-xs font-semibold text-white">{stock.symbol}</p>
+                  <p className="mt-1 truncate text-[10px] text-slate-500">{stock.name}</p>
+                  <p
+                    className={`mt-3 font-mono text-xl ${premiumPct >= 0 ? "text-amber-300" : "text-emerald-300"}`}
+                  >
+                    {premiumPct > 0 ? "+" : ""}
+                    {premiumPct.toFixed(2)}%
+                  </p>
+                  <p className="mt-2 font-mono text-[10px] text-slate-400">
+                    Token {formatUsd(stock.dexPriceUsd)} · reference {formatUsd(reference.price)}
+                  </p>
+                  <p className="mt-2 font-mono text-[9px] text-slate-600">
+                    Oracle {utcTime(reference.feedUpdateTimestamp)}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="p-5 text-xs text-slate-400">
+              No fresh, matched equity references are available. The screener still shows token
+              market observations.
+            </p>
+          )}
+        </section>
         <section className="rounded-lg border border-line bg-panel">
           <div className="border-b border-line p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white">

@@ -48,7 +48,7 @@ import {
   JupiterPredictionProvider,
   MarketDataUnavailableError,
   PreStocksProvider,
-  PythProProvider,
+  PythCoreProvider,
 } from "@sisera/market-data";
 import { applyOrderEvent, createOrderRecord } from "@sisera/oms";
 import { analyzeCandles } from "@sisera/quant";
@@ -134,7 +134,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   const macro = new FredMacroProvider();
   const prestocks = new PreStocksProvider(config.PRESTOCKS_BASE_URL);
   const xstocks = new XStocksClient();
-  const pyth = new PythProProvider(config.PYTH_PRO_API_KEY ?? "");
+  const pyth = new PythCoreProvider(config.PYTH_API_KEY ?? "", config.PYTH_HERMES_URL);
   const solanaRpcUrl =
     config.SOLANA_RPC_URL ??
     (config.HELIUS_API_KEY
@@ -525,6 +525,112 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     }
   });
   app.get(
+    "/v1/agents/:id/readiness",
+    {
+      preHandler: requirePermission("agent:read"),
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      const { id } = z
+        .object({ id: z.string().regex(/^custom:[0-9a-f-]{36}$/) })
+        .parse(request.params);
+      if (!config.DATABASE_URL || !request.principal?.subject.startsWith("privy:"))
+        return reply.code(503).send({ message: "Agent account store is unavailable." });
+      const manifests = await listAgentManifests(
+        config.DATABASE_URL,
+        request.principal.tenantId,
+        request.principal.subject,
+      );
+      const manifest = manifests.find((candidate) => candidate.id === id);
+      if (!manifest) return reply.code(404).send({ message: "Agent draft not found." });
+      const policy = z
+        .object({
+          universe: z.array(z.string()),
+          timeframe: z.string(),
+          factors: z.array(z.string()),
+        })
+        .passthrough()
+        .parse(manifest.policy);
+      const intervalSeconds: Record<string, number> = {
+        "5m": 300,
+        "15m": 900,
+        "1h": 3600,
+        "4h": 14400,
+        "1d": 86400,
+      };
+      const interval = intervalSeconds[policy.timeframe];
+      const data = await Promise.all(
+        policy.universe.map(async (symbol) => {
+          if (!interval || !/^[A-Z0-9]{2,20}USDT$/.test(symbol.toUpperCase()))
+            return {
+              symbol,
+              status: "unsupported",
+              bars: 0,
+              reason: "No compatible historical market adapter for this asset or timeframe.",
+            };
+          try {
+            const candles = await marketData.getCandles?.(
+              symbol.toUpperCase(),
+              policy.timeframe,
+              120,
+            );
+            const first = candles?.[0];
+            const last = candles?.at(-1);
+            if (!candles || !first || !last) throw new Error("No historical bars");
+            const missingIntervals = candles.slice(1).reduce((count, candle, index) => {
+              const previous = candles[index];
+              return previous
+                ? count + Math.max(0, Math.round((candle.time - previous.time) / interval) - 1)
+                : count;
+            }, 0);
+            const ageSeconds = Math.max(0, Math.floor(Date.now() / 1000) - last.time);
+            return {
+              symbol,
+              status:
+                candles.length >= 100 && missingIntervals === 0 && ageSeconds <= interval * 3
+                  ? "ready"
+                  : "incomplete",
+              bars: candles.length,
+              start: new Date(first.time * 1000).toISOString(),
+              end: new Date(last.time * 1000).toISOString(),
+              missingIntervals,
+              ageSeconds,
+              source: "binance-spot-candles",
+            };
+          } catch {
+            return {
+              symbol,
+              status: "unavailable",
+              bars: 0,
+              reason: "Historical market data could not be retrieved.",
+            };
+          }
+        }),
+      );
+      return {
+        data: {
+          agentId: id,
+          manifestHash: manifest.manifestHash,
+          stage: manifest.stage,
+          evaluation: "data_readiness_only",
+          measuredAt: new Date().toISOString(),
+          factorSpecification: "human-authored; no executable signal rules",
+          readyForBacktest: false,
+          markets: data,
+          gates: [
+            {
+              name: "Historical data coverage",
+              passed: data.length > 0 && data.every((item) => item.status === "ready"),
+            },
+            { name: "Executable strategy rules", passed: false },
+            { name: "Backtest and stress evidence", passed: false },
+            { name: "Paper and shadow evidence", passed: false },
+          ],
+        },
+      };
+    },
+  );
+  app.get(
     "/v1/agents/templates/:id/research",
     {
       preHandler: requirePermission("agent:read"),
@@ -723,38 +829,96 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const { symbol } = z
         .object({ symbol: z.string().regex(/^[A-Za-z0-9-]{1,20}$/) })
         .parse(request.params);
-      const asset = (await prestocks.list()).find(
+      const [privateResult, publicResult] = await Promise.allSettled([
+        prestocks.list(),
+        xstocks.list(),
+      ]);
+      const asset = (privateResult.status === "fulfilled" ? privateResult.value : []).find(
         (item) => item.instrument.baseAsset.toLowerCase() === symbol.toLowerCase(),
       );
-      if (!asset)
-        return reply.code(404).send({ error: "not_found", message: "Unknown PreStocks asset" });
-      const news = await stockNews.search(asset.company).catch(() => ({ data: [], providers: [] }));
+      const publicStock = (publicResult.status === "fulfilled" ? publicResult.value : []).find(
+        (item) => item.symbol.toLowerCase() === symbol.toLowerCase(),
+      );
+      if (!asset && !publicStock)
+        return reply.code(404).send({ error: "not_found", message: "Unknown stock" });
+      const company = asset?.company ?? publicStock?.name ?? symbol;
+      const [news, oracle] = await Promise.all([
+        stockNews
+          .search(company, publicStock?.underlyingSymbol)
+          .catch(() => ({ data: [], providers: [] })),
+        publicStock && config.PYTH_API_KEY
+          ? pyth.getLatest(publicStock.underlyingSymbol).catch(() => null)
+          : Promise.resolve(null),
+      ]);
       const inputArticles = news.data.slice(0, 5).map((item) => ({
         title: item.title,
         publishedAt: item.publishedAt,
         publisher: item.publisher,
         url: item.url,
       }));
+      const tokenPrice = asset?.tokenPrice ?? publicStock?.dexPriceUsd ?? null;
+      const referencePrice = asset?.markPrice ?? oracle?.price ?? null;
+      const premiumDiscountPct =
+        asset?.premiumDiscountPct ??
+        (oracle?.referenceFreshness === "live" &&
+        tokenPrice &&
+        referencePrice &&
+        Number(referencePrice) > 0
+          ? String((Number(tokenPrice) / Number(referencePrice) - 1) * 100)
+          : null);
+      const referenceKind = asset
+        ? ("prestocks_mark" as const)
+        : oracle
+          ? ("pyth_core_equity" as const)
+          : ("unavailable" as const);
+      const referenceFreshness = asset
+        ? ("unavailable" as const)
+        : (oracle?.referenceFreshness ?? ("unavailable" as const));
+      const marketSource = asset?.source ?? publicStock?.source ?? "unknown";
+      const marketObservedAt =
+        asset?.fetchedAt ?? publicStock?.fetchedAt ?? new Date().toISOString();
       const assessment = await research.assess({
-        company: asset.company,
-        symbol: asset.instrument.baseAsset,
-        tokenPrice: asset.tokenPrice,
-        markPrice: asset.markPrice,
-        premiumDiscountPct: asset.premiumDiscountPct,
-        fetchedAt: asset.fetchedAt,
+        company,
+        symbol: asset?.instrument.baseAsset ?? publicStock?.symbol ?? symbol,
+        tokenPrice,
+        referencePrice,
+        referenceKind,
+        referenceFreshness,
+        referenceObservedAt: oracle?.feedUpdateTimestamp ?? null,
+        premiumDiscountPct,
+        volume24hUsd: publicStock?.volume24hUsd ?? null,
+        liquidityUsd: publicStock?.liquidityUsd ?? null,
+        change24hPct: publicStock?.change24hPct ?? null,
+        tradingHalted: publicStock?.tradingHalted ?? false,
+        fetchedAt: marketObservedAt,
         articles: inputArticles,
       });
+      const evidenceSources =
+        Number(tokenPrice !== null) +
+        Number((asset && referencePrice !== null) || oracle?.referenceFreshness === "live") +
+        Number(inputArticles.length > 0) +
+        Number(publicStock?.liquidityUsd != null);
       return {
         data: {
           ...assessment,
+          confidence: Math.min(
+            assessment.confidence,
+            evidenceSources <= 1 ? 0.35 : evidenceSources === 2 ? 0.6 : 0.85,
+          ),
           evidence: {
-            marketSource: asset.source,
-            marketObservedAt: asset.fetchedAt,
+            marketSource,
+            marketObservedAt,
+            tokenPrice,
+            referencePrice,
+            referenceKind,
+            referenceFreshness,
+            referenceObservedAt: oracle?.feedUpdateTimestamp ?? null,
+            liquidityUsd: publicStock?.liquidityUsd ?? null,
             articles: inputArticles,
           },
         },
         provenance: {
-          market: asset.source,
+          market: marketSource,
           news: news.providers,
           model: config.SISERA_INTELLIGENCE_MODEL,
         },
@@ -1057,11 +1221,18 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const { symbol } = z
         .object({ symbol: z.string().regex(/^[A-Za-z0-9./_-]{1,80}$/) })
         .parse(request.query);
-      if (!config.PYTH_PRO_API_KEY)
+      if (!config.PYTH_API_KEY)
         return reply
           .code(503)
-          .send({ error: "provider_unavailable", message: "Pyth Pro is not configured" });
-      return { data: await pyth.getLatest(symbol) };
+          .send({ error: "provider_unavailable", message: "Pyth Core Hermes is not configured" });
+      try {
+        return { data: await pyth.getLatest(symbol) };
+      } catch (error) {
+        request.log.warn({ error, symbol }, "Pyth Core reference unavailable");
+        return reply
+          .code(503)
+          .send({ error: "reference_unavailable", message: "Equity reference is unavailable." });
+      }
     },
   );
   app.get(
@@ -1071,12 +1242,19 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
-      const { symbols } = z.object({ symbols: z.string().max(240) }).parse(request.query);
-      if (!config.PYTH_PRO_API_KEY)
+      const { symbols } = z.object({ symbols: z.string().max(520) }).parse(request.query);
+      if (!config.PYTH_API_KEY)
         return reply
           .code(503)
-          .send({ error: "provider_unavailable", message: "Pyth Pro is not configured" });
-      return { data: await pyth.getLatestEquities(symbols.split(",")) };
+          .send({ error: "provider_unavailable", message: "Pyth Core Hermes is not configured" });
+      try {
+        return { data: await pyth.getLatestEquities(symbols.split(",")) };
+      } catch (error) {
+        request.log.warn({ error }, "Pyth Core references unavailable");
+        return reply
+          .code(503)
+          .send({ error: "reference_unavailable", message: "Equity references are unavailable." });
+      }
     },
   );
   app.get(

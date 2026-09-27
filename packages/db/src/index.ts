@@ -1,4 +1,4 @@
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema.js";
@@ -336,13 +336,25 @@ export async function acknowledgeAccountAlert(
   }
 }
 
-export async function listAgentManifests(connectionString: string, tenantId: string) {
+export async function listAgentManifests(
+  connectionString: string,
+  tenantId: string,
+  subject: string,
+) {
   const connection = createDatabase(connectionString);
   try {
-    return connection.db
+    return await connection.db
       .select()
       .from(schema.agentManifests)
-      .where(eq(schema.agentManifests.tenantId, tenantId))
+      .where(
+        and(
+          eq(schema.agentManifests.tenantId, tenantId),
+          or(
+            eq(schema.agentManifests.ownerSubject, subject),
+            sql`${schema.agentManifests.policy}->>'subject' = ${subject}`,
+          ),
+        ),
+      )
       .orderBy(desc(schema.agentManifests.createdAt))
       .limit(100);
   } finally {
@@ -447,7 +459,7 @@ export async function finishSolanaSwapOrder(
 export async function listSolanaSwapOrders(connectionString: string, subject: string) {
   const connection = createDatabase(connectionString);
   try {
-    return connection.db
+    return await connection.db
       .select({
         id: schema.solanaSwapOrders.id,
         mode: schema.solanaSwapOrders.mode,
@@ -472,7 +484,7 @@ export async function listSolanaSwapOrders(connectionString: string, subject: st
 export async function listPaperAccounts(connectionString: string) {
   const connection = createDatabase(connectionString);
   try {
-    return connection.db.select().from(schema.solanaPaperAccounts).limit(1000);
+    return await connection.db.select().from(schema.solanaPaperAccounts).limit(1000);
   } finally {
     await connection.close();
   }

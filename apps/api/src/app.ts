@@ -504,7 +504,11 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     try {
       return {
         templates: agentTemplates,
-        custom: await listAgentManifests(config.DATABASE_URL, request.principal.tenantId),
+        custom: await listAgentManifests(
+          config.DATABASE_URL,
+          request.principal.tenantId,
+          request.principal.subject,
+        ),
         persistence: "postgres",
       };
     } catch {

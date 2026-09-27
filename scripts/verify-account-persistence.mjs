@@ -117,6 +117,52 @@ const api = await buildApi(
   },
 );
 try {
+  const agentSubject = `privy:${suffix}`;
+  const agentHeaders = {
+    "x-sisera-dev-role": "trader",
+    "x-sisera-dev-subject": agentSubject,
+    "x-sisera-dev-tenant": "shared-agent-test",
+  };
+  const agentDraft = {
+    name: "Verified BTC trend draft",
+    description: "Research a confirmed BTC trend with volume and volatility abstention rules.",
+    universe: ["BTCUSDT"],
+    timeframe: "1h",
+    factors: ["EMA 12/26 crossover", "Relative volume above 1.2"],
+    capitalLimitUsd: 10000,
+    maxTradeNotionalUsd: 1000,
+    maxDailyDrawdownPct: 3,
+    maxOpenPositions: 2,
+    stopLossPct: 1.5,
+    takeProfitPct: 4,
+    maxSlippageBps: 25,
+  };
+  const createdAgent = await api.inject({
+    method: "POST",
+    url: "/v1/agents",
+    headers: agentHeaders,
+    payload: agentDraft,
+  });
+  if (createdAgent.statusCode !== 201 || createdAgent.json().data.stage !== "draft")
+    throw new Error("Authenticated custom draft creation failed.");
+  const ownAgents = await api.inject({ method: "GET", url: "/v1/agents", headers: agentHeaders });
+  if (ownAgents.statusCode !== 200 || ownAgents.json().custom.length !== 1)
+    throw new Error("Custom draft did not persist for its owner.");
+  const foreignAgents = await api.inject({
+    method: "GET",
+    url: "/v1/agents",
+    headers: { ...agentHeaders, "x-sisera-dev-subject": `privy:other-${suffix}` },
+  });
+  if (foreignAgents.statusCode !== 200 || foreignAgents.json().custom.length)
+    throw new Error("Custom draft leaked to a different account in the same tenant.");
+  const promotedAgent = await api.inject({
+    method: "POST",
+    url: "/v1/agents",
+    headers: agentHeaders,
+    payload: { ...agentDraft, stage: "live", autonomy: "autonomous" },
+  });
+  if (promotedAgent.statusCode !== 400)
+    throw new Error("Agent creation accepted client-supplied live authority.");
   const liveOrderId = crypto.randomUUID();
   await connection`
     INSERT INTO market_live_orders

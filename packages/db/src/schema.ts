@@ -321,10 +321,30 @@ export const agentManifests = pgTable(
     name: text("name").notNull(),
     stage: text("stage").notNull(),
     autonomy: text("autonomy").notNull(),
+    ownerSubject: text("owner_subject"),
+    manifestHash: text("manifest_hash"),
     policy: jsonb("policy").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [uniqueIndex("agent_manifest_version_idx").on(table.id, table.version)],
+);
+
+export const agentEvaluations = pgTable(
+  "agent_evaluations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    agentId: text("agent_id").notNull(),
+    manifestVersion: text("manifest_version").notNull(),
+    manifestHash: text("manifest_hash").notNull(),
+    stage: text("stage").notNull(),
+    outcome: text("outcome").notNull(),
+    evidence: jsonb("evidence").notNull(),
+    dataWindowStart: timestamp("data_window_start", { withTimezone: true }).notNull(),
+    dataWindowEnd: timestamp("data_window_end", { withTimezone: true }).notNull(),
+    reviewerSubject: text("reviewer_subject").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("agent_evaluations_agent_time_idx").on(table.agentId, table.recordedAt)],
 );
 
 export const agentProposals = pgTable(

@@ -16,7 +16,7 @@ export async function checkDatabaseReadiness(connectionString: string): Promise<
   try {
     const rows = await connection`
       SELECT EXISTS (
-        SELECT 1 FROM _sisera_migrations WHERE name = '0010_prediction_paper_accounts.sql'
+        SELECT 1 FROM _sisera_migrations WHERE name = '0011_agent_governance.sql'
       ) AS migrated
     `;
     return rows[0]?.migrated === true;

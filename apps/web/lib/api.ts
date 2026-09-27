@@ -118,8 +118,16 @@ export type CustomAgent = {
   version: string;
   stage: string;
   autonomy: string;
+  manifestHash: string | null;
   createdAt: string;
-  policy: { description?: string; universe?: string[]; timeframe?: string };
+  policy: {
+    description?: string;
+    universe?: string[];
+    timeframe?: string;
+    factors?: string[];
+    capitalAllocation?: { maxCapitalUsd: number; maxTradeNotionalUsd: number };
+    riskGuardrails?: { maxDailyDrawdownPct: number; maxOpenPositions: number };
+  };
 };
 export type PerpetualMetric = {
   symbol: string;

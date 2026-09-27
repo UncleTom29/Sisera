@@ -56,6 +56,7 @@ import { evaluatePreTradeRisk } from "@sisera/risk";
 import Fastify, { type FastifyReply } from "fastify";
 import { Counter, Histogram, Registry, collectDefaultMetrics } from "prom-client";
 import { z } from "zod";
+import { AgentDraftInput, compileAgentDraft } from "./agent-governance.js";
 import { agentTemplates } from "./agent-templates.js";
 import { createAuthenticator, requirePermission } from "./auth.js";
 import { BinanceTradingClient } from "./binance-trading.js";
@@ -653,24 +654,8 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         return reply
           .code(503)
           .send({ error: "persistence_unavailable", message: "Agent database is not configured" });
-      const input = z
-        .object({
-          name: z.string().trim().min(3).max(80),
-          description: z.string().trim().min(20).max(1000),
-          universe: z
-            .array(z.string().regex(/^[A-Za-z0-9:*\/_-]{2,40}$/))
-            .min(1)
-            .max(12),
-          timeframe: z.enum(["5m", "15m", "1h", "4h", "1d", "event"]),
-          capitalLimitUsd: z.coerce.number().positive().max(1_000_000),
-          maxTradeNotionalUsd: z.coerce.number().positive().max(100_000),
-          maxDailyDrawdownPct: z.coerce.number().positive().max(10),
-        })
-        .refine(
-          (value) => value.maxTradeNotionalUsd <= value.capitalLimitUsd,
-          "Trade notional cannot exceed capital allocation",
-        )
-        .parse(request.body);
+      const input = AgentDraftInput.parse(request.body);
+      const { policy, manifestHash } = compileAgentDraft(input);
       const manifest = await createAgentManifest(config.DATABASE_URL, {
         id: `custom:${crypto.randomUUID()}`,
         version: "1.0.0",
@@ -678,13 +663,9 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         name: input.name,
         stage: "draft",
         autonomy: "research",
-        policy: {
-          ...input,
-          subject: request.principal.subject,
-          killSwitch: "cancel_and_halt",
-          maxLeverage: 1,
-          proposalOnly: true,
-        },
+        ownerSubject: request.principal.subject,
+        manifestHash,
+        policy,
       });
       return reply.code(201).send({ data: manifest });
     },

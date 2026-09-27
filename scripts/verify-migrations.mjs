@@ -18,7 +18,8 @@ try {
       to_regclass('public.account_events') IS NOT NULL AS events,
       to_regclass('public.bridge_transfers') IS NOT NULL AS bridges,
       to_regclass('public.prediction_paper_accounts') IS NOT NULL AS prediction_accounts,
-      to_regclass('public.prediction_paper_orders') IS NOT NULL AS prediction_orders
+      to_regclass('public.prediction_paper_orders') IS NOT NULL AS prediction_orders,
+      to_regclass('public.agent_evaluations') IS NOT NULL AS agent_evaluations
   `;
   if (
     !tables?.agents ||
@@ -28,7 +29,8 @@ try {
     !tables?.events ||
     !tables?.bridges ||
     !tables?.prediction_accounts ||
-    !tables?.prediction_orders
+    !tables?.prediction_orders ||
+    !tables?.agent_evaluations
   )
     throw new Error("Required account tables are missing after migration.");
   await connection`
@@ -104,6 +106,52 @@ try {
   `;
   if (predictionEvent?.mode !== "paper" || predictionEvent.status !== "filled")
     throw new Error("Prediction paper order was not recorded in the account timeline.");
+  const agentId = `custom:${crypto.randomUUID()}`;
+  const manifestHash = "a".repeat(64);
+  await connection`
+    INSERT INTO agent_manifests
+      (id, version, tenant_id, name, stage, autonomy, owner_subject, manifest_hash, policy)
+    VALUES (${agentId}, '1.0.0', 'migration-test', 'Governance test', 'draft', 'research',
+            'migration-test', ${manifestHash}, '{}'::jsonb)
+  `;
+  await connection`
+    INSERT INTO agent_evaluations
+      (agent_id, manifest_version, manifest_hash, stage, outcome, evidence,
+       data_window_start, data_window_end, reviewer_subject)
+    VALUES (${agentId}, '1.0.0', ${manifestHash}, 'backtest', 'inconclusive',
+            '{}'::jsonb, now() - interval '1 day', now(), 'migration-reviewer')
+  `;
+  for (const mutation of [
+    () => connection`UPDATE agent_manifests SET stage = 'live' WHERE id = ${agentId}`,
+    () => connection`DELETE FROM agent_evaluations WHERE agent_id = ${agentId}`,
+    () => connection`
+      INSERT INTO agent_evaluations
+        (agent_id, manifest_version, manifest_hash, stage, outcome, evidence,
+         data_window_start, data_window_end, reviewer_subject)
+      VALUES (${agentId}, '1.0.0', ${"b".repeat(64)}, 'backtest', 'passed',
+              '{}'::jsonb, now() - interval '1 day', now(), 'migration-reviewer')
+    `,
+    () => connection`
+      INSERT INTO agent_evaluations
+        (agent_id, manifest_version, manifest_hash, stage, outcome, evidence,
+         data_window_start, data_window_end, reviewer_subject)
+      VALUES (${agentId}, '1.0.0', ${manifestHash}, 'live', 'passed',
+              '{}'::jsonb, now() - interval '1 day', now(), 'migration-test')
+    `,
+    () => connection`
+      INSERT INTO agent_manifests
+        (id, version, tenant_id, name, stage, autonomy, owner_subject, manifest_hash, policy)
+      VALUES (${`custom:${crypto.randomUUID()}`}, '1.0.0', 'migration-test', 'Bypass',
+              'live', 'autonomous', 'migration-test', ${manifestHash}, '{}'::jsonb)
+    `,
+  ]) {
+    try {
+      await mutation();
+      throw new Error("Agent governance guard allowed a forbidden mutation.");
+    } catch (error) {
+      if (error?.code !== "P0001") throw error;
+    }
+  }
   try {
     await connection`UPDATE account_events SET status = 'tampered' WHERE source_id = ${id}::uuid`;
     throw new Error("The account event ledger allowed an update.");

@@ -108,11 +108,23 @@ export default async function AgentsPage() {
                     </div>
                     <p className="mt-1 text-xs text-slate-400">{agent.policy.description}</p>
                     <p className="mt-2 font-mono text-[10px] text-slate-500">
-                      {agent.policy.universe?.join(" · ")} · {agent.policy.timeframe} ·{" "}
-                      {agent.stage === "draft" || agent.autonomy === "research"
-                        ? "research only"
-                        : "proposal only"}
+                      {agent.policy.universe?.join(" · ")} · {agent.policy.timeframe} · research
+                      only
                     </p>
+                    {agent.policy.capitalAllocation && (
+                      <p className="mt-1 text-[10px] text-slate-400">
+                        Capital cap ${agent.policy.capitalAllocation.maxCapitalUsd.toLocaleString()}{" "}
+                        · Trade cap $
+                        {agent.policy.capitalAllocation.maxTradeNotionalUsd.toLocaleString()}
+                        {agent.policy.riskGuardrails &&
+                          ` · Daily drawdown ${agent.policy.riskGuardrails.maxDailyDrawdownPct}%`}
+                      </p>
+                    )}
+                    {agent.manifestHash && (
+                      <p className="mt-1 font-mono text-[10px] text-slate-500">
+                        Manifest {agent.manifestHash.slice(0, 16)}… · evaluation evidence pending
+                      </p>
+                    )}
                   </article>
                 ))}
               </div>

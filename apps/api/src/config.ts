@@ -27,7 +27,8 @@ const Environment = z.object({
   HYPERLIQUID_BASE_URL: z.string().url().default("https://api.hyperliquid.xyz"),
   JUPITER_PREDICTION_BASE_URL: z.string().url().default("https://api.jup.ag/prediction/v1"),
   PRESTOCKS_BASE_URL: z.string().url().default("https://prestocks.com"),
-  PYTH_PRO_API_KEY: z.string().optional(),
+  PYTH_API_KEY: z.string().optional(),
+  PYTH_HERMES_URL: z.string().url().default("https://pyth.dourolabs.app/hermes"),
   HELIUS_API_KEY: z.string().optional(),
   HELIUS_WEBHOOK_SECRET: z.string().optional(),
   SOLANA_RPC_URL: z.preprocess(

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { PublicStock, PythReference } from "../lib/api";
 
-type SortKey = "name" | "price" | "change" | "volume" | "liquidity";
+type SortKey = "name" | "price" | "change" | "volume" | "liquidity" | "premium";
 const money = (value: number | null) =>
   value == null
     ? "—"
@@ -20,9 +20,10 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
     "loading",
   );
   useEffect(() => {
+    setReferenceState("loading");
     const symbols = stocks
       .filter((stock) => stock.dexPriceUsd != null)
-      .slice(0, 20)
+      .slice(0, 40)
       .map((stock) => stock.underlyingSymbol);
     if (!symbols.length) {
       setReferenceState("unavailable");
@@ -49,6 +50,9 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
   }, [stocks]);
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
+    const referenceBySymbol = new Map(
+      references.map((reference) => [reference.symbol.toUpperCase(), reference]),
+    );
     return stocks
       .filter((stock) => !availableOnly || stock.dexPriceUsd != null)
       .filter((stock) =>
@@ -57,6 +61,15 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
       .sort((a, b) => {
         if (sort === "name") return a.name.localeCompare(b.name);
         const value = (stock: PublicStock) => {
+          if (sort === "premium") {
+            const reference = referenceBySymbol.get(
+              `EQUITY.US.${stock.underlyingSymbol.toUpperCase()}/USD`,
+            );
+            const price = Number(reference?.price);
+            return reference?.referenceFreshness === "live" && stock.dexPriceUsd && price > 0
+              ? Math.abs((Number(stock.dexPriceUsd) / price - 1) * 100)
+              : null;
+          }
           if (sort === "price") return Number(stock.dexPriceUsd ?? stock.priceUsd);
           if (sort === "change") return stock.change24hPct;
           if (sort === "liquidity") return stock.liquidityUsd;
@@ -70,7 +83,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
         if (right == null || !Number.isFinite(right)) return -1;
         return right - left;
       });
-  }, [stocks, query, sort, availableOnly]);
+  }, [stocks, query, sort, availableOnly, references]);
 
   return (
     <section className="m-4 overflow-hidden rounded-lg border border-line bg-panel md:m-6">
@@ -100,6 +113,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
           >
             <option value="volume">Volume</option>
             <option value="liquidity">Liquidity</option>
+            <option value="premium">Absolute live premium</option>
             <option value="change">24h change</option>
             <option value="price">Price</option>
             <option value="name">Company</option>
@@ -122,7 +136,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
                 <th className="px-5 py-3 font-medium">Company</th>
                 <th className="px-5 py-3 font-medium">Token</th>
                 <th className="px-5 py-3 text-right font-medium">Solana price</th>
-                <th className="px-5 py-3 text-right font-medium">Pyth reference</th>
+                <th className="px-5 py-3 text-right font-medium">Pyth Core reference</th>
                 <th className="px-5 py-3 text-right font-medium">Premium</th>
                 <th className="px-5 py-3 text-right font-medium">24h</th>
                 <th className="px-5 py-3 text-right font-medium">Volume</th>
@@ -139,7 +153,10 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
                 );
                 const referencePrice = reference ? Number(reference.price) : null;
                 const premium =
-                  referencePrice && referencePrice > 0 && stock.dexPriceUsd
+                  reference?.referenceFreshness === "live" &&
+                  referencePrice &&
+                  referencePrice > 0 &&
+                  stock.dexPriceUsd
                     ? (Number(stock.dexPriceUsd) / referencePrice - 1) * 100
                     : null;
                 return (
@@ -160,14 +177,23 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
                           : undefined
                       }
                     >
-                      {referencePrice ? `$${referencePrice.toFixed(2)}` : "—"}
+                      {referencePrice ? (
+                        <>
+                          {`$${referencePrice.toFixed(2)}`}
+                          <span
+                            className={`ml-1 text-[9px] ${reference?.referenceFreshness === "live" ? "text-emerald-300" : "text-amber-300"}`}
+                          >
+                            {reference?.referenceFreshness}
+                          </span>
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td
                       className={`px-5 py-3 text-right font-mono ${premium == null ? "text-slate-500" : premium >= 0 ? "text-amber-300" : "text-emerald-300"}`}
                     >
-                      {premium == null
-                        ? "—"
-                        : `${premium > 0 ? "+" : ""}${premium.toFixed(2)}%${reference?.referenceFreshness === "live" ? "" : "*"}`}
+                      {premium == null ? "—" : `${premium > 0 ? "+" : ""}${premium.toFixed(2)}%`}
                     </td>
                     <td
                       className={`px-5 py-3 text-right font-mono ${stock.change24hPct == null ? "text-slate-500" : stock.change24hPct >= 0 ? "text-emerald-300" : "text-rose-300"}`}
@@ -201,10 +227,10 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
       )}
       <p className="border-t border-line px-5 py-3 text-[11px] text-slate-500">
         {referenceState === "loading"
-          ? "Loading Pyth references. "
+          ? "Loading Pyth Core references. "
           : referenceState === "unavailable"
-            ? "Pyth references unavailable. "
-            : "* Reference was carried forward or is stale. "}
+            ? "Pyth Core references unavailable. "
+            : "Premiums require a live equity reference; stale references remain visible with their status. "}
         Unpriced tokens remain listed when “Priced only” is off. Reference differences are
         indicative and are not firm execution spreads.
       </p>

@@ -1,11 +1,17 @@
 import { StatusBadge } from "@sisera/ui";
-import { Activity, Ban, CircleGauge, ShieldAlert, Siren, Waves } from "lucide-react";
+import { Activity, Ban, CircleGauge, ShieldAlert, Waves } from "lucide-react";
 import { Suspense } from "react";
 import { auth } from "../../../auth";
-import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 import { PortfolioPrivyWallet } from "../../../components/portfolio-privy-wallet";
-import { accountErrorMessage, getPublicPerpAccount, getSolanaWallet } from "../../../lib/api";
+import {
+  accountErrorMessage,
+  getPublicPerpAccount,
+  getPublicStocks,
+  getReferenceMarkets,
+  getSolanaWallet,
+} from "../../../lib/api";
+import { valueSolanaWallet } from "../../../lib/wallet-observation";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +24,16 @@ const limits = [
   "Portfolio leverage",
 ];
 const scenarios = [
-  { name: "Crypto liquidity shock", detail: "BTC −12% · ETH −16% · depth −70%" },
-  { name: "Stablecoin dislocation", detail: "USDC −8% · spreads ×5" },
-  { name: "Macro volatility spike", detail: "Rates +75bp · vol ×2 · USD +3%" },
+  {
+    name: "BTC / ETH selloff",
+    detail: "BTC −12% · ETH −16%",
+    shock: (coin: string) => (coin === "BTC" ? -0.12 : coin === "ETH" ? -0.16 : null),
+  },
+  {
+    name: "Broad crypto drawdown",
+    detail: "All observed perps −20%",
+    shock: (_coin: string) => -0.2,
+  },
 ];
 
 export default async function RiskPage({
@@ -34,7 +47,7 @@ export default async function RiskPage({
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const [observedResult, solanaResult] = await Promise.all([
+  const [observedResult, solanaResult, stocksResult, referencesResult] = await Promise.all([
     (/^0x[a-fA-F0-9]{40}$/.test(address)
       ? getPublicPerpAccount(address, identity)
       : Promise.resolve(null)
@@ -49,9 +62,16 @@ export default async function RiskPage({
       (value) => ({ value, error: null as unknown }),
       (error: unknown) => ({ value: null, error }),
     ),
+    (solanaAddress ? getPublicStocks(identity) : Promise.resolve([])).catch(() => []),
+    (solanaAddress ? getReferenceMarkets(["SOLUSDT"], identity) : Promise.resolve([])).catch(
+      () => [],
+    ),
   ]);
   const observed = observedResult.value;
   const solana = solanaResult.value;
+  const walletObservation = solana
+    ? valueSolanaWallet(solana, stocksResult, referencesResult)
+    : null;
   const accountValue = Number(observed?.accountValue ?? 0);
   const exposureMultiple =
     accountValue > 0 ? Math.abs(Number(observed?.notionalExposure)) / accountValue : null;
@@ -104,8 +124,8 @@ export default async function RiskPage({
       <section className="mx-4 border border-line bg-panel p-5 md:mx-6">
         <h2 className="text-sm font-semibold text-white">Solana wallet risk observation</h2>
         <p className="mt-2 text-xs text-slate-400">
-          Balance and token concentration are observed from chain state. USD exposure requires
-          verified token prices.
+          Balance and indicative concentration use public wallet state and available xStocks prices.
+          Unpriced holdings are excluded.
         </p>
         <form action="/risk" className="mt-3 flex gap-2">
           <input
@@ -122,7 +142,7 @@ export default async function RiskPage({
           </button>
         </form>
         {solana && (
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
             <div>
               <p className="data-label">Native balance</p>
               <p className="mt-1 font-mono text-lg text-white">
@@ -134,10 +154,29 @@ export default async function RiskPage({
               <p className="mt-1 font-mono text-lg text-white">{solana.holdings.length}</p>
             </div>
             <div>
+              <p className="data-label">Largest priced token</p>
+              <p className="mt-1 font-mono text-lg text-white">
+                {walletObservation?.largestSharePct == null
+                  ? "—"
+                  : `${walletObservation.largestSharePct.toFixed(1)}%`}
+              </p>
+            </div>
+            <div>
               <p className="data-label">Source</p>
               <p className="mt-1 font-mono text-xs text-white">{solana.source}</p>
             </div>
           </div>
+        )}
+        {walletObservation && (
+          <p className="mt-3 text-[10px] text-slate-500">
+            $
+            {walletObservation.pricedValueUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })}{" "}
+            priced tokens · {walletObservation.unpricedCount} unpriced ·{" "}
+            {walletObservation.solValueUsd == null
+              ? "SOL spot unavailable"
+              : `SOL spot ≈ $${walletObservation.solValueUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}{" "}
+            · observations only
+          </p>
         )}
         {solanaAddress && !solana && (
           <p className="mt-3 text-xs text-amber-300">
@@ -233,32 +272,50 @@ export default async function RiskPage({
             <Waves size={13} className="text-slate-600" />
           </div>
           <div className="divide-y divide-line">
-            {scenarios.map((scenario) => (
-              <div
-                key={scenario.name}
-                className="flex items-center justify-between gap-4 px-4 py-4"
-              >
-                <div>
-                  <p className="text-[11px] font-medium text-slate-300">{scenario.name}</p>
-                  <p className="mt-1 font-mono text-[9px] text-slate-600">{scenario.detail}</p>
-                </div>
-                <button
-                  type="button"
-                  disabled
-                  className="h-7 border border-line px-3 text-[9px] text-slate-700"
+            {scenarios.map((scenario) => {
+              const covered =
+                observed?.positions.filter((position) => scenario.shock(position.coin) !== null) ??
+                [];
+              const estimatedPnl = covered.reduce((total, position) => {
+                const direction = Math.sign(Number(position.size));
+                return (
+                  total +
+                  Math.abs(Number(position.notional)) *
+                    direction *
+                    (scenario.shock(position.coin) ?? 0)
+                );
+              }, 0);
+              return (
+                <div
+                  key={scenario.name}
+                  className="flex items-center justify-between gap-4 px-4 py-4"
                 >
-                  Run
-                </button>
-              </div>
-            ))}
+                  <div>
+                    <p className="text-[11px] font-medium text-slate-300">{scenario.name}</p>
+                    <p className="mt-1 font-mono text-[9px] text-slate-600">{scenario.detail}</p>
+                  </div>
+                  <div className="text-right">
+                    <p
+                      className={`font-mono text-xs ${estimatedPnl < 0 ? "text-rose-300" : "text-emerald-300"}`}
+                    >
+                      {observed && covered.length
+                        ? `${estimatedPnl < 0 ? "−" : "+"}$${Math.abs(estimatedPnl).toLocaleString("en-US", { maximumFractionDigits: 2 })}`
+                        : "—"}
+                    </p>
+                    <p className="mt-1 text-[9px] text-slate-600">
+                      {covered.length}/{observed?.positions.length ?? 0} perps covered
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <div className="border-t border-line p-3">
-            <EmptyState
-              icon={ShieldAlert}
-              title="Portfolio state required"
-              copy="Scenario loss and margin projections run only against a reconciled snapshot."
-              code="STRESS / BLOCKED"
-            />
+            <p className="text-[10px] leading-5 text-slate-500">
+              Linear mark-to-market sensitivity using current public perp notionals and position
+              direction. Excludes slippage, funding, liquidation, other assets, and cross-venue
+              holdings. It is not a live risk limit.
+            </p>
           </div>
         </section>
       </div>

@@ -88,7 +88,7 @@ export type PythReference = {
   feedUpdateTimestamp: string;
   referenceFreshness: "live" | "carried_forward" | "stale";
   ageMs: number;
-  source: "pyth-pro";
+  source: "pyth-core";
 };
 export type ClawpumpToken = {
   mint?: string;

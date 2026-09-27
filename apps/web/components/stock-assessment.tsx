@@ -12,6 +12,12 @@ type Assessment = {
   evidence: {
     marketSource: string;
     marketObservedAt: string;
+    tokenPrice: string | null;
+    referencePrice: string | null;
+    referenceKind: "prestocks_mark" | "pyth_core_equity" | "unavailable";
+    referenceFreshness: "live" | "stale" | "unavailable";
+    referenceObservedAt: string | null;
+    liquidityUsd: number | null;
     articles: Array<{ title: string; publishedAt: string; publisher: string; url: string }>;
   };
 };
@@ -88,10 +94,43 @@ export function StockAssessment({ symbol }: { symbol: string }) {
               Model confidence {(assessment.confidence * 100).toFixed(0)}% · Research only · Market
               observation {new Date(assessment.evidence.marketObservedAt).toLocaleString()}
             </p>
+            <div className="mt-3 grid gap-px bg-line sm:grid-cols-3">
+              {[
+                [
+                  "Token observation",
+                  assessment.evidence.tokenPrice ?? "Unavailable",
+                  assessment.evidence.marketSource,
+                ],
+                [
+                  "Reference",
+                  assessment.evidence.referencePrice ?? "Unavailable",
+                  `${assessment.evidence.referenceKind.replaceAll("_", " ")} · ${assessment.evidence.referenceFreshness}`,
+                ],
+                [
+                  "Liquidity",
+                  assessment.evidence.liquidityUsd == null
+                    ? "Unavailable"
+                    : `$${assessment.evidence.liquidityUsd.toLocaleString()}`,
+                  "Observed market depth",
+                ],
+              ].map(([label, value, source]) => (
+                <div key={label} className="bg-ink p-3">
+                  <p className="data-label">{label}</p>
+                  <p className="mt-1 font-mono text-xs text-slate-200">{value}</p>
+                  <p className="mt-1 text-[10px] text-slate-500">{source}</p>
+                </div>
+              ))}
+            </div>
             <p className="mt-2 text-[11px] text-slate-500">
-              The model received the provider prices and the headlines below. It did not verify
-              article bodies or independently value the company.
+              The model uses supplied headlines, not article bodies, and does not independently
+              value the company.
             </p>
+            {assessment.evidence.referenceObservedAt && (
+              <p className="mt-1 font-mono text-[10px] text-slate-500">
+                Oracle price published{" "}
+                {new Date(assessment.evidence.referenceObservedAt).toLocaleString()}
+              </p>
+            )}
             {assessment.evidence.articles.length ? (
               <ul className="mt-3 space-y-2">
                 {assessment.evidence.articles.map((article) => (
@@ -119,8 +158,8 @@ export function StockAssessment({ symbol }: { symbol: string }) {
         </div>
       ) : (
         <p className="mt-4 text-xs leading-5 text-slate-500">
-          Analyzes the current provider mark and any available company headlines. Missing source
-          data is shown with the result.
+          Analyzes observed prices, reference data when available, and source-linked company
+          headlines. Missing inputs are shown with the result.
         </p>
       )}
       {error && (

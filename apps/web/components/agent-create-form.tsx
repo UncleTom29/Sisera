@@ -50,7 +50,8 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
     <form action={submit} className="space-y-3 border border-line bg-panel p-5">
       <h2 className="text-sm font-semibold text-white">Create a strategy agent</h2>
       <p className="text-xs text-slate-400">
-        New agents start as research-only drafts. They cannot propose or execute trades.
+        New agents start as research-only drafts. Define your universe and measurable rules; the
+        evaluation check will show historical data coverage before a real backtest can run.
       </p>
       <input
         name="name"
@@ -71,7 +72,7 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
       <input
         name="universe"
         required
-        placeholder="BTCUSDT, ETHUSDT"
+        placeholder="AAPLx, NVDAx or BTCUSDT, ETHUSDT"
         className="w-full rounded border border-line bg-ink p-2 text-xs"
       />
       <textarea

@@ -12,12 +12,12 @@ export { MarketDataUnavailableError } from "./errors.js";
 export { PreStocksProvider, type PreStock } from "./prestocks.js";
 export { FredMacroProvider, classifyMacro, type MacroRegime } from "./fred-macro.js";
 export {
-  PythProProvider,
+  PythCoreProvider,
   decimalFromMantissa,
   fairValue,
   parsePythReference,
   type PythReference,
-} from "./pyth-pro.js";
+} from "./pyth-core.js";
 
 export interface MarketDataProvider {
   readonly id: string;

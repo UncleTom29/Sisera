@@ -16,7 +16,9 @@ try {
       to_regclass('public.account_preferences') IS NOT NULL AS preferences,
       to_regclass('public.alert_acknowledgements') IS NOT NULL AS alerts,
       to_regclass('public.account_events') IS NOT NULL AS events,
-      to_regclass('public.bridge_transfers') IS NOT NULL AS bridges
+      to_regclass('public.bridge_transfers') IS NOT NULL AS bridges,
+      to_regclass('public.prediction_paper_accounts') IS NOT NULL AS prediction_accounts,
+      to_regclass('public.prediction_paper_orders') IS NOT NULL AS prediction_orders
   `;
   if (
     !tables?.agents ||
@@ -24,7 +26,9 @@ try {
     !tables?.preferences ||
     !tables?.alerts ||
     !tables?.events ||
-    !tables?.bridges
+    !tables?.bridges ||
+    !tables?.prediction_accounts ||
+    !tables?.prediction_orders
   )
     throw new Error("Required account tables are missing after migration.");
   await connection`
@@ -77,6 +81,29 @@ try {
     events.filter((row) => row.status === "unknown").length !== 2
   )
     throw new Error("Order state transitions were not recorded in the event ledger.");
+  const predictionId = crypto.randomUUID();
+  await connection`
+    INSERT INTO prediction_paper_accounts (subject) VALUES ('migration-prediction')
+  `;
+  const [predictionAccount] = await connection`
+    SELECT cash_usd::text AS cash, positions FROM prediction_paper_accounts
+    WHERE subject = 'migration-prediction'
+  `;
+  if (Number(predictionAccount?.cash) !== 10000 || Object.keys(predictionAccount.positions).length)
+    throw new Error("Prediction paper account has an invalid initial balance.");
+  await connection`
+    INSERT INTO prediction_paper_orders
+      (id, tenant_id, subject, market_id, outcome, deposit_usd, fill_price_usd,
+       contracts, fee_usd, closes_at)
+    VALUES (${predictionId}, 'migration-test', 'migration-prediction', 'MARKET-123',
+            'yes', 10, 0.4, 24.875, 0.05, now() + interval '1 day')
+  `;
+  const [predictionEvent] = await connection`
+    SELECT mode, status FROM account_events
+    WHERE source = 'prediction_paper_orders' AND source_id = ${predictionId}::uuid
+  `;
+  if (predictionEvent?.mode !== "paper" || predictionEvent.status !== "filled")
+    throw new Error("Prediction paper order was not recorded in the account timeline.");
   try {
     await connection`UPDATE account_events SET status = 'tampered' WHERE source_id = ${id}::uuid`;
     throw new Error("The account event ledger allowed an update.");

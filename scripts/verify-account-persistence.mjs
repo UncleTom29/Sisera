@@ -1,9 +1,14 @@
+import { buildApi } from "../apps/api/dist/app.js";
+import { readConfig } from "../apps/api/dist/config.js";
 import {
+  applyPredictionPaperOrder,
   createBridgeTransfer,
   getAccountPreferences,
   getBridgeTransfer,
+  getPredictionPaperAccount,
   listAccountEvents,
   listBridgeTransfers,
+  listPredictionPaperOrders,
   markBridgeSourceSubmitted,
   saveAccountPreferences,
   updateBridgeTransferStatus,
@@ -58,5 +63,81 @@ await saveAccountPreferences(databaseUrl, subject, {
 });
 if (!(await getAccountPreferences(databaseUrl, subject)).leaderboardOptIn)
   throw new Error("An older preferences client cleared leaderboard consent.");
+
+const predictionOrder = {
+  id: crypto.randomUUID(),
+  tenantId: "migration-test",
+  subject,
+  marketId: "MARKET-123",
+  outcome: "yes",
+  depositUsd: "10",
+  fillPriceUsd: "0.4",
+  closesAt: new Date(Date.now() + 86400000).toISOString(),
+};
+const settle = (state) => ({
+  state: {
+    cashUsd: String(Number(state.cashUsd) - 10),
+    positions: { "MARKET-123:yes": { contracts: "24.875", costUsd: "10" } },
+  },
+  contracts: "24.875",
+  feeUsd: "0.05",
+});
+await applyPredictionPaperOrder(databaseUrl, predictionOrder, settle);
+await applyPredictionPaperOrder(databaseUrl, predictionOrder, () => {
+  throw new Error("Duplicate prediction paper request ran settlement twice.");
+});
+if (Number((await getPredictionPaperAccount(databaseUrl, subject)).cashUsd) !== 9990)
+  throw new Error("Prediction paper debit was not persisted exactly once.");
+if ((await listPredictionPaperOrders(databaseUrl, subject)).length !== 1)
+  throw new Error("Prediction paper order was duplicated.");
+if ((await listPredictionPaperOrders(databaseUrl, otherSubject)).length)
+  throw new Error("Prediction paper order leaked across accounts.");
+if (
+  !(await listAccountEvents(databaseUrl, subject)).some(
+    (event) => event.source === "prediction_paper_orders",
+  )
+)
+  throw new Error("Prediction paper fill did not reach account activity.");
+
+const api = await buildApi(
+  readConfig({
+    NODE_ENV: "test",
+    LOG_LEVEL: "silent",
+    SISERA_ALLOW_DEV_AUTH: "true",
+    DATABASE_URL: databaseUrl,
+  }),
+  {
+    predictionPaperQuote: async () => ({
+      priceUsd: "0.500000",
+      closesAt: new Date(Date.now() + 86400000).toISOString(),
+    }),
+  },
+);
+try {
+  const apiOrder = {
+    id: crypto.randomUUID(),
+    marketId: "MARKET-456",
+    outcome: "no",
+    depositUsd: "5",
+  };
+  const request = {
+    method: "POST",
+    url: "/v1/prediction-orders/paper",
+    headers: {
+      "x-sisera-dev-role": "trader",
+      "x-sisera-dev-subject": subject,
+      "content-type": "application/json",
+    },
+    payload: apiOrder,
+  };
+  const first = await api.inject(request);
+  const retry = await api.inject(request);
+  if (first.statusCode !== 200 || retry.statusCode !== 200)
+    throw new Error("Prediction paper API could not settle and retry an order.");
+  if (Number((await getPredictionPaperAccount(databaseUrl, subject)).cashUsd) !== 9985)
+    throw new Error("Prediction paper API retried a debit.");
+} finally {
+  await api.close();
+}
 
 console.log("Account persistence and ownership boundaries verified.");

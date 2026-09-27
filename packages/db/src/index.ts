@@ -16,7 +16,7 @@ export async function checkDatabaseReadiness(connectionString: string): Promise<
   try {
     const rows = await connection`
       SELECT EXISTS (
-        SELECT 1 FROM _sisera_migrations WHERE name = '0009_bridge_transfers.sql'
+        SELECT 1 FROM _sisera_migrations WHERE name = '0010_prediction_paper_accounts.sql'
       ) AS migrated
     `;
     return rows[0]?.migrated === true;
@@ -526,6 +526,110 @@ export async function listMarketLiveOrders(connectionString: string, subject: st
   const connection = postgres(connectionString, { max: 2, connect_timeout: 10 });
   try {
     return await connection`SELECT id, venue, symbol, side, quantity::text, client_order_id AS "clientOrderId", venue_order_id AS "venueOrderId", status, created_at AS "createdAt" FROM market_live_orders WHERE subject = ${subject} ORDER BY created_at DESC LIMIT 50`;
+  } finally {
+    await connection.end();
+  }
+}
+
+export type PredictionPaperState = {
+  cashUsd: string;
+  positions: Record<string, { contracts: string; costUsd: string }>;
+};
+
+export async function applyPredictionPaperOrder(
+  connectionString: string,
+  order: {
+    id: string;
+    tenantId: string;
+    subject: string;
+    marketId: string;
+    outcome: "yes" | "no";
+    depositUsd: string;
+    fillPriceUsd: string;
+    closesAt: string;
+  },
+  decide: (state: PredictionPaperState) => {
+    state: PredictionPaperState;
+    contracts: string;
+    feeUsd: string;
+  },
+) {
+  const connection = postgres(connectionString, { max: 2, connect_timeout: 10 });
+  try {
+    return await connection.begin(async (transaction) => {
+      await transaction`INSERT INTO prediction_paper_accounts (subject) VALUES (${order.subject}) ON CONFLICT DO NOTHING`;
+      const [account] =
+        await transaction`SELECT cash_usd::text AS "cashUsd", positions FROM prediction_paper_accounts WHERE subject = ${order.subject} FOR UPDATE`;
+      if (!account) throw new Error("Prediction paper account unavailable");
+      const [existing] = await transaction`
+        SELECT id::text, subject, market_id AS "marketId", outcome,
+               deposit_usd::text AS "depositUsd", fill_price_usd::text AS "fillPriceUsd",
+               contracts::text, fee_usd::text AS "feeUsd", status
+        FROM prediction_paper_orders WHERE id = ${order.id}::uuid
+      `;
+      if (existing) {
+        if (
+          existing.subject !== order.subject ||
+          existing.marketId !== order.marketId ||
+          existing.outcome !== order.outcome ||
+          existing.depositUsd !== order.depositUsd
+        )
+          throw new Error("Prediction paper request ID is already used");
+        return existing;
+      }
+      const settled = decide({
+        cashUsd: String(account.cashUsd),
+        positions: account.positions as PredictionPaperState["positions"],
+      });
+      await transaction`
+        UPDATE prediction_paper_accounts
+        SET cash_usd = ${settled.state.cashUsd},
+            positions = ${JSON.stringify(settled.state.positions)}::jsonb,
+            updated_at = now()
+        WHERE subject = ${order.subject}
+      `;
+      const [created] = await transaction`
+        INSERT INTO prediction_paper_orders
+          (id, tenant_id, subject, market_id, outcome, deposit_usd, fill_price_usd,
+           contracts, fee_usd, closes_at)
+        VALUES (${order.id}, ${order.tenantId}, ${order.subject}, ${order.marketId},
+                ${order.outcome}, ${order.depositUsd}, ${order.fillPriceUsd},
+                ${settled.contracts}, ${settled.feeUsd}, ${order.closesAt})
+        RETURNING id::text, market_id AS "marketId", outcome,
+                  deposit_usd::text AS "depositUsd", fill_price_usd::text AS "fillPriceUsd",
+                  contracts::text, fee_usd::text AS "feeUsd", status
+      `;
+      return created;
+    });
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function getPredictionPaperAccount(connectionString: string, subject: string) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [account] = await connection`
+      SELECT cash_usd::text AS "cashUsd", positions, updated_at AS "updatedAt"
+      FROM prediction_paper_accounts WHERE subject = ${subject}
+    `;
+    return account ?? { cashUsd: "10000", positions: {}, updatedAt: null };
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function listPredictionPaperOrders(connectionString: string, subject: string) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    return await connection`
+      SELECT id::text, market_id AS "marketId", outcome,
+             deposit_usd::text AS "depositUsd", fill_price_usd::text AS "fillPriceUsd",
+             contracts::text, fee_usd::text AS "feeUsd", status,
+             closes_at AS "closesAt", created_at AS "createdAt"
+      FROM prediction_paper_orders WHERE subject = ${subject}
+      ORDER BY created_at DESC LIMIT 100
+    `;
   } finally {
     await connection.end();
   }

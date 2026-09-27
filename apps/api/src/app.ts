@@ -6,12 +6,14 @@ import { OpenRouterResearchClient, compileIntent } from "@sisera/copilot";
 import {
   acknowledgeOrderAlert,
   applyMarketPaperOrder,
+  applyPredictionPaperOrder,
   checkDatabaseReadiness,
   createAgentManifest,
   createBridgeTransfer,
   createMarketLiveOrder,
   getAccountPreferences,
   getBridgeTransfer,
+  getPredictionPaperAccount,
   listAccountEvents,
   listAgentManifests,
   listAlertAcknowledgements,
@@ -22,6 +24,7 @@ import {
   listMarketPaperOrders,
   listPaperAccounts,
   listPredictionOrders,
+  listPredictionPaperOrders,
   listSolanaSwapOrders,
   markBridgeSourceSubmitted,
   recordSolanaWebhookEvents,
@@ -62,8 +65,10 @@ import type { ApiConfig } from "./config.js";
 import { parseHeliusWebhook, validWebhookSecret } from "./helius-webhook.js";
 import { HeliusClient } from "./helius.js";
 import { HyperEvmWalletClient } from "./hyperevm.js";
+import { JupiterPredictionTradingClient } from "./jupiter-prediction.js";
 import { JupiterQuoteClient } from "./jupiter.js";
 import { PaperOrderRejection, settleMarketPaperOrder } from "./market-paper.js";
+import { PredictionPaperRejection, settlePredictionPaperOrder } from "./prediction-paper.js";
 import { PredictionTradingService } from "./prediction-trading.js";
 import { SocialFeedClient } from "./social-feed.js";
 import { SolanaTradingService, TradeRejection } from "./solana-trading.js";
@@ -90,6 +95,10 @@ export type ApiDependencies = {
   loadRiskContext?: (portfolioId: string) => Promise<RiskContext | null>;
   readinessProbe?: (connectionString: string) => Promise<boolean>;
   ownsWallet?: (subject: string, address: string, chain: WalletChain) => Promise<boolean>;
+  predictionPaperQuote?: (
+    marketId: string,
+    outcome: "yes" | "no",
+  ) => Promise<{ priceUsd: string; closesAt: string }>;
 };
 
 export async function buildApi(config: ApiConfig, dependencies: ApiDependencies = {}) {
@@ -146,6 +155,14 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     discordChannelIds: config.SISERA_DISCORD_CHANNEL_IDS,
   });
   const predictionTrading = new PredictionTradingService(config, helius, solanaRpcUrl);
+  const predictionPaperClient = new JupiterPredictionTradingClient(
+    config.JUPITER_PREDICTION_BASE_URL,
+    config.JUPITER_API_KEY,
+  );
+  const predictionPaperQuote =
+    dependencies.predictionPaperQuote ??
+    ((marketId: string, outcome: "yes" | "no") =>
+      predictionPaperClient.quote(marketId, outcome === "yes"));
   const stockNews = new StockNewsClient(
     config.GNEWS_API_KEY,
     config.FINNHUB_API_KEY,
@@ -1249,6 +1266,72 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
               : "Jupiter prediction market data is unavailable",
         });
       }
+    },
+  );
+
+  app.post(
+    "/v1/prediction-orders/paper",
+    {
+      preHandler: requirePermission("order:paper:create"),
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply.code(503).send({
+          error: "persistence_unavailable",
+          message: "Prediction paper account is unavailable.",
+        });
+      const input = z
+        .object({
+          id: z.string().uuid(),
+          marketId: z.string().regex(/^[A-Za-z0-9:_-]{5,128}$/),
+          outcome: z.enum(["yes", "no"]),
+          depositUsd: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/),
+        })
+        .parse(request.body);
+      try {
+        const quote = await predictionPaperQuote(input.marketId, input.outcome);
+        if (Date.parse(quote.closesAt) <= Date.now())
+          throw new PredictionPaperRejection("This prediction market has closed.");
+        const order = await applyPredictionPaperOrder(
+          config.DATABASE_URL,
+          {
+            ...input,
+            fillPriceUsd: quote.priceUsd,
+            closesAt: quote.closesAt,
+            tenantId: request.principal.tenantId,
+            subject: request.principal.subject,
+          },
+          (state) =>
+            settlePredictionPaperOrder(state, {
+              marketId: input.marketId,
+              outcome: input.outcome,
+              depositUsd: input.depositUsd,
+              priceUsd: quote.priceUsd,
+            }),
+        );
+        return { data: order };
+      } catch (error) {
+        if (error instanceof TradeRejection)
+          return reply.code(error.statusCode).send({ message: error.message });
+        if (error instanceof PredictionPaperRejection)
+          return reply.code(422).send({ message: error.message });
+        request.log.warn({ requestId: request.id }, "Prediction paper order unavailable");
+        return reply.code(503).send({ message: "Prediction paper order is unavailable." });
+      }
+    },
+  );
+  app.get(
+    "/v1/prediction-orders/paper",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply.code(503).send({ message: "Prediction paper account is unavailable." });
+      const [account, orders] = await Promise.all([
+        getPredictionPaperAccount(config.DATABASE_URL, request.principal.subject),
+        listPredictionPaperOrders(config.DATABASE_URL, request.principal.subject),
+      ]);
+      return { data: { account, orders } };
     },
   );
 

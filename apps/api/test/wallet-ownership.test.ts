@@ -27,18 +27,21 @@ describe("wallet ownership", () => {
     );
   });
 
-  it("rejects account balance reads when wallet ownership is missing or unverified", async () => {
+  it("rejects live order preparation when wallet ownership is missing or unverified", async () => {
     const config = readConfig({
       NODE_ENV: "test",
       LOG_LEVEL: "silent",
       SISERA_ALLOW_DEV_AUTH: "true",
+      SISERA_LIVE_SOLANA_ENABLED: "true",
     });
-    const headers = { "x-sisera-dev-role": "viewer", "x-sisera-dev-subject": "privy:test-user" };
+    const headers = { "x-sisera-dev-role": "trader", "x-sisera-dev-subject": "privy:test-user" };
+    const payload = { wallet: solanaWallet, mint: solanaWallet, side: "buy", amount: "1000000" };
     const denied = await buildApi(config, { ownsWallet: async () => false });
     const deniedResponse = await denied.inject({
-      method: "GET",
-      url: `/v1/wallets/hyperevm/${evmWallet}`,
+      method: "POST",
+      url: "/v1/solana/orders/prepare",
       headers,
+      payload,
     });
     expect(deniedResponse.statusCode).toBe(403);
     expect(deniedResponse.json().error).toBe("wallet_not_linked");
@@ -50,9 +53,10 @@ describe("wallet ownership", () => {
       },
     });
     const unavailableResponse = await unavailable.inject({
-      method: "GET",
-      url: `/v1/solana/wallet/${solanaWallet}`,
+      method: "POST",
+      url: "/v1/solana/orders/prepare",
       headers,
+      payload,
     });
     expect(unavailableResponse.statusCode).toBe(503);
     expect(unavailableResponse.json().error).toBe("wallet_verification_unavailable");

@@ -329,11 +329,6 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const { address } = z
         .object({ address: z.string().regex(/^0x[a-fA-F0-9]{40}$/) })
         .parse(request.params);
-      if (
-        request.principal?.subject.startsWith("privy:") &&
-        !(await requireOwnedWallet(reply, request.principal.subject, address, "ethereum"))
-      )
-        return reply;
       try {
         return { data: await hyperEvmWallet.balances(address) };
       } catch {
@@ -1053,15 +1048,10 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   app.get(
     "/v1/solana/wallet/:address",
     { preHandler: requirePermission("portfolio:read") },
-    async (request, reply) => {
+    async (request) => {
       const { address } = z
         .object({ address: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) })
         .parse(request.params);
-      if (
-        request.principal?.subject.startsWith("privy:") &&
-        !(await requireOwnedWallet(reply, request.principal.subject, address, "solana"))
-      )
-        return reply;
       return { data: await helius.getWallet(address) };
     },
   );

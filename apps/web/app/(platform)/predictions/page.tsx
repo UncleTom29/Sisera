@@ -4,18 +4,23 @@ import { Radio, Target } from "lucide-react";
 import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
+import { PredictionPaperAccount } from "../../../components/prediction-paper-account";
 import { PredictionTradeTicket } from "../../../components/prediction-trade-ticket";
-import { getPredictionMarkets } from "../../../lib/api";
+import { accountErrorMessage, getPredictionMarkets } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function PredictionsPage() {
   const session = await auth();
   const localOperator = process.env.SISERA_LOCAL_OPERATOR_MODE === "true";
-  const markets = await getPredictionMarkets({
+  const result = await getPredictionMarkets({
     accessToken: session?.accessToken,
     localOperator,
-  }).catch(() => []);
+  }).then(
+    (value) => ({ value, error: null as unknown }),
+    (error: unknown) => ({ value: null, error }),
+  );
+  const markets = result.value ?? [];
   return (
     <div>
       <PageHeader
@@ -24,16 +29,25 @@ export default async function PredictionsPage() {
         description="Jupiter prediction markets with YES / NO prices and resolution context. Prices are observations, not executable quotes or calibrated probabilities."
         actions={
           <StatusBadge tone={markets.length ? "positive" : "negative"}>
-            {markets.length ? `${markets.length} market snapshots` : "Provider unavailable"}
+            {markets.length
+              ? `${markets.length} market snapshots`
+              : result.error
+                ? "Feed unavailable"
+                : "No open markets"}
           </StatusBadge>
         }
       />
       <div className="p-4">
+        <PredictionPaperAccount />
         {markets.length === 0 ? (
           <EmptyState
             icon={Target}
             title="Prediction-market feed unavailable"
-            copy="Jupiter has not returned a verified prediction market snapshot. Try again shortly or configure a Jupiter API key for a higher rate limit."
+            copy={
+              result.error
+                ? accountErrorMessage(result.error)
+                : "Jupiter has not returned any open markets with current prices and resolution rules."
+            }
             code="PREDICTION_DATA_UNAVAILABLE"
           />
         ) : (

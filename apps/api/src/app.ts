@@ -4,22 +4,32 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { OpenRouterResearchClient, compileIntent } from "@sisera/copilot";
 import {
-  acknowledgeOrderAlert,
+  acknowledgeAccountAlert,
   applyMarketPaperOrder,
+  applyPredictionPaperOrder,
   checkDatabaseReadiness,
   createAgentManifest,
+  createBridgeTransfer,
   createMarketLiveOrder,
   getAccountPreferences,
+  getBridgeTransfer,
+  getPredictionPaperAccount,
+  listAccountAlerts,
+  listAccountEvents,
   listAgentManifests,
-  listAlertAcknowledgements,
+  listBridgeTransfers,
+  listLeaderboardParticipants,
   listMarketLiveOrders,
   listMarketPaperAccounts,
   listMarketPaperOrders,
   listPaperAccounts,
   listPredictionOrders,
+  listPredictionPaperOrders,
   listSolanaSwapOrders,
+  markBridgeSourceSubmitted,
   recordSolanaWebhookEvents,
   saveAccountPreferences,
+  updateBridgeTransferStatus,
   updateMarketLiveOrder,
 } from "@sisera/db";
 import {
@@ -43,24 +53,28 @@ import {
 import { applyOrderEvent, createOrderRecord } from "@sisera/oms";
 import { analyzeCandles } from "@sisera/quant";
 import { evaluatePreTradeRisk } from "@sisera/risk";
-import Fastify from "fastify";
+import Fastify, { type FastifyReply } from "fastify";
 import { Counter, Histogram, Registry, collectDefaultMetrics } from "prom-client";
 import { z } from "zod";
+import { AgentDraftInput, compileAgentDraft } from "./agent-governance.js";
 import { agentTemplates } from "./agent-templates.js";
 import { createAuthenticator, requirePermission } from "./auth.js";
 import { BinanceTradingClient } from "./binance-trading.js";
-import { BridgeUnavailable, RelayBridgeClient } from "./bridge.js";
+import { BridgeQuoteInput, BridgeUnavailable, RelayBridgeClient } from "./bridge.js";
 import { ClawpumpClient, ClawpumpError } from "./clawpump.js";
 import type { ApiConfig } from "./config.js";
 import { parseHeliusWebhook, validWebhookSecret } from "./helius-webhook.js";
 import { HeliusClient } from "./helius.js";
 import { HyperEvmWalletClient } from "./hyperevm.js";
+import { JupiterPredictionTradingClient } from "./jupiter-prediction.js";
 import { JupiterQuoteClient } from "./jupiter.js";
 import { PaperOrderRejection, settleMarketPaperOrder } from "./market-paper.js";
+import { PredictionPaperRejection, settlePredictionPaperOrder } from "./prediction-paper.js";
 import { PredictionTradingService } from "./prediction-trading.js";
 import { SocialFeedClient } from "./social-feed.js";
 import { SolanaTradingService, TradeRejection } from "./solana-trading.js";
 import { StockNewsClient } from "./stock-news.js";
+import { type WalletChain, createWalletOwnershipChecker } from "./wallet-ownership.js";
 import { XStocksClient } from "./xstocks.js";
 
 export type RiskContext = {
@@ -81,6 +95,11 @@ export type ApiDependencies = {
   predictions?: { listOpenMarkets(limit?: number): Promise<unknown[]> };
   loadRiskContext?: (portfolioId: string) => Promise<RiskContext | null>;
   readinessProbe?: (connectionString: string) => Promise<boolean>;
+  ownsWallet?: (subject: string, address: string, chain: WalletChain) => Promise<boolean>;
+  predictionPaperQuote?: (
+    marketId: string,
+    outcome: "yes" | "no",
+  ) => Promise<{ priceUsd: string; closesAt: string }>;
 };
 
 export async function buildApi(config: ApiConfig, dependencies: ApiDependencies = {}) {
@@ -137,11 +156,40 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     discordChannelIds: config.SISERA_DISCORD_CHANNEL_IDS,
   });
   const predictionTrading = new PredictionTradingService(config, helius, solanaRpcUrl);
+  const predictionPaperClient = new JupiterPredictionTradingClient(
+    config.JUPITER_PREDICTION_BASE_URL,
+    config.JUPITER_API_KEY,
+  );
+  const predictionPaperQuote =
+    dependencies.predictionPaperQuote ??
+    ((marketId: string, outcome: "yes" | "no") =>
+      predictionPaperClient.quote(marketId, outcome === "yes"));
   const stockNews = new StockNewsClient(
     config.GNEWS_API_KEY,
     config.FINNHUB_API_KEY,
     config.MARKETAUX_API_KEY,
   );
+  const ownsWallet = dependencies.ownsWallet ?? createWalletOwnershipChecker(config);
+  async function requireOwnedWallet(
+    reply: FastifyReply,
+    subject: string,
+    address: string,
+    chain: WalletChain,
+  ): Promise<boolean> {
+    try {
+      if (await ownsWallet(subject, address, chain)) return true;
+      await reply.code(403).send({
+        error: "wallet_not_linked",
+        message: "Link this wallet to your Sisera account before using it.",
+      });
+    } catch {
+      await reply.code(503).send({
+        error: "wallet_verification_unavailable",
+        message: "Wallet ownership could not be verified. Try again shortly.",
+      });
+    }
+    return false;
+  }
   const research =
     config.OPENROUTER_API_KEY && config.SISERA_INTELLIGENCE_MODEL
       ? new OpenRouterResearchClient(config.OPENROUTER_API_KEY, config.SISERA_INTELLIGENCE_MODEL)
@@ -234,19 +282,19 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
             z.literal(60000),
           ]),
           failedOrderAlerts: z.boolean(),
+          leaderboardOptIn: z.boolean().optional(),
         })
         .parse(request.body);
       return {
-        data: await saveAccountPreferences(
-          config.DATABASE_URL,
-          request.principal.subject,
-          preferences,
-        ),
+        data: await saveAccountPreferences(config.DATABASE_URL, request.principal.subject, {
+          ...preferences,
+          leaderboardOptIn: preferences.leaderboardOptIn,
+        }),
       };
     },
   );
   app.get(
-    "/v1/alerts/acknowledgements",
+    "/v1/alerts",
     { preHandler: requirePermission("portfolio:read") },
     async (request, reply) => {
       if (!config.DATABASE_URL || !request.principal)
@@ -254,8 +302,19 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           .code(503)
           .send({ error: "persistence_unavailable", message: "Alert history is unavailable." });
       return {
-        data: await listAlertAcknowledgements(config.DATABASE_URL, request.principal.subject),
+        data: await listAccountAlerts(config.DATABASE_URL, request.principal.subject),
       };
+    },
+  );
+  app.get(
+    "/v1/activity/events",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply
+          .code(503)
+          .send({ error: "persistence_unavailable", message: "Account timeline is unavailable." });
+      return { data: await listAccountEvents(config.DATABASE_URL, request.principal.subject) };
     },
   );
   app.post(
@@ -267,7 +326,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           .code(503)
           .send({ error: "persistence_unavailable", message: "Alert history is unavailable." });
       const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-      const acknowledged = await acknowledgeOrderAlert(
+      const acknowledged = await acknowledgeAccountAlert(
         config.DATABASE_URL,
         request.principal.subject,
         id,
@@ -304,8 +363,36 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       config: { rateLimit: { max: 12, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
+      if (!request.principal?.subject.startsWith("privy:"))
+        return reply.code(403).send({ error: "account_required" });
+      if (!config.DATABASE_URL)
+        return reply.code(503).send({ message: "Account bridge history is unavailable." });
       try {
-        return { data: await bridge.quote(request.body) };
+        const input = BridgeQuoteInput.parse(request.body);
+        if (!(await requireOwnedWallet(reply, request.principal.subject, input.user, "ethereum")))
+          return reply;
+        if (
+          !(await requireOwnedWallet(
+            reply,
+            request.principal.subject,
+            input.recipient,
+            input.destinationChainId === 999 ? "ethereum" : "solana",
+          ))
+        )
+          return reply;
+        const quote = await bridge.quote(input);
+        await createBridgeTransfer(config.DATABASE_URL, {
+          requestId: quote.requestId,
+          tenantId: request.principal.tenantId,
+          subject: request.principal.subject,
+          originAddress: input.user,
+          recipient: quote.recipient,
+          originChainId: quote.originChainId,
+          destinationChainId: quote.destinationChainId,
+          originAmountUsdc: quote.originAmountUsdc,
+          quotedOutputUsdc: quote.outputAmountUsdc,
+        });
+        return { data: quote };
       } catch (error) {
         if (error instanceof BridgeUnavailable)
           return reply.code(error.status).send({ message: error.message });
@@ -317,12 +404,76 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     },
   );
   app.get(
+    "/v1/bridge/transfers",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply.code(503).send({ message: "Account bridge history is unavailable." });
+      return { data: await listBridgeTransfers(config.DATABASE_URL, request.principal.subject) };
+    },
+  );
+  app.post(
+    "/v1/bridge/submission",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply.code(503).send({ message: "Account bridge history is unavailable." });
+      const { requestId, sourceTxHash } = z
+        .object({
+          requestId: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+          sourceTxHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+        })
+        .parse(request.body);
+      const recorded = await markBridgeSourceSubmitted(
+        config.DATABASE_URL,
+        request.principal.subject,
+        requestId,
+        sourceTxHash,
+      );
+      return recorded
+        ? { recorded: true, verification: "pending" }
+        : reply.code(404).send({ message: "Bridge request not found for this account." });
+    },
+  );
+  app.get(
     "/v1/bridge/status",
     { preHandler: requirePermission("portfolio:read") },
     async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply.code(503).send({ message: "Account bridge history is unavailable." });
+      const query = z
+        .object({ requestId: z.string().regex(/^0x[a-fA-F0-9]{64}$/) })
+        .safeParse(request.query);
+      if (!query.success) return reply.code(400).send({ message: "Invalid bridge request ID." });
       try {
-        const { requestId } = z.object({ requestId: z.string() }).parse(request.query);
-        return { data: await bridge.status(requestId) };
+        const { requestId } = query.data;
+        const owned = await getBridgeTransfer(
+          config.DATABASE_URL,
+          request.principal.subject,
+          requestId,
+        );
+        if (!owned) return reply.code(404).send({ message: "Bridge request not found." });
+        const status = await bridge.status(requestId);
+        const persisted = await updateBridgeTransferStatus(
+          config.DATABASE_URL,
+          request.principal.subject,
+          requestId,
+          status.status,
+          status.inTxHashes?.[0] ?? null,
+          status.txHashes?.[0] ?? null,
+        );
+        return {
+          data: {
+            ...status,
+            status: persisted?.status ?? status.status,
+            inTxHashes: persisted?.sourceTxHash
+              ? [persisted.sourceTxHash]
+              : (status.inTxHashes ?? []),
+            txHashes: persisted?.destinationTxHash
+              ? [persisted.destinationTxHash]
+              : (status.txHashes ?? []),
+          },
+        };
       } catch (error) {
         if (error instanceof BridgeUnavailable)
           return reply.code(error.status).send({ message: error.message });
@@ -353,7 +504,11 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     try {
       return {
         templates: agentTemplates,
-        custom: await listAgentManifests(config.DATABASE_URL, request.principal.tenantId),
+        custom: await listAgentManifests(
+          config.DATABASE_URL,
+          request.principal.tenantId,
+          request.principal.subject,
+        ),
         persistence: "postgres",
       };
     } catch {
@@ -503,38 +658,18 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         return reply
           .code(503)
           .send({ error: "persistence_unavailable", message: "Agent database is not configured" });
-      const input = z
-        .object({
-          name: z.string().trim().min(3).max(80),
-          description: z.string().trim().min(20).max(1000),
-          universe: z
-            .array(z.string().regex(/^[A-Za-z0-9:*\/_-]{2,40}$/))
-            .min(1)
-            .max(12),
-          timeframe: z.enum(["5m", "15m", "1h", "4h", "1d", "event"]),
-          capitalLimitUsd: z.coerce.number().positive().max(1_000_000),
-          maxTradeNotionalUsd: z.coerce.number().positive().max(100_000),
-          maxDailyDrawdownPct: z.coerce.number().positive().max(10),
-        })
-        .refine(
-          (value) => value.maxTradeNotionalUsd <= value.capitalLimitUsd,
-          "Trade notional cannot exceed capital allocation",
-        )
-        .parse(request.body);
+      const input = AgentDraftInput.parse(request.body);
+      const { policy, manifestHash } = compileAgentDraft(input);
       const manifest = await createAgentManifest(config.DATABASE_URL, {
         id: `custom:${crypto.randomUUID()}`,
         version: "1.0.0",
         tenantId: request.principal.tenantId,
         name: input.name,
         stage: "draft",
-        autonomy: "suggest",
-        policy: {
-          ...input,
-          subject: request.principal.subject,
-          killSwitch: "cancel_and_halt",
-          maxLeverage: 1,
-          proposalOnly: true,
-        },
+        autonomy: "research",
+        ownerSubject: request.principal.subject,
+        manifestHash,
+        policy,
       });
       return reply.code(201).send({ data: manifest });
     },
@@ -691,6 +826,8 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
         })
         .parse(request.body);
+      if (!(await requireOwnedWallet(reply, principal.subject, input.wallet, "solana")))
+        return reply;
       return {
         data: await solanaTrading.prepare({
           ...input,
@@ -764,18 +901,21 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         return reply
           .code(503)
           .send({ error: "persistence_unavailable", message: "Trade ledger is not configured" });
-      const [accounts, marketAccounts, publicStocks, privateStocks] = await Promise.all([
-        listPaperAccounts(config.DATABASE_URL),
-        listMarketPaperAccounts(config.DATABASE_URL),
-        xstocks.list().catch(() => []),
-        prestocks.list().catch(() => []),
-      ]);
+      const [accounts, marketAccounts, publicStocks, privateStocks, participants] =
+        await Promise.all([
+          listPaperAccounts(config.DATABASE_URL),
+          listMarketPaperAccounts(config.DATABASE_URL),
+          xstocks.list().catch(() => []),
+          prestocks.list().catch(() => []),
+          listLeaderboardParticipants(config.DATABASE_URL),
+        ]);
       const prices = new Map<string, number>();
       for (const asset of publicStocks)
         if (asset.priceUsd) prices.set(asset.mint, Number(asset.priceUsd));
       for (const asset of privateStocks)
         if (asset.instrument.mint) prices.set(asset.instrument.mint, Number(asset.tokenPrice));
       const totals = new Map<string, { nav: number; baseline: number; observedAt: string }>();
+      const incompleteSubjects = new Set<string>();
       let skippedUnpriced = 0;
       const addAccount = (subject: string, nav: number, observedAt: string) => {
         const previous = totals.get(subject);
@@ -787,11 +927,13 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         });
       };
       for (const account of accounts) {
+        if (!participants.has(account.subject)) continue;
         const holdings = Object.entries(account.holdings).filter(
           ([, quantity]) => Number(quantity) !== 0,
         );
         if (holdings.some(([mint]) => !Number.isFinite(prices.get(mint)))) {
           skippedUnpriced++;
+          incompleteSubjects.add(account.subject);
           continue;
         }
         const nav =
@@ -802,6 +944,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           );
         if (!Number.isFinite(nav)) {
           skippedUnpriced++;
+          incompleteSubjects.add(account.subject);
           continue;
         }
         addAccount(account.subject, nav, account.updatedAt.toISOString());
@@ -809,6 +952,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const spotSymbols = new Set<string>();
       const perpSymbols = new Set<string>();
       for (const account of marketAccounts) {
+        if (!participants.has(String(account.subject))) continue;
         for (const [asset, quantity] of Object.entries(
           account.spotHoldings as Record<string, string>,
         ))
@@ -832,6 +976,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         }),
       ]);
       for (const account of marketAccounts) {
+        if (!participants.has(String(account.subject))) continue;
         const spotHoldings = Object.entries(account.spotHoldings as Record<string, string>).filter(
           ([, quantity]) => Number(quantity) !== 0,
         );
@@ -843,6 +988,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           perpPositions.some(([symbol]) => !Number.isFinite(marketMarks.get(`perp:${symbol}`)))
         ) {
           skippedUnpriced++;
+          incompleteSubjects.add(String(account.subject));
           continue;
         }
         const nav =
@@ -861,6 +1007,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           );
         if (!Number.isFinite(nav)) {
           skippedUnpriced++;
+          incompleteSubjects.add(String(account.subject));
           continue;
         }
         addAccount(
@@ -870,6 +1017,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         );
       }
       const rows = [...totals.entries()]
+        .filter(([subject]) => !incompleteSubjects.has(subject))
         .map(([subject, total]) => ({
           name: `Trader ${createHash("sha256").update(subject).digest("hex").slice(0, 8)}`,
           pnlUsd: total.nav - total.baseline,
@@ -902,7 +1050,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   app.get(
     "/v1/solana/wallet/:address",
     { preHandler: requirePermission("portfolio:read") },
-    async (request, reply) => {
+    async (request) => {
       const { address } = z
         .object({ address: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) })
         .parse(request.params);
@@ -1107,6 +1255,72 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   );
 
   app.post(
+    "/v1/prediction-orders/paper",
+    {
+      preHandler: requirePermission("order:paper:create"),
+      config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+    },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply.code(503).send({
+          error: "persistence_unavailable",
+          message: "Prediction paper account is unavailable.",
+        });
+      const input = z
+        .object({
+          id: z.string().uuid(),
+          marketId: z.string().regex(/^[A-Za-z0-9:_-]{5,128}$/),
+          outcome: z.enum(["yes", "no"]),
+          depositUsd: z.string().regex(/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/),
+        })
+        .parse(request.body);
+      try {
+        const quote = await predictionPaperQuote(input.marketId, input.outcome);
+        if (Date.parse(quote.closesAt) <= Date.now())
+          throw new PredictionPaperRejection("This prediction market has closed.");
+        const order = await applyPredictionPaperOrder(
+          config.DATABASE_URL,
+          {
+            ...input,
+            fillPriceUsd: quote.priceUsd,
+            closesAt: quote.closesAt,
+            tenantId: request.principal.tenantId,
+            subject: request.principal.subject,
+          },
+          (state) =>
+            settlePredictionPaperOrder(state, {
+              marketId: input.marketId,
+              outcome: input.outcome,
+              depositUsd: input.depositUsd,
+              priceUsd: quote.priceUsd,
+            }),
+        );
+        return { data: order };
+      } catch (error) {
+        if (error instanceof TradeRejection)
+          return reply.code(error.statusCode).send({ message: error.message });
+        if (error instanceof PredictionPaperRejection)
+          return reply.code(422).send({ message: error.message });
+        request.log.warn({ requestId: request.id }, "Prediction paper order unavailable");
+        return reply.code(503).send({ message: "Prediction paper order is unavailable." });
+      }
+    },
+  );
+  app.get(
+    "/v1/prediction-orders/paper",
+    { preHandler: requirePermission("portfolio:read") },
+    async (request, reply) => {
+      if (!config.DATABASE_URL || !request.principal)
+        return reply.code(503).send({ message: "Prediction paper account is unavailable." });
+      const [account, orders] = await Promise.all([
+        getPredictionPaperAccount(config.DATABASE_URL, request.principal.subject),
+        listPredictionPaperOrders(config.DATABASE_URL, request.principal.subject),
+      ]);
+      return { data: { account, orders } };
+    },
+  );
+
+  app.post(
     "/v1/prediction-orders/prepare",
     {
       preHandler: requirePermission("order:live:create"),
@@ -1128,6 +1342,8 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           depositAmount: z.string().regex(/^[1-9]\d{0,11}$/),
         })
         .parse(request.body);
+      if (!(await requireOwnedWallet(reply, principal.subject, input.wallet, "solana")))
+        return reply;
       return {
         data: await predictionTrading.prepare({
           ...input,

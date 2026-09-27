@@ -73,6 +73,33 @@ export type NewsItem = {
   provider: "gnews" | "finnhub" | "gdelt" | "marketaux" | "google-news" | "bing-news";
 };
 
+const JUNK_NEWS =
+  /\b(currency converter|exchange rate|usd to|price prediction|live price chart|token price today)\b/i;
+
+export function relevantCompanyNews(
+  article: NewsItem,
+  company: string,
+  publicSymbol?: string,
+  now = Date.now(),
+) {
+  const published = Date.parse(article.publishedAt);
+  if (!Number.isFinite(published) || published > now + 60_000 || now - published > 14 * 86_400_000)
+    return false;
+  if (JUNK_NEWS.test(`${article.title} ${article.url}`)) return false;
+  const terms = company
+    .replace(/\b(?:incorporated|corporation|company|limited|inc|corp|ltd|xstock)\b/gi, " ")
+    .split(/[^A-Za-z0-9]+/)
+    .filter(
+      (term) => term.length >= 4 && !["the", "group", "holdings"].includes(term.toLowerCase()),
+    );
+  if (publicSymbol && publicSymbol.length >= 3) terms.push(publicSymbol);
+  if (!terms.length) return false;
+  const text = `${article.title} ${article.summary ?? ""}`;
+  return terms.some((term) =>
+    new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text),
+  );
+}
+
 export class StockNewsClient {
   private readonly cache = new Map<
     string,
@@ -244,6 +271,7 @@ export class StockNewsClient {
     const seen = new Set<string>();
     const data = results
       .flatMap((result) => (result.status === "fulfilled" ? result.value : []))
+      .filter((article) => relevantCompanyNews(article, company, publicSymbol))
       .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
       .filter((article) => {
         if (seen.has(article.url)) return false;

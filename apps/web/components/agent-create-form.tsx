@@ -18,9 +18,17 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
         .map((value) => value.trim())
         .filter(Boolean),
       timeframe: String(formData.get("timeframe") ?? "1h"),
+      factors: String(formData.get("factors") ?? "")
+        .split("\n")
+        .map((value) => value.trim())
+        .filter(Boolean),
       capitalLimitUsd: Number(formData.get("capitalLimitUsd")),
       maxTradeNotionalUsd: Number(formData.get("maxTradeNotionalUsd")),
       maxDailyDrawdownPct: Number(formData.get("maxDailyDrawdownPct")),
+      maxOpenPositions: Number(formData.get("maxOpenPositions")),
+      stopLossPct: Number(formData.get("stopLossPct")),
+      takeProfitPct: Number(formData.get("takeProfitPct")),
+      maxSlippageBps: Number(formData.get("maxSlippageBps")),
     };
     try {
       const response = await fetch("/api/agents", {
@@ -42,7 +50,7 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
     <form action={submit} className="space-y-3 border border-line bg-panel p-5">
       <h2 className="text-sm font-semibold text-white">Create a strategy agent</h2>
       <p className="text-xs text-slate-400">
-        New agents start in Draft with proposal-only authority.
+        New agents start as research-only drafts. They cannot propose or execute trades.
       </p>
       <input
         name="name"
@@ -65,6 +73,13 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
         required
         placeholder="BTCUSDT, ETHUSDT"
         className="w-full rounded border border-line bg-ink p-2 text-xs"
+      />
+      <textarea
+        name="factors"
+        required
+        defaultValue={"EMA 12/26 crossover\nRelative volume above 1.2"}
+        placeholder="One measurable factor per line"
+        className="min-h-20 w-full rounded border border-line bg-ink p-2 text-xs"
       />
       <div className="grid grid-cols-2 gap-2">
         <label className="text-xs text-slate-400">
@@ -118,6 +133,26 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
             className="mt-1 w-full rounded border border-line bg-ink p-2 text-slate-100"
           />
         </label>
+        {[
+          ["maxOpenPositions", "Maximum open positions", "2", "1", "20", "1"],
+          ["stopLossPct", "Stop loss · %", "1.5", "0.1", "30", "0.1"],
+          ["takeProfitPct", "Take profit · %", "4", "0.1", "100", "0.1"],
+          ["maxSlippageBps", "Maximum slippage · bps", "25", "0", "500", "0.1"],
+        ].map(([name, label, defaultValue, min, max, step]) => (
+          <label key={name} className="text-xs text-slate-400">
+            {label}
+            <input
+              name={name}
+              type="number"
+              min={min}
+              max={max}
+              step={step}
+              defaultValue={defaultValue}
+              required
+              className="mt-1 w-full rounded border border-line bg-ink p-2 text-slate-100"
+            />
+          </label>
+        ))}
       </div>
       <button
         type="submit"

@@ -118,8 +118,16 @@ export type CustomAgent = {
   version: string;
   stage: string;
   autonomy: string;
+  manifestHash: string | null;
   createdAt: string;
-  policy: { description?: string; universe?: string[]; timeframe?: string };
+  policy: {
+    description?: string;
+    universe?: string[];
+    timeframe?: string;
+    factors?: string[];
+    capitalAllocation?: { maxCapitalUsd: number; maxTradeNotionalUsd: number };
+    riskGuardrails?: { maxDailyDrawdownPct: number; maxOpenPositions: number };
+  };
 };
 export type PerpetualMetric = {
   symbol: string;
@@ -445,6 +453,21 @@ export type MarketActivityOrder = {
   mode: "paper" | "live";
   venueOrderId?: string | null;
 };
+
+export type AccountEvent = {
+  id: string;
+  source: string;
+  sourceId: string;
+  mode: "paper" | "live";
+  status: string;
+  detail: Record<string, string>;
+  occurredAt: string;
+};
+
+export async function getAccountEvents(identity: ApiIdentity) {
+  const payload = await getJson<{ data: AccountEvent[] }>("/v1/activity/events", identity, 8000);
+  return payload.data;
+}
 
 export async function getMarketOrders(identity: ApiIdentity): Promise<MarketActivityOrder[]> {
   const [paper, live] = await Promise.all([

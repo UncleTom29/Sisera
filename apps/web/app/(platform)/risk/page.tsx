@@ -5,7 +5,7 @@ import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 import { PortfolioPrivyWallet } from "../../../components/portfolio-privy-wallet";
-import { getPublicPerpAccount, getSolanaWallet } from "../../../lib/api";
+import { accountErrorMessage, getPublicPerpAccount, getSolanaWallet } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +34,24 @@ export default async function RiskPage({
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const observed = /^0x[a-fA-F0-9]{40}$/.test(address)
-    ? await getPublicPerpAccount(address, identity).catch(() => null)
-    : null;
-  const solana = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(solanaAddress)
-    ? await getSolanaWallet(solanaAddress, identity).catch(() => null)
-    : null;
+  const [observedResult, solanaResult] = await Promise.all([
+    (/^0x[a-fA-F0-9]{40}$/.test(address)
+      ? getPublicPerpAccount(address, identity)
+      : Promise.resolve(null)
+    ).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
+    (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(solanaAddress)
+      ? getSolanaWallet(solanaAddress, identity)
+      : Promise.resolve(null)
+    ).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
+  ]);
+  const observed = observedResult.value;
+  const solana = solanaResult.value;
   const accountValue = Number(observed?.accountValue ?? 0);
   const exposureMultiple =
     accountValue > 0 ? Math.abs(Number(observed?.notionalExposure)) / accountValue : null;
@@ -133,7 +145,9 @@ export default async function RiskPage({
         )}
         {address && !observed && (
           <p className="mt-3 text-xs text-amber-300">
-            Enter a valid 0x address, or retry when Hyperliquid is reachable.
+            {observedResult.error
+              ? accountErrorMessage(observedResult.error)
+              : "Enter a valid 0x address to inspect exposure."}
           </p>
         )}
       </section>
@@ -177,7 +191,9 @@ export default async function RiskPage({
         )}
         {solanaAddress && !solana && (
           <p className="mt-3 text-xs text-amber-300">
-            Solana balance is unavailable for this address.
+            {solanaResult.error
+              ? accountErrorMessage(solanaResult.error)
+              : "Enter a valid Solana address to inspect balances."}
           </p>
         )}
       </section>

@@ -33,7 +33,8 @@ export function createAgentProposal(
   proposalId: string,
   now = new Date(),
 ): AgentProposal {
-  if (manifest.stage === "paused") throw new Error("Paused agents cannot create proposals");
+  if (!["paper", "shadow", "limited_live", "live"].includes(manifest.stage))
+    throw new Error("Agent has not passed the required evaluation stages");
   if (manifest.autonomy === "research") throw new Error("Research agents cannot propose trades");
   return {
     proposalId,

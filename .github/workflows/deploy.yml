@@ -63,6 +63,11 @@ jobs:
       - name: Build packages & web
         run: pnpm build
 
+      - name: Verify account persistence and bridge ownership
+        run: node scripts/verify-account-persistence.mjs
+        env:
+          DATABASE_URL: postgresql://sisera:sisera@127.0.0.1:5432/sisera_test
+
   deploy-contabo:
     name: Deploy to Contabo VPS (Native Node / systemd)
     needs: validate

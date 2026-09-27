@@ -16,20 +16,22 @@ export async function POST(request: NextRequest) {
     session.accessToken.startsWith("wallet:")
   )
     return NextResponse.json(
-      { message: "Sign in with your account to trade live." },
+      { message: "Sign in with your account to trade predictions." },
       { status: 401 },
     );
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== "object")
     return NextResponse.json({ message: "Invalid order." }, { status: 400 });
   const path =
-    body.action === "prepare"
-      ? "/v1/prediction-orders/prepare"
-      : body.action === "execute" &&
-          typeof body.orderId === "string" &&
-          /^[0-9a-f-]{36}$/i.test(body.orderId)
-        ? `/v1/prediction-orders/${body.orderId}/execute`
-        : null;
+    body.action === "paper"
+      ? "/v1/prediction-orders/paper"
+      : body.action === "prepare"
+        ? "/v1/prediction-orders/prepare"
+        : body.action === "execute" &&
+            typeof body.orderId === "string" &&
+            /^[0-9a-f-]{36}$/i.test(body.orderId)
+          ? `/v1/prediction-orders/${body.orderId}/execute`
+          : null;
   if (!path) return NextResponse.json({ message: "Invalid prediction action." }, { status: 400 });
   try {
     const response = await fetch(`${serverApiUrl()}${path}`, {
@@ -51,7 +53,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         message:
-          "Prediction order status is unknown. Check your wallet and Activity before retrying.",
+          body.action === "paper"
+            ? "Paper order status is unknown. Check Activity before retrying."
+            : "Prediction order status is unknown. Check your wallet and Activity before retrying.",
       },
       { status: 503 },
     );

@@ -8,34 +8,61 @@ import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 import { PortfolioConnect } from "../../../components/portfolio-connect";
 import { PortfolioPrivyWallet } from "../../../components/portfolio-privy-wallet";
-import { getHyperEvmWallet, getPublicPerpAccount, getSolanaWallet } from "../../../lib/api";
+import { PredictionPaperAccount } from "../../../components/prediction-paper-account";
+import {
+  accountErrorMessage,
+  getHyperEvmWallet,
+  getPublicPerpAccount,
+  getSolanaWallet,
+} from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortfolioPage({
   searchParams,
-}: { searchParams: Promise<{ address?: string; solana?: string }> }) {
+}: { searchParams: Promise<{ address?: string; solana?: string; watch?: string }> }) {
   const parameters = await searchParams;
   const address = parameters.address?.trim() ?? "";
   const solanaAddress = parameters.solana?.trim() ?? "";
+  const watchAddress = parameters.watch?.trim() ?? "";
+  const observedAddress = watchAddress || address;
   const validSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(solanaAddress);
   const validAddress = /^0x[a-fA-F0-9]{40}$/.test(address);
+  const validObservedAddress = /^0x[a-fA-F0-9]{40}$/.test(observedAddress);
   const session = await auth();
   const identity = {
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const [solana, observed, hyperEvm] = await Promise.all([
-    validSolanaAddress ? getSolanaWallet(solanaAddress, identity).catch(() => null) : null,
-    validAddress ? getPublicPerpAccount(address, identity).catch(() => null) : null,
-    validAddress ? getHyperEvmWallet(address, identity).catch(() => null) : null,
+  const [solanaResult, observedResult, hyperEvmResult] = await Promise.all([
+    (validSolanaAddress ? getSolanaWallet(solanaAddress, identity) : Promise.resolve(null)).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
+    (validObservedAddress
+      ? getPublicPerpAccount(observedAddress, identity)
+      : Promise.resolve(null)
+    ).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
+    (validAddress ? getHyperEvmWallet(address, identity) : Promise.resolve(null)).then(
+      (value) => ({ value, error: null as unknown }),
+      (error: unknown) => ({ value: null, error }),
+    ),
   ]);
+  const solana = solanaResult.value;
+  const observed = observedResult.value;
+  const hyperEvm = hyperEvmResult.value;
   const unrealizedPnl = observed?.positions.reduce(
     (sum, position) => sum + Number(position.unrealizedPnl),
     0,
   );
   const summary = [
-    ["Perp account value", observed ? `$${Number(observed.accountValue).toLocaleString()}` : "—"],
+    [
+      "Observed perp account value",
+      observed ? `$${Number(observed.accountValue).toLocaleString()}` : "—",
+    ],
     ["Solana cash", solana ? `${(Number(solana.solLamports) / 1e9).toFixed(4)} SOL` : "—"],
     ["HyperEVM USDC", hyperEvm ? `$${(Number(hyperEvm.usdcRaw) / 1e6).toLocaleString()}` : "—"],
     [
@@ -48,7 +75,7 @@ export default async function PortfolioPage({
   return (
     <div className="min-h-full">
       <Suspense fallback={null}>
-        <PortfolioPrivyWallet />
+        <PortfolioPrivyWallet mode="linked" />
       </Suspense>
       <PageHeader
         eyebrow="Connected account observations"
@@ -61,6 +88,9 @@ export default async function PortfolioPage({
         }
       />
       <BridgeUsdc />
+      <div className="mx-4 mt-4 md:mx-6">
+        <PredictionPaperAccount />
+      </div>
       <section className="m-4 border border-line bg-panel p-5 md:m-6">
         <p className="eyebrow">HyperEVM · chain 999</p>
         <h2 className="mt-2 text-base font-semibold text-slate-100">Funding wallet</h2>
@@ -77,37 +107,27 @@ export default async function PortfolioPage({
           </div>
         ) : validAddress ? (
           <p className="mt-4 text-xs text-amber-300">
-            HyperEVM wallet balances are temporarily unavailable.
+            {hyperEvmResult.error
+              ? accountErrorMessage(hyperEvmResult.error)
+              : "HyperEVM wallet balances are unavailable."}
           </p>
         ) : null}
       </section>
       <section className="m-4 border border-line bg-panel p-5 md:m-6">
         <p className="eyebrow">Solana</p>
-        <h2 className="mt-2 text-base font-semibold text-slate-100">Your wallet</h2>
+        <h2 className="mt-2 text-base font-semibold text-slate-100">Linked wallet observation</h2>
         <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">
-          Connect your wallet or enter an address to view balances.
+          Sign in and link a Solana wallet to view its public balance. This balance has not been
+          reconciled against an account ledger.
         </p>
-        <form action="/portfolio" className="mt-4 flex flex-wrap gap-2">
-          <input
-            name="solana"
-            defaultValue={solanaAddress}
-            aria-label="Solana public wallet address"
-            placeholder="Solana public address"
-            className="min-w-64 flex-1 rounded border border-line bg-[#0f1a22] px-3 py-2 font-mono text-xs text-slate-100"
-          />
-          <button
-            type="submit"
-            className="rounded border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300"
-          >
-            View balances
-          </button>
-        </form>
         {solanaAddress && !validSolanaAddress && (
           <p className="mt-2 text-xs text-rose-300">Enter a valid base58 Solana address.</p>
         )}
         {validSolanaAddress && !solana && (
           <p className="mt-2 text-xs text-amber-300">
-            Wallet balances are temporarily unavailable.
+            {solanaResult.error
+              ? accountErrorMessage(solanaResult.error)
+              : "Solana wallet balances are unavailable."}
           </p>
         )}
         {solana && (
@@ -159,7 +179,7 @@ export default async function PortfolioPage({
           </div>
           {observed && (
             <Link
-              href={`/risk?address=${encodeURIComponent(address)}`}
+              href={`/risk?address=${encodeURIComponent(observedAddress)}`}
               className="rounded border border-cyan-400/30 px-3 py-2 text-xs text-cyan-300"
             >
               Review observed exposure →
@@ -168,8 +188,8 @@ export default async function PortfolioPage({
         </div>
         <form action="/portfolio" className="mt-4 flex flex-wrap gap-2">
           <input
-            name="address"
-            defaultValue={address}
+            name="watch"
+            defaultValue={watchAddress}
             aria-label="Hyperliquid wallet address"
             placeholder="0x… public wallet address"
             className="min-w-64 flex-1 rounded border border-line bg-[#0f1a22] px-3 py-2 font-mono text-xs text-slate-100"
@@ -181,12 +201,14 @@ export default async function PortfolioPage({
             Observe wallet
           </button>
         </form>
-        {address && !validAddress && (
+        {watchAddress && !validObservedAddress && (
           <p className="mt-2 text-xs text-rose-300">Enter a 42-character 0x address.</p>
         )}
-        {validAddress && !observed && (
+        {validObservedAddress && !observed && (
           <p className="mt-2 text-xs text-amber-300">
-            Hyperliquid account state is unavailable for this address.
+            {observedResult.error
+              ? accountErrorMessage(observedResult.error)
+              : "Hyperliquid account state is unavailable for this address."}
           </p>
         )}
         {observed && (
@@ -271,7 +293,7 @@ export default async function PortfolioPage({
       <div className="grid gap-4 p-4 xl:grid-cols-[1.45fr_.55fr]">
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <span className="text-xs font-semibold">Positions</span>
+            <span className="text-xs font-semibold">Observed Hyperliquid positions</span>
             <div className="flex items-center gap-3">
               <button
                 type="button"

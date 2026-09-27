@@ -60,6 +60,7 @@ function TradeTicketView({
 }: TicketProps & { wallets: StandardWallets }) {
   const wallet = wallets.find((item) => item.accounts.length > 0);
   const account = wallet?.accounts[0];
+  const accountAddress = account?.address;
   const [mode, setMode] = useState<"paper" | "live">("paper");
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("");
@@ -69,6 +70,7 @@ function TradeTicketView({
   const [result, setResult] = useState<TradeResult | null>(null);
   const [prepared, setPrepared] = useState<PreparedTrade | null>(null);
   const [balance, setBalance] = useState<WalletBalance | null>(null);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
   const liveAvailable = useLiveCapability("solana");
   const estimate = useMemo(() => {
     const numeric = Number(amount);
@@ -81,20 +83,48 @@ function TradeTicketView({
   }, [amount, price, side, symbol]);
 
   useEffect(() => {
-    if (!account || mode !== "live") return;
+    if (!accountAddress || mode !== "live") {
+      setBalance(null);
+      setBalanceError(null);
+      return;
+    }
     let cancelled = false;
-    void fetch(`/api/wallet?address=${encodeURIComponent(account.address)}`, { cache: "no-store" })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload) => {
-        if (!cancelled) setBalance(payload?.data ?? null);
+    setBalance(null);
+    setBalanceError(null);
+    const load = () => {
+      void fetch(`/api/wallet?address=${encodeURIComponent(accountAddress)}`, {
+        cache: "no-store",
       })
-      .catch(() => {
-        if (!cancelled) setBalance(null);
-      });
+        .then(async (response) => {
+          const payload = await response.json();
+          if (!response.ok)
+            throw new Error(
+              `${payload.message ?? "Wallet balances are unavailable."}${payload.requestId ? ` Reference ${payload.requestId}.` : ""}`,
+            );
+          return payload;
+        })
+        .then((payload) => {
+          if (!cancelled) {
+            setBalance(payload?.data ?? null);
+            setBalanceError(null);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setBalance(null);
+            setBalanceError(
+              error instanceof Error ? error.message : "Wallet balances are unavailable.",
+            );
+          }
+        });
+    };
+    load();
+    window.addEventListener("sisera:session-renewed", load);
     return () => {
       cancelled = true;
+      window.removeEventListener("sisera:session-renewed", load);
     };
-  }, [account, mode]);
+  }, [accountAddress, mode]);
 
   async function submit() {
     setWorking(true);
@@ -140,7 +170,8 @@ function TradeTicketView({
       let body: Record<string, string> = { action: "paper", mint, side, amount };
       if (mode === "live") {
         if (!wallet || !account) throw new Error("Connect your Solana wallet first.");
-        if (!balance) throw new Error("Wallet balances are unavailable. Try again shortly.");
+        if (!balance)
+          throw new Error(balanceError ?? "Wallet balances are unavailable. Try again shortly.");
         const inputMint = side === "buy" ? USDC : mint;
         const holding = balance.holdings.find((item) => item.mint === inputMint);
         if (!holding)

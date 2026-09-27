@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { getPrivySolanaAddress } from "../lib/privy-identity";
 
-export function PortfolioPrivyWallet() {
+export function PortfolioPrivyWallet({ mode = "suggest" }: { mode?: "suggest" | "linked" }) {
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
   const router = useRouter();
@@ -16,13 +16,20 @@ export function PortfolioPrivyWallet() {
   const query = searchParams.toString();
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !authenticated) return;
     const next = new URLSearchParams(query);
-    if (wallet && !next.has("solana")) next.set("solana", wallet);
-    if (evmWallet && !next.has("address")) next.set("address", evmWallet);
+    if (mode === "linked") {
+      if (wallet) next.set("solana", wallet);
+      else next.delete("solana");
+      if (evmWallet) next.set("address", evmWallet);
+      else next.delete("address");
+    } else {
+      if (wallet && !next.has("solana")) next.set("solana", wallet);
+      if (evmWallet && !next.has("address")) next.set("address", evmWallet);
+    }
     if (next.toString() === query) return;
     router.replace(`${pathname}?${next.toString()}`);
-  }, [ready, wallet, evmWallet, query, router, pathname]);
+  }, [ready, authenticated, wallet, evmWallet, query, router, pathname, mode]);
 
   return null;
 }

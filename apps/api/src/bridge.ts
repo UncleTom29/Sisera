@@ -68,7 +68,7 @@ const Quote = z.object({
   details: z.object({
     timeEstimate: z.number().optional(),
     currencyOut: z.object({
-      amount: z.string(),
+      amount: z.string().regex(/^\d+$/),
       currency: z.object({ address: z.string(), decimals: z.number().int() }),
     }),
   }),
@@ -148,6 +148,7 @@ export class RelayBridgeClient {
         "This bridge route needs wallet actions Sisera cannot sign yet.",
         422,
       );
+    const outputAtomic = BigInt(quote.data.details.currencyOut.amount);
     return {
       requestId,
       steps: quote.data.steps.map((step) => ({
@@ -155,7 +156,7 @@ export class RelayBridgeClient {
         items: step.items.map((item) => item.data),
       })),
       fees: quote.data.fees ?? {},
-      outputAmountUsdc: (Number(quote.data.details.currencyOut.amount) / 1_000_000).toFixed(6),
+      outputAmountUsdc: `${outputAtomic / 1_000_000n}.${(outputAtomic % 1_000_000n).toString().padStart(6, "0")}`,
       timeEstimateSeconds: quote.data.details.timeEstimate ?? null,
       originChainId: input.originChainId,
       destinationChainId: input.destinationChainId,
@@ -176,9 +177,9 @@ export class RelayBridgeClient {
     if (!response.ok) throw new BridgeUnavailable("Bridge status is unavailable.");
     return z
       .object({
-        status: z.string(),
-        inTxHashes: z.array(z.string()).optional(),
-        txHashes: z.array(z.string()).optional(),
+        status: z.string().min(1).max(64),
+        inTxHashes: z.array(z.string().regex(/^0x[a-fA-F0-9]{64}$/)).optional(),
+        txHashes: z.array(z.string().regex(/^0x[a-fA-F0-9]{64}$/)).optional(),
       })
       .parse(await response.json());
   }

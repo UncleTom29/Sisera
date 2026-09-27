@@ -8,6 +8,7 @@ Production runs on the Contabo VPS with PostgreSQL on loopback, `sisera-api` and
 2. The deployment job verifies Privy settings, requires a local PostgreSQL URL, and takes a `pg_dump` snapshot in `/opt/sisera-backups` before running migrations.
 3. After restart, `/health/live` confirms the API process; `/health/ready` confirms essential configuration and the expected database migration. The deployment job must pass readiness and public sign-in asset checks.
 4. Live trading flags default to `false`. Enable one venue only after its ownership, risk, order state, and reconciliation checks have been verified with a controlled account. Hyperliquid live execution remains disabled while those checks are incomplete.
+5. Confirm the VPS environment file contains the intended provider keys by name before a release. GitHub Actions secrets are optional overrides; the SSH deployment secrets alone do not configure Helius, Jupiter, Clawpump, or social providers. Never print values while checking presence.
 
 ## Diagnosing a failed release
 
@@ -21,4 +22,4 @@ Supply provider keys through GitHub Actions secrets or the VPS environment file.
 
 ## Current limitations
 
-Readiness checks the database and identity configuration. Provider health, authenticated browser journeys, account reconciliation, and backup restore drills still need separate checks. A green readiness response is not evidence that live trading is safe to enable.
+Readiness checks the database and identity configuration. The account timeline records order and bridge state changes only from its migration onward. Bridge source submissions are observations until Relay confirms the outcome; HyperEVM funding is not HyperCore funding. Provider health, authenticated browser journeys, account reconciliation, and backup restore drills still need separate checks. A green readiness response is not evidence that live trading is safe to enable.

@@ -19,7 +19,7 @@ export default async function LeaderboardPage() {
       <PageHeader
         eyebrow="Paper performance"
         title="Leaderboard"
-        description="Ranked mark-to-market P&L across recorded Solana stock, Binance spot, and Hyperliquid perp paper accounts. Live venue and prediction P&L are not yet included; accounts with missing marks are excluded."
+        description="Opt-in pseudonymous paper rankings across priced Solana stock, Binance spot, and Hyperliquid perp accounts. Live venue and prediction P&L are not yet included."
       />
       <div className="p-4">
         <section className="border border-line bg-panel">
@@ -51,7 +51,7 @@ export default async function LeaderboardPage() {
             </div>
           ) : (
             <p className="p-5 text-xs text-slate-400">
-              No fully priced paper accounts are available.
+              No opted-in, fully priced paper accounts are available.
             </p>
           )}
           {result && (

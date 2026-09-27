@@ -1,4 +1,4 @@
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema.js";
@@ -16,10 +16,184 @@ export async function checkDatabaseReadiness(connectionString: string): Promise<
   try {
     const rows = await connection`
       SELECT EXISTS (
-        SELECT 1 FROM _sisera_migrations WHERE name = '0006_account_preferences_alerts.sql'
+        SELECT 1 FROM _sisera_migrations WHERE name = '0012_account_alerts.sql'
       ) AS migrated
     `;
     return rows[0]?.migrated === true;
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function listAccountEvents(connectionString: string, subject: string) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const rows = await connection`
+      SELECT id::text, source, source_id::text AS "sourceId", mode, status, detail,
+             occurred_at AS "occurredAt"
+      FROM account_events WHERE subject = ${subject}
+      ORDER BY occurred_at DESC LIMIT 200
+    `;
+    return rows.map((row) => ({
+      id: String(row.id),
+      source: String(row.source),
+      sourceId: String(row.sourceId),
+      mode: String(row.mode),
+      status: String(row.status),
+      detail: row.detail as Record<string, string>,
+      occurredAt: new Date(row.occurredAt as string | Date).toISOString(),
+    }));
+  } finally {
+    await connection.end();
+  }
+}
+
+export type BridgeTransferInput = {
+  requestId: string;
+  tenantId: string;
+  subject: string;
+  originAddress: string;
+  recipient: string;
+  originChainId: number;
+  destinationChainId: number;
+  originAmountUsdc: string;
+  quotedOutputUsdc: string;
+};
+
+export async function createBridgeTransfer(
+  connectionString: string,
+  transfer: BridgeTransferInput,
+) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [created] = await connection`
+      INSERT INTO bridge_transfers
+        (request_id, tenant_id, subject, origin_address, recipient, origin_chain_id,
+         destination_chain_id, origin_amount_usdc, quoted_output_usdc)
+      VALUES (${transfer.requestId}, ${transfer.tenantId}, ${transfer.subject},
+              ${transfer.originAddress}, ${transfer.recipient}, ${transfer.originChainId},
+              ${transfer.destinationChainId}, ${transfer.originAmountUsdc}, ${transfer.quotedOutputUsdc})
+      ON CONFLICT (request_id) DO NOTHING RETURNING id
+    `;
+    if (!created) {
+      const [existing] = await connection`
+        SELECT subject, origin_address AS "originAddress", recipient,
+               origin_chain_id AS "originChainId", destination_chain_id AS "destinationChainId",
+               origin_amount_usdc::text AS "originAmountUsdc"
+        FROM bridge_transfers WHERE request_id = ${transfer.requestId}
+      `;
+      if (
+        !existing ||
+        existing.subject !== transfer.subject ||
+        String(existing.originAddress).toLowerCase() !== transfer.originAddress.toLowerCase() ||
+        existing.recipient !== transfer.recipient ||
+        Number(existing.originChainId) !== transfer.originChainId ||
+        Number(existing.destinationChainId) !== transfer.destinationChainId ||
+        Number(existing.originAmountUsdc) !== Number(transfer.originAmountUsdc)
+      )
+        throw new Error("Bridge request ID belongs to a different quote");
+    }
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function listBridgeTransfers(connectionString: string, subject: string) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const rows = await connection`
+      SELECT request_id AS "requestId", origin_address AS "originAddress", recipient,
+             origin_chain_id AS "originChainId", destination_chain_id AS "destinationChainId",
+             origin_amount_usdc::text AS "originAmountUsdc",
+             quoted_output_usdc::text AS "quotedOutputUsdc", status,
+             source_tx_hash AS "sourceTxHash", destination_tx_hash AS "destinationTxHash",
+             quoted_at AS "quotedAt", updated_at AS "updatedAt"
+      FROM bridge_transfers WHERE subject = ${subject}
+      ORDER BY quoted_at DESC LIMIT 100
+    `;
+    return rows.map((row) => ({
+      ...row,
+      quotedAt: new Date(row.quotedAt as string | Date).toISOString(),
+      updatedAt: new Date(row.updatedAt as string | Date).toISOString(),
+    }));
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function getBridgeTransfer(
+  connectionString: string,
+  subject: string,
+  requestId: string,
+) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [row] = await connection`
+      SELECT id FROM bridge_transfers WHERE subject = ${subject} AND request_id = ${requestId}
+    `;
+    return Boolean(row);
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function markBridgeSourceSubmitted(
+  connectionString: string,
+  subject: string,
+  requestId: string,
+  sourceTxHash: string,
+) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [row] = await connection`
+      UPDATE bridge_transfers SET
+        status = CASE WHEN status = 'quoted' THEN 'source_submitted' ELSE status END,
+        source_tx_hash = COALESCE(source_tx_hash, ${sourceTxHash}),
+        source_submitted_at = CASE
+          WHEN status IN ('quoted', 'source_submitted')
+            THEN COALESCE(source_submitted_at, clock_timestamp())
+          ELSE source_submitted_at END,
+        updated_at = clock_timestamp()
+      WHERE subject = ${subject} AND request_id = ${requestId}
+        AND (source_tx_hash IS NULL OR source_tx_hash = ${sourceTxHash})
+      RETURNING id
+    `;
+    return Boolean(row);
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function updateBridgeTransferStatus(
+  connectionString: string,
+  subject: string,
+  requestId: string,
+  status: string,
+  sourceTxHash: string | null,
+  destinationTxHash: string | null,
+) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [updated] = await connection`
+      UPDATE bridge_transfers SET
+        status = CASE WHEN lower(status) IN ('success', 'completed') THEN status ELSE ${status} END,
+        source_tx_hash = COALESCE(${sourceTxHash}, source_tx_hash),
+        destination_tx_hash = COALESCE(destination_tx_hash, ${destinationTxHash}),
+        source_submitted_at = CASE
+          WHEN ${status} = 'source_submitted'
+            THEN COALESCE(source_submitted_at, clock_timestamp())
+          ELSE source_submitted_at END,
+        updated_at = clock_timestamp()
+      WHERE subject = ${subject} AND request_id = ${requestId}
+      RETURNING status, source_tx_hash AS "sourceTxHash", destination_tx_hash AS "destinationTxHash"
+    `;
+    return updated
+      ? {
+          status: String(updated.status),
+          sourceTxHash: updated.sourceTxHash ? String(updated.sourceTxHash) : null,
+          destinationTxHash: updated.destinationTxHash ? String(updated.destinationTxHash) : null,
+        }
+      : null;
   } finally {
     await connection.end();
   }
@@ -29,15 +203,17 @@ export async function getAccountPreferences(connectionString: string, subject: s
   const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
   try {
     const [row] = await connection`
-      SELECT refresh_interval_ms AS "refreshIntervalMs", failed_order_alerts AS "failedOrderAlerts"
+      SELECT refresh_interval_ms AS "refreshIntervalMs", failed_order_alerts AS "failedOrderAlerts",
+             leaderboard_opt_in AS "leaderboardOptIn"
       FROM account_preferences WHERE subject = ${subject}
     `;
     return row
       ? {
           refreshIntervalMs: Number(row.refreshIntervalMs),
           failedOrderAlerts: Boolean(row.failedOrderAlerts),
+          leaderboardOptIn: Boolean(row.leaderboardOptIn),
         }
-      : { refreshIntervalMs: 30000, failedOrderAlerts: true };
+      : { refreshIntervalMs: 30000, failedOrderAlerts: true, leaderboardOptIn: false };
   } finally {
     await connection.end();
   }
@@ -46,57 +222,113 @@ export async function getAccountPreferences(connectionString: string, subject: s
 export async function saveAccountPreferences(
   connectionString: string,
   subject: string,
-  preferences: { refreshIntervalMs: number; failedOrderAlerts: boolean },
+  preferences: {
+    refreshIntervalMs: number;
+    failedOrderAlerts: boolean;
+    leaderboardOptIn: boolean | undefined;
+  },
 ) {
   const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
   try {
-    await connection`
-      INSERT INTO account_preferences (subject, refresh_interval_ms, failed_order_alerts)
-      VALUES (${subject}, ${preferences.refreshIntervalMs}, ${preferences.failedOrderAlerts})
+    const leaderboardOptIn = preferences.leaderboardOptIn ?? null;
+    const [saved] = await connection`
+      INSERT INTO account_preferences (subject, refresh_interval_ms, failed_order_alerts, leaderboard_opt_in)
+      VALUES (${subject}, ${preferences.refreshIntervalMs}, ${preferences.failedOrderAlerts}, COALESCE(${leaderboardOptIn}, false))
       ON CONFLICT (subject) DO UPDATE SET
         refresh_interval_ms = EXCLUDED.refresh_interval_ms,
         failed_order_alerts = EXCLUDED.failed_order_alerts,
+        leaderboard_opt_in = COALESCE(${leaderboardOptIn}, account_preferences.leaderboard_opt_in),
         updated_at = now()
+      RETURNING leaderboard_opt_in AS "leaderboardOptIn"
     `;
-    return preferences;
+    return { ...preferences, leaderboardOptIn: Boolean(saved?.leaderboardOptIn) };
   } finally {
     await connection.end();
   }
 }
 
-export async function listAlertAcknowledgements(connectionString: string, subject: string) {
+export async function listLeaderboardParticipants(connectionString: string): Promise<Set<string>> {
   const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
   try {
     const rows = await connection`
-      SELECT order_id::text AS id FROM alert_acknowledgements
-      WHERE subject = ${subject} ORDER BY acknowledged_at DESC LIMIT 500
+      SELECT subject FROM account_preferences WHERE leaderboard_opt_in = true
     `;
-    return rows.map((row) => String(row.id));
+    return new Set(rows.map((row) => String(row.subject)));
   } finally {
     await connection.end();
   }
 }
 
-export async function acknowledgeOrderAlert(
+export async function listAccountAlerts(connectionString: string, subject: string) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const rows = await connection`
+      WITH latest AS (
+        SELECT DISTINCT ON (source, source_id)
+          id, source, source_id, status, detail, occurred_at
+        FROM account_events
+        WHERE subject = ${subject}
+        ORDER BY source, source_id, occurred_at DESC, id DESC
+      ), eligible AS (
+        SELECT id, source, source_id, status, detail, occurred_at
+        FROM latest
+        WHERE status IN ('failed', 'unknown', 'rejected')
+          AND source IN ('solana_swap_orders', 'market_live_orders', 'prediction_orders')
+          AND COALESCE((SELECT failed_order_alerts FROM account_preferences
+                        WHERE subject = ${subject}), true)
+        UNION ALL
+        SELECT id, 'bridge_transfers', id, 'delayed',
+               jsonb_build_object('requestId', request_id), source_submitted_at
+        FROM bridge_transfers
+        WHERE subject = ${subject} AND status = 'source_submitted'
+          AND source_submitted_at <= now() - interval '15 minutes'
+      )
+      SELECT eligible.id::text, eligible.source, eligible.source_id::text AS "sourceId",
+             eligible.status, eligible.detail, eligible.occurred_at AS "occurredAt",
+             acknowledgement.acknowledged_at AS "acknowledgedAt"
+      FROM eligible
+      LEFT JOIN alert_acknowledgements AS acknowledgement
+        ON acknowledgement.subject = ${subject} AND acknowledgement.alert_id = eligible.id
+      ORDER BY eligible.occurred_at DESC LIMIT 200
+    `;
+    return rows.map((row) => ({
+      id: String(row.id),
+      source: String(row.source),
+      sourceId: String(row.sourceId),
+      status: String(row.status),
+      detail: row.detail as Record<string, string>,
+      occurredAt: new Date(row.occurredAt as Date).toISOString(),
+      acknowledgedAt: row.acknowledgedAt
+        ? new Date(row.acknowledgedAt as Date).toISOString()
+        : null,
+    }));
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function acknowledgeAccountAlert(
   connectionString: string,
   subject: string,
-  orderId: string,
+  alertId: string,
 ) {
   const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
   try {
     const [row] = await connection`
-      SELECT id FROM (
-        SELECT id FROM solana_swap_orders WHERE subject = ${subject} AND status IN ('failed', 'unknown')
-        UNION ALL
-        SELECT id FROM market_live_orders WHERE subject = ${subject} AND status IN ('rejected', 'unknown')
-        UNION ALL
-        SELECT id FROM prediction_orders WHERE subject = ${subject} AND status IN ('failed', 'unknown')
-      ) eligible WHERE id = ${orderId}::uuid LIMIT 1
+      SELECT id FROM account_events
+      WHERE id = ${alertId}::uuid AND subject = ${subject}
+        AND status IN ('failed', 'unknown', 'rejected')
+      UNION ALL
+      SELECT id FROM bridge_transfers
+      WHERE id = ${alertId}::uuid AND subject = ${subject}
+        AND status = 'source_submitted'
+        AND source_submitted_at <= now() - interval '15 minutes'
+      LIMIT 1
     `;
     if (!row) return false;
     await connection`
-      INSERT INTO alert_acknowledgements (subject, order_id)
-      VALUES (${subject}, ${orderId}::uuid) ON CONFLICT DO NOTHING
+      INSERT INTO alert_acknowledgements (subject, alert_id)
+      VALUES (${subject}, ${alertId}::uuid) ON CONFLICT DO NOTHING
     `;
     return true;
   } finally {
@@ -104,13 +336,25 @@ export async function acknowledgeOrderAlert(
   }
 }
 
-export async function listAgentManifests(connectionString: string, tenantId: string) {
+export async function listAgentManifests(
+  connectionString: string,
+  tenantId: string,
+  subject: string,
+) {
   const connection = createDatabase(connectionString);
   try {
-    return connection.db
+    return await connection.db
       .select()
       .from(schema.agentManifests)
-      .where(eq(schema.agentManifests.tenantId, tenantId))
+      .where(
+        and(
+          eq(schema.agentManifests.tenantId, tenantId),
+          or(
+            eq(schema.agentManifests.ownerSubject, subject),
+            sql`${schema.agentManifests.policy}->>'subject' = ${subject}`,
+          ),
+        ),
+      )
       .orderBy(desc(schema.agentManifests.createdAt))
       .limit(100);
   } finally {
@@ -215,7 +459,7 @@ export async function finishSolanaSwapOrder(
 export async function listSolanaSwapOrders(connectionString: string, subject: string) {
   const connection = createDatabase(connectionString);
   try {
-    return connection.db
+    return await connection.db
       .select({
         id: schema.solanaSwapOrders.id,
         mode: schema.solanaSwapOrders.mode,
@@ -240,7 +484,7 @@ export async function listSolanaSwapOrders(connectionString: string, subject: st
 export async function listPaperAccounts(connectionString: string) {
   const connection = createDatabase(connectionString);
   try {
-    return connection.db.select().from(schema.solanaPaperAccounts).limit(1000);
+    return await connection.db.select().from(schema.solanaPaperAccounts).limit(1000);
   } finally {
     await connection.close();
   }
@@ -339,6 +583,110 @@ export async function listMarketLiveOrders(connectionString: string, subject: st
   const connection = postgres(connectionString, { max: 2, connect_timeout: 10 });
   try {
     return await connection`SELECT id, venue, symbol, side, quantity::text, client_order_id AS "clientOrderId", venue_order_id AS "venueOrderId", status, created_at AS "createdAt" FROM market_live_orders WHERE subject = ${subject} ORDER BY created_at DESC LIMIT 50`;
+  } finally {
+    await connection.end();
+  }
+}
+
+export type PredictionPaperState = {
+  cashUsd: string;
+  positions: Record<string, { contracts: string; costUsd: string }>;
+};
+
+export async function applyPredictionPaperOrder(
+  connectionString: string,
+  order: {
+    id: string;
+    tenantId: string;
+    subject: string;
+    marketId: string;
+    outcome: "yes" | "no";
+    depositUsd: string;
+    fillPriceUsd: string;
+    closesAt: string;
+  },
+  decide: (state: PredictionPaperState) => {
+    state: PredictionPaperState;
+    contracts: string;
+    feeUsd: string;
+  },
+) {
+  const connection = postgres(connectionString, { max: 2, connect_timeout: 10 });
+  try {
+    return await connection.begin(async (transaction) => {
+      await transaction`INSERT INTO prediction_paper_accounts (subject) VALUES (${order.subject}) ON CONFLICT DO NOTHING`;
+      const [account] =
+        await transaction`SELECT cash_usd::text AS "cashUsd", positions FROM prediction_paper_accounts WHERE subject = ${order.subject} FOR UPDATE`;
+      if (!account) throw new Error("Prediction paper account unavailable");
+      const [existing] = await transaction`
+        SELECT id::text, subject, market_id AS "marketId", outcome,
+               deposit_usd::text AS "depositUsd", fill_price_usd::text AS "fillPriceUsd",
+               contracts::text, fee_usd::text AS "feeUsd", status
+        FROM prediction_paper_orders WHERE id = ${order.id}::uuid
+      `;
+      if (existing) {
+        if (
+          existing.subject !== order.subject ||
+          existing.marketId !== order.marketId ||
+          existing.outcome !== order.outcome ||
+          existing.depositUsd !== order.depositUsd
+        )
+          throw new Error("Prediction paper request ID is already used");
+        return existing;
+      }
+      const settled = decide({
+        cashUsd: String(account.cashUsd),
+        positions: account.positions as PredictionPaperState["positions"],
+      });
+      await transaction`
+        UPDATE prediction_paper_accounts
+        SET cash_usd = ${settled.state.cashUsd},
+            positions = ${JSON.stringify(settled.state.positions)}::jsonb,
+            updated_at = now()
+        WHERE subject = ${order.subject}
+      `;
+      const [created] = await transaction`
+        INSERT INTO prediction_paper_orders
+          (id, tenant_id, subject, market_id, outcome, deposit_usd, fill_price_usd,
+           contracts, fee_usd, closes_at)
+        VALUES (${order.id}, ${order.tenantId}, ${order.subject}, ${order.marketId},
+                ${order.outcome}, ${order.depositUsd}, ${order.fillPriceUsd},
+                ${settled.contracts}, ${settled.feeUsd}, ${order.closesAt})
+        RETURNING id::text, market_id AS "marketId", outcome,
+                  deposit_usd::text AS "depositUsd", fill_price_usd::text AS "fillPriceUsd",
+                  contracts::text, fee_usd::text AS "feeUsd", status
+      `;
+      return created;
+    });
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function getPredictionPaperAccount(connectionString: string, subject: string) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    const [account] = await connection`
+      SELECT cash_usd::text AS "cashUsd", positions, updated_at AS "updatedAt"
+      FROM prediction_paper_accounts WHERE subject = ${subject}
+    `;
+    return account ?? { cashUsd: "10000", positions: {}, updatedAt: null };
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function listPredictionPaperOrders(connectionString: string, subject: string) {
+  const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
+  try {
+    return await connection`
+      SELECT id::text, market_id AS "marketId", outcome,
+             deposit_usd::text AS "depositUsd", fill_price_usd::text AS "fillPriceUsd",
+             contracts::text, fee_usd::text AS "feeUsd", status,
+             closes_at AS "closesAt", created_at AS "createdAt"
+      FROM prediction_paper_orders WHERE subject = ${subject}
+      ORDER BY created_at DESC LIMIT 100
+    `;
   } finally {
     await connection.end();
   }

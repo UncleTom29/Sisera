@@ -28,28 +28,7 @@ export class JupiterPredictionTradingClient {
     isYes: boolean;
     depositAmount: string;
   }) {
-    const [marketResponse, statusResponse] = await Promise.all([
-      this.fetcher(`${this.baseUrl}/markets/${encodeURIComponent(input.marketId)}`, {
-        headers: this.headers(),
-        signal: AbortSignal.timeout(7000),
-      }),
-      this.fetcher(`${this.baseUrl}/trading-status`, {
-        headers: this.headers(),
-        signal: AbortSignal.timeout(7000),
-      }),
-    ]);
-    if (!marketResponse.ok || !statusResponse.ok)
-      throw new TradeRejection("Jupiter prediction market is unavailable.", 503);
-    const market = Market.parse(await marketResponse.json());
-    const trading = TradingStatus.parse(await statusResponse.json());
-    if (market.marketId !== input.marketId || market.status !== "open" || !trading.trading_active)
-      throw new TradeRejection("This prediction market is not open for trading.");
-    if (!Number.isFinite(market.closeTime) || market.closeTime * 1000 <= Date.now())
-      throw new TradeRejection("This prediction market has closed.");
-    if (!market.rulesPrimary?.trim()) throw new TradeRejection("Resolution rules are unavailable.");
-    const price = input.isYes ? market.pricing.buyYesPriceUsd : market.pricing.buyNoPriceUsd;
-    if (!Number.isFinite(price) || price <= 0 || price >= 1_000_000)
-      throw new TradeRejection("This outcome has no valid current buy price.");
+    const quote = await this.quote(input.marketId, input.isYes);
     const response = await this.fetcher(`${this.baseUrl}/orders`, {
       method: "POST",
       headers: { ...this.headers(), "content-type": "application/json" },
@@ -71,7 +50,37 @@ export class JupiterPredictionTradingClient {
     const order = PreparedOrder.safeParse(await response.json());
     if (!order.success)
       throw new TradeRejection("Jupiter returned an incomplete prediction order.", 503);
-    return { ...order.data, priceUsd: price / 1_000_000 };
+    return { ...order.data, priceUsd: Number(quote.priceUsd) };
+  }
+
+  async quote(marketId: string, isYes: boolean) {
+    const [marketResponse, statusResponse] = await Promise.all([
+      this.fetcher(`${this.baseUrl}/markets/${encodeURIComponent(marketId)}`, {
+        headers: this.headers(),
+        signal: AbortSignal.timeout(7000),
+      }),
+      this.fetcher(`${this.baseUrl}/trading-status`, {
+        headers: this.headers(),
+        signal: AbortSignal.timeout(7000),
+      }),
+    ]);
+    if (!marketResponse.ok || !statusResponse.ok)
+      throw new TradeRejection("Jupiter prediction market is unavailable.", 503);
+    const market = Market.parse(await marketResponse.json());
+    const trading = TradingStatus.parse(await statusResponse.json());
+    if (market.marketId !== marketId || market.status !== "open" || !trading.trading_active)
+      throw new TradeRejection("This prediction market is not open for trading.");
+    if (!Number.isFinite(market.closeTime) || market.closeTime * 1000 <= Date.now())
+      throw new TradeRejection("This prediction market has closed.");
+    if (!market.rulesPrimary?.trim()) throw new TradeRejection("Resolution rules are unavailable.");
+    const price = isYes ? market.pricing.buyYesPriceUsd : market.pricing.buyNoPriceUsd;
+    if (!Number.isInteger(price) || price <= 0 || price >= 1_000_000)
+      throw new TradeRejection("This outcome has no valid current buy price.");
+    return {
+      marketId,
+      priceUsd: (price / 1_000_000).toFixed(6),
+      closesAt: new Date(market.closeTime * 1000).toISOString(),
+    };
   }
 
   async orderStatus(orderPubkey: string): Promise<string | null> {

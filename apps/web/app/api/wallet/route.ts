@@ -23,16 +23,22 @@ export async function GET(request: NextRequest) {
       cache: "no-store",
       signal: AbortSignal.timeout(10000),
     });
-    if (!response.ok)
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
       return NextResponse.json(
         {
           message:
             response.status === 401 || response.status === 403
               ? "Wallet access requires a valid Sisera session."
-              : "Wallet balances are unavailable from the Solana RPC.",
+              : payload?.error === "database_unavailable" ||
+                  payload?.error === "identity_store_unavailable"
+                ? "Account database is unavailable."
+                : "Wallet balances are unavailable from the Solana RPC.",
+          requestId: response.headers.get("x-request-id") ?? payload?.requestId ?? null,
         },
         { status: response.status === 401 || response.status === 403 ? response.status : 503 },
       );
+    }
     return NextResponse.json(await response.json(), { headers: { "cache-control": "no-store" } });
   } catch {
     return NextResponse.json({ message: "Wallet balances are unavailable." }, { status: 503 });

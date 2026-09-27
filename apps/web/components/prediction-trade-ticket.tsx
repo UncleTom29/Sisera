@@ -1,7 +1,8 @@
 "use client";
 
+import { usePrivy } from "@privy-io/react-auth";
 import { useSolanaStandardWallets } from "@privy-io/react-auth/solana";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLiveCapability } from "./use-live-capability";
 
 type Prepared = {
@@ -15,20 +16,49 @@ type Prepared = {
 
 export function PredictionTradeTicket({ marketId }: { marketId: string }) {
   const liveAvailable = useLiveCapability("predictions");
+  const { authenticated } = usePrivy();
   const { wallets } = useSolanaStandardWallets();
   const wallet = wallets.find((item) => item.accounts.length > 0);
   const account = wallet?.accounts[0];
   const [outcome, setOutcome] = useState<"yes" | "no">("yes");
+  const [mode, setMode] = useState<"paper" | "live">("paper");
   const [amount, setAmount] = useState("");
   const [prepared, setPrepared] = useState<Prepared | null>(null);
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const paperRequestId = useRef<string | null>(null);
 
   async function submit() {
     setWorking(true);
     setMessage(null);
     try {
-      if (!liveAvailable) throw new Error("Prediction live trading is paused.");
+      if (!authenticated) throw new Error("Sign in to use the prediction paper account.");
+      if (mode === "live" && !liveAvailable) throw new Error("Prediction live trading is paused.");
+      if (mode === "paper") {
+        if (!/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(amount))
+          throw new Error("Enter a valid USDC amount.");
+        paperRequestId.current ??= crypto.randomUUID();
+        const response = await fetch("/api/prediction-trade", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            action: "paper",
+            id: paperRequestId.current,
+            marketId,
+            outcome,
+            depositUsd: amount,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message ?? "Paper order could not be confirmed.");
+        setMessage(
+          `Paper ${outcome.toUpperCase()} filled at $${payload.data.fillPriceUsd} · ${Number(payload.data.contracts).toFixed(2)} contracts · $${payload.data.feeUsd} fee.`,
+        );
+        paperRequestId.current = null;
+        setAmount("");
+        window.dispatchEvent(new Event("sisera:prediction-paper-filled"));
+        return;
+      }
       if (!wallet || !account) throw new Error("Connect a Solana wallet to your Sisera account.");
       if (prepared) {
         if (prepared.wallet !== account.address || Date.now() > Date.parse(prepared.expiresAt)) {
@@ -94,8 +124,25 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
 
   return (
     <div className="mt-4 border-t border-line pt-3 text-xs">
-      <p className="font-semibold text-slate-200">Trade with Jupiter · live</p>
-      {!liveAvailable && (
+      <p className="font-semibold text-slate-200">Trade with Jupiter · {mode}</p>
+      <div className="mt-2 grid grid-cols-2 gap-1">
+        {(["paper", "live"] as const).map((option) => (
+          <button
+            key={option}
+            type="button"
+            disabled={option === "live" && !liveAvailable}
+            onClick={() => {
+              setMode(option);
+              setPrepared(null);
+              setMessage(null);
+            }}
+            className={`rounded border px-2 py-2 uppercase disabled:opacity-40 ${mode === option ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300" : "border-line text-slate-500"}`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+      {!liveAvailable && mode === "live" && (
         <p className="mt-2 text-amber-300">
           Live trading is paused while account risk and order reconciliation are completed.
         </p>
@@ -108,6 +155,7 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
             onClick={() => {
               setOutcome(side);
               setPrepared(null);
+              paperRequestId.current = null;
             }}
             className={`rounded border px-2 py-2 uppercase ${outcome === side ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300" : "border-line text-slate-500"}`}
           >
@@ -122,6 +170,7 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
           onChange={(event) => {
             setAmount(event.target.value);
             setPrepared(null);
+            paperRequestId.current = null;
           }}
           inputMode="decimal"
           placeholder="5.00"
@@ -137,12 +186,22 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
       <button
         type="button"
         onClick={() => void submit()}
-        disabled={working || !account || !amount || !liveAvailable}
+        disabled={
+          working || !authenticated || !amount || (mode === "live" && (!account || !liveAvailable))
+        }
         className="mt-2 h-9 w-full rounded border border-cyan-400/40 bg-cyan-400/10 text-cyan-200 disabled:opacity-40"
       >
-        {working ? "Working…" : prepared ? "Sign and submit" : "Review live order"}
+        {working
+          ? "Working…"
+          : mode === "paper"
+            ? "Place paper order"
+            : prepared
+              ? "Sign and submit"
+              : "Review live order"}
       </button>
-      {!account && <p className="mt-2 text-slate-500">Connect a Solana wallet to trade.</p>}
+      {mode === "live" && !account && (
+        <p className="mt-2 text-slate-500">Connect a Solana wallet to trade live.</p>
+      )}
       {message && <output className="mt-2 block text-slate-300">{message}</output>}
     </div>
   );

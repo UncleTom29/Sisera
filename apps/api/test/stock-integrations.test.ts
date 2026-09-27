@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ClawpumpClient } from "../src/clawpump.js";
 import { JupiterQuoteClient } from "../src/jupiter.js";
 import { verifySignedSwap } from "../src/solana-trading.js";
-import { StockNewsClient } from "../src/stock-news.js";
+import { StockNewsClient, relevantCompanyNews } from "../src/stock-news.js";
 import { XStocksClient } from "../src/xstocks.js";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -101,6 +101,43 @@ describe("stock provider boundaries", () => {
     const result = await new StockNewsClient().search("SpaceX");
     expect(result.data[0]?.title).toBe("SpaceX update");
     expect(result.data[0]?.provider).toBe("google-news");
+  });
+
+  it("rejects stale converter pages and unrelated issuer news", () => {
+    const now = Date.parse("2026-09-27T00:00:00Z");
+    const article = {
+      title: "Apple announces new device",
+      summary: null,
+      url: "https://example.com/apple",
+      publishedAt: "2026-09-26T12:00:00Z",
+      publisher: "Example",
+      provider: "gdelt" as const,
+    };
+    expect(relevantCompanyNews(article, "Apple Inc.", "AAPL", now)).toBe(true);
+    expect(
+      relevantCompanyNews(
+        { ...article, title: "USD to EUR currency converter" },
+        "Apple Inc.",
+        "AAPL",
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      relevantCompanyNews(
+        { ...article, title: "Microsoft announces new device" },
+        "Apple Inc.",
+        "AAPL",
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      relevantCompanyNews(
+        { ...article, publishedAt: "2026-08-01T12:00:00Z" },
+        "Apple Inc.",
+        "AAPL",
+        now,
+      ),
+    ).toBe(false);
   });
 
   it("keeps public stock mints tied to the issuer catalogue", async () => {

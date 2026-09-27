@@ -12,7 +12,7 @@ export async function GET() {
   )
     return NextResponse.json({ message: "Sign in to view alerts." }, { status: 401 });
   try {
-    const response = await fetch(`${serverApiUrl()}/v1/alerts/acknowledgements`, {
+    const response = await fetch(`${serverApiUrl()}/v1/alerts`, {
       headers: { authorization: `Bearer ${session.accessToken}` },
       cache: "no-store",
       signal: AbortSignal.timeout(6000),

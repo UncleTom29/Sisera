@@ -1,3 +1,4 @@
+import postgres from "postgres";
 import { buildApi } from "../apps/api/dist/app.js";
 import { readConfig } from "../apps/api/dist/config.js";
 import {
@@ -6,6 +7,7 @@ import {
   getAccountPreferences,
   getBridgeTransfer,
   getPredictionPaperAccount,
+  listAccountAlerts,
   listAccountEvents,
   listBridgeTransfers,
   listPredictionPaperOrders,
@@ -22,6 +24,7 @@ const subject = `migration-test:${suffix}`;
 const otherSubject = `migration-test:other-${suffix}`;
 const requestId = `0x${suffix.padEnd(64, "0")}`;
 const sourceTxHash = `0x${suffix.padEnd(64, "1")}`;
+const connection = postgres(databaseUrl, { max: 1, connect_timeout: 3 });
 
 await createBridgeTransfer(databaseUrl, {
   requestId,
@@ -114,6 +117,97 @@ const api = await buildApi(
   },
 );
 try {
+  const liveOrderId = crypto.randomUUID();
+  await connection`
+    INSERT INTO market_live_orders
+      (id, tenant_id, subject, venue, symbol, side, quantity, client_order_id, status)
+    VALUES (${liveOrderId}, 'migration-test', ${subject}, 'binance', 'BTCUSDT', 'buy',
+            1, ${liveOrderId}, 'unknown')
+  `;
+  const alert = (await listAccountAlerts(databaseUrl, subject)).find(
+    (item) => item.sourceId === liveOrderId,
+  );
+  if (!alert || alert.status !== "unknown")
+    throw new Error("Uncertain order did not produce a server-owned alert.");
+  if ((await listAccountAlerts(databaseUrl, otherSubject)).length)
+    throw new Error("Account alerts leaked across subjects.");
+  const alertHeaders = {
+    "x-sisera-dev-role": "trader",
+    "x-sisera-dev-subject": subject,
+  };
+  const alertResponse = await api.inject({
+    method: "GET",
+    url: "/v1/alerts",
+    headers: alertHeaders,
+  });
+  if (
+    alertResponse.statusCode !== 200 ||
+    !alertResponse.json().data.some((item) => item.id === alert.id)
+  )
+    throw new Error("Account alert API did not return the uncertain order.");
+  const acknowledgement = await api.inject({
+    method: "POST",
+    url: `/v1/alerts/${alert.id}/acknowledge`,
+    headers: alertHeaders,
+  });
+  if (acknowledgement.statusCode !== 200)
+    throw new Error("Account acknowledgement could not be saved.");
+  if (
+    !(await listAccountAlerts(databaseUrl, subject)).find((item) => item.id === alert.id)
+      ?.acknowledgedAt
+  )
+    throw new Error("Account acknowledgement did not persist.");
+  const foreignAcknowledgement = await api.inject({
+    method: "POST",
+    url: `/v1/alerts/${alert.id}/acknowledge`,
+    headers: { ...alertHeaders, "x-sisera-dev-subject": otherSubject },
+  });
+  if (foreignAcknowledgement.statusCode !== 404)
+    throw new Error("Another account could acknowledge an alert.");
+  await saveAccountPreferences(databaseUrl, subject, {
+    refreshIntervalMs: 60000,
+    failedOrderAlerts: false,
+    leaderboardOptIn: undefined,
+  });
+  if ((await listAccountAlerts(databaseUrl, subject)).some((item) => item.id === alert.id))
+    throw new Error("Disabled order alerts were still returned.");
+  await saveAccountPreferences(databaseUrl, subject, {
+    refreshIntervalMs: 60000,
+    failedOrderAlerts: true,
+    leaderboardOptIn: undefined,
+  });
+  const delayedRequestId = `0x${suffix.padEnd(64, "2")}`;
+  await createBridgeTransfer(databaseUrl, {
+    requestId: delayedRequestId,
+    tenantId: "migration-test",
+    subject,
+    originAddress: "0x1111111111111111111111111111111111111111",
+    recipient: "0x2222222222222222222222222222222222222222",
+    originChainId: 8453,
+    destinationChainId: 999,
+    originAmountUsdc: "5",
+    quotedOutputUsdc: "4.9",
+  });
+  await markBridgeSourceSubmitted(databaseUrl, subject, delayedRequestId, sourceTxHash);
+  await connection`
+    UPDATE bridge_transfers SET updated_at = now() - interval '16 minutes'
+    WHERE request_id = ${delayedRequestId}
+  `;
+  const delayed = (await listAccountAlerts(databaseUrl, subject)).find(
+    (item) => item.source === "bridge_transfers" && item.detail.requestId === delayedRequestId,
+  );
+  if (!delayed || delayed.status !== "delayed")
+    throw new Error("A delayed bridge did not produce an account alert.");
+  await updateBridgeTransferStatus(
+    databaseUrl,
+    subject,
+    delayedRequestId,
+    "success",
+    sourceTxHash,
+    null,
+  );
+  if ((await listAccountAlerts(databaseUrl, subject)).some((item) => item.id === delayed.id))
+    throw new Error("A completed bridge still has an active delay alert.");
   const apiOrder = {
     id: crypto.randomUUID(),
     marketId: "MARKET-456",
@@ -138,6 +232,7 @@ try {
     throw new Error("Prediction paper API retried a debit.");
 } finally {
   await api.close();
+  await connection.end();
 }
 
 console.log("Account persistence and ownership boundaries verified.");

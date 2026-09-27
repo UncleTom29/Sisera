@@ -4,7 +4,7 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { OpenRouterResearchClient, compileIntent } from "@sisera/copilot";
 import {
-  acknowledgeOrderAlert,
+  acknowledgeAccountAlert,
   applyMarketPaperOrder,
   applyPredictionPaperOrder,
   checkDatabaseReadiness,
@@ -14,9 +14,9 @@ import {
   getAccountPreferences,
   getBridgeTransfer,
   getPredictionPaperAccount,
+  listAccountAlerts,
   listAccountEvents,
   listAgentManifests,
-  listAlertAcknowledgements,
   listBridgeTransfers,
   listLeaderboardParticipants,
   listMarketLiveOrders,
@@ -294,7 +294,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     },
   );
   app.get(
-    "/v1/alerts/acknowledgements",
+    "/v1/alerts",
     { preHandler: requirePermission("portfolio:read") },
     async (request, reply) => {
       if (!config.DATABASE_URL || !request.principal)
@@ -302,7 +302,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           .code(503)
           .send({ error: "persistence_unavailable", message: "Alert history is unavailable." });
       return {
-        data: await listAlertAcknowledgements(config.DATABASE_URL, request.principal.subject),
+        data: await listAccountAlerts(config.DATABASE_URL, request.principal.subject),
       };
     },
   );
@@ -326,7 +326,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
           .code(503)
           .send({ error: "persistence_unavailable", message: "Alert history is unavailable." });
       const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
-      const acknowledged = await acknowledgeOrderAlert(
+      const acknowledged = await acknowledgeAccountAlert(
         config.DATABASE_URL,
         request.principal.subject,
         id,

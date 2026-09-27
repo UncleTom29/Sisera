@@ -116,7 +116,8 @@ export function WorkspaceSettings() {
           Show failed and uncertain order alerts
         </label>
         <p className="mt-3 text-[11px] text-slate-500">
-          Preferences are saved to your Sisera account. Order status still appears in Activity.
+          Preferences are saved to your Sisera account. Order status still appears in Activity;
+          delayed bridge alerts remain visible.
         </p>
       </section>
       <section className="border border-line bg-panel p-5">

@@ -2,44 +2,56 @@
 
 import { useEffect, useState } from "react";
 
-export function ActivityAlerts({
-  alerts,
-}: { alerts: Array<{ id: string; status: string; createdAt: string }> }) {
-  const [acknowledged, setAcknowledged] = useState<string[]>([]);
-  const [enabled, setEnabled] = useState(true);
+type AccountAlert = {
+  id: string;
+  source: string;
+  sourceId: string;
+  status: string;
+  detail: Record<string, string>;
+  occurredAt: string;
+  acknowledgedAt: string | null;
+};
+
+export function ActivityAlerts() {
+  const [alerts, setAlerts] = useState<AccountAlert[]>([]);
   const [ready, setReady] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     const load = () => {
-      void Promise.all([
-        fetch("/api/alert-acknowledgements", { cache: "no-store" }),
-        fetch("/api/preferences", { cache: "no-store" }),
-      ])
-        .then(async ([acks, preferences]) => {
-          if (!acks.ok || !preferences.ok)
-            throw new Error("Alert state cannot be verified right now.");
-          const [ackPayload, prefPayload] = await Promise.all([acks.json(), preferences.json()]);
+      void fetch("/api/alert-acknowledgements", { cache: "no-store" })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("Account alerts cannot be checked right now.");
+          const payload = await response.json();
           if (active) {
-            setAcknowledged(ackPayload.data);
-            setEnabled(prefPayload.data.failedOrderAlerts);
+            setAlerts(payload.data);
             setMessage(null);
             setReady(true);
           }
         })
         .catch((error) => {
-          if (active)
-            setMessage(error instanceof Error ? error.message : "Alert state is unavailable.");
+          if (active) {
+            setAlerts([]);
+            setMessage(error instanceof Error ? error.message : "Alerts are unavailable.");
+            setReady(true);
+          }
         });
     };
     load();
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    const refreshTimer = window.setInterval(refreshVisible, 30_000);
+    document.addEventListener("visibilitychange", refreshVisible);
     window.addEventListener("sisera:session-renewed", load);
     return () => {
       active = false;
+      window.clearInterval(refreshTimer);
+      document.removeEventListener("visibilitychange", refreshVisible);
       window.removeEventListener("sisera:session-renewed", load);
     };
   }, []);
-  const active = enabled ? alerts.filter((alert) => !acknowledged.includes(alert.id)) : [];
+  const active = alerts.filter((alert) => !alert.acknowledgedAt);
   async function acknowledge(id: string) {
     setMessage(null);
     try {
@@ -49,7 +61,11 @@ export function ActivityAlerts({
         body: JSON.stringify({ id }),
       });
       if (!response.ok) throw new Error("Acknowledgement could not be saved.");
-      setAcknowledged((previous) => [...previous, id]);
+      setAlerts((previous) =>
+        previous.map((alert) =>
+          alert.id === id ? { ...alert, acknowledgedAt: new Date().toISOString() } : alert,
+        ),
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Acknowledgement failed.");
     }
@@ -62,14 +78,20 @@ export function ActivityAlerts({
         </p>
       )}
       {!ready ? (
-        <p className="p-5 text-xs text-slate-400">Checking account alert state…</p>
+        <p className="p-5 text-xs text-slate-400">Checking account alerts…</p>
       ) : active.length ? (
         active.map((alert) => (
           <div key={alert.id} className="flex items-center justify-between gap-4 p-4">
             <div>
-              <p className="text-xs font-semibold text-rose-300">Order {alert.status}</p>
+              <p className="text-xs font-semibold text-rose-300">
+                {alert.source === "bridge_transfers" ? "Bridge delayed" : `Order ${alert.status}`}
+              </p>
               <p className="mt-1 font-mono text-[10px] text-slate-500">
-                {new Date(alert.createdAt).toLocaleString()} · {alert.id}
+                {new Date(alert.occurredAt).toLocaleString()} ·{" "}
+                {alert.detail.symbol ??
+                  alert.detail.marketId ??
+                  alert.detail.requestId ??
+                  alert.sourceId}
               </p>
             </div>
             <button
@@ -82,7 +104,7 @@ export function ActivityAlerts({
           </div>
         ))
       ) : (
-        <p className="p-5 text-xs text-slate-400">No unacknowledged order alerts.</p>
+        !message && <p className="p-5 text-xs text-slate-400">No unacknowledged account alerts.</p>
       )}
     </div>
   );

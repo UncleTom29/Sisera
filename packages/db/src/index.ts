@@ -16,7 +16,7 @@ export async function checkDatabaseReadiness(connectionString: string): Promise<
   try {
     const rows = await connection`
       SELECT EXISTS (
-        SELECT 1 FROM _sisera_migrations WHERE name = '0011_agent_governance.sql'
+        SELECT 1 FROM _sisera_migrations WHERE name = '0012_account_alerts.sql'
       ) AS migrated
     `;
     return rows[0]?.migrated === true;
@@ -251,39 +251,76 @@ export async function listLeaderboardParticipants(connectionString: string): Pro
   }
 }
 
-export async function listAlertAcknowledgements(connectionString: string, subject: string) {
+export async function listAccountAlerts(connectionString: string, subject: string) {
   const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
   try {
     const rows = await connection`
-      SELECT order_id::text AS id FROM alert_acknowledgements
-      WHERE subject = ${subject} ORDER BY acknowledged_at DESC LIMIT 500
+      WITH latest AS (
+        SELECT DISTINCT ON (source, source_id)
+          id, source, source_id, status, detail, occurred_at
+        FROM account_events
+        WHERE subject = ${subject}
+        ORDER BY source, source_id, occurred_at DESC, id DESC
+      ), eligible AS (
+        SELECT id, source, source_id, status, detail, occurred_at
+        FROM latest
+        WHERE status IN ('failed', 'unknown', 'rejected')
+          AND source IN ('solana_swap_orders', 'market_live_orders', 'prediction_orders')
+          AND COALESCE((SELECT failed_order_alerts FROM account_preferences
+                        WHERE subject = ${subject}), true)
+        UNION ALL
+        SELECT id, 'bridge_transfers', id, 'delayed',
+               jsonb_build_object('requestId', request_id), updated_at
+        FROM bridge_transfers
+        WHERE subject = ${subject} AND status = 'source_submitted'
+          AND updated_at <= now() - interval '15 minutes'
+      )
+      SELECT eligible.id::text, eligible.source, eligible.source_id::text AS "sourceId",
+             eligible.status, eligible.detail, eligible.occurred_at AS "occurredAt",
+             acknowledgement.acknowledged_at AS "acknowledgedAt"
+      FROM eligible
+      LEFT JOIN alert_acknowledgements AS acknowledgement
+        ON acknowledgement.subject = ${subject} AND acknowledgement.alert_id = eligible.id
+      ORDER BY eligible.occurred_at DESC LIMIT 200
     `;
-    return rows.map((row) => String(row.id));
+    return rows.map((row) => ({
+      id: String(row.id),
+      source: String(row.source),
+      sourceId: String(row.sourceId),
+      status: String(row.status),
+      detail: row.detail as Record<string, string>,
+      occurredAt: new Date(row.occurredAt as Date).toISOString(),
+      acknowledgedAt: row.acknowledgedAt
+        ? new Date(row.acknowledgedAt as Date).toISOString()
+        : null,
+    }));
   } finally {
     await connection.end();
   }
 }
 
-export async function acknowledgeOrderAlert(
+export async function acknowledgeAccountAlert(
   connectionString: string,
   subject: string,
-  orderId: string,
+  alertId: string,
 ) {
   const connection = postgres(connectionString, { max: 1, connect_timeout: 3 });
   try {
     const [row] = await connection`
-      SELECT id FROM (
-        SELECT id FROM solana_swap_orders WHERE subject = ${subject} AND status IN ('failed', 'unknown')
-        UNION ALL
-        SELECT id FROM market_live_orders WHERE subject = ${subject} AND status IN ('rejected', 'unknown')
-        UNION ALL
-        SELECT id FROM prediction_orders WHERE subject = ${subject} AND status IN ('failed', 'unknown')
-      ) eligible WHERE id = ${orderId}::uuid LIMIT 1
+      SELECT id FROM account_events
+      WHERE id = ${alertId}::uuid AND subject = ${subject}
+        AND status IN ('failed', 'unknown', 'rejected')
+      UNION ALL
+      SELECT id FROM bridge_transfers
+      WHERE id = ${alertId}::uuid AND subject = ${subject}
+        AND status = 'source_submitted'
+        AND updated_at <= now() - interval '15 minutes'
+      LIMIT 1
     `;
     if (!row) return false;
     await connection`
-      INSERT INTO alert_acknowledgements (subject, order_id)
-      VALUES (${subject}, ${orderId}::uuid) ON CONFLICT DO NOTHING
+      INSERT INTO alert_acknowledgements (subject, alert_id)
+      VALUES (${subject}, ${alertId}::uuid) ON CONFLICT DO NOTHING
     `;
     return true;
   } finally {

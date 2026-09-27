@@ -8,6 +8,7 @@ import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 import { PortfolioConnect } from "../../../components/portfolio-connect";
 import { PortfolioPrivyWallet } from "../../../components/portfolio-privy-wallet";
+import { PredictionPaperAccount } from "../../../components/prediction-paper-account";
 import {
   accountErrorMessage,
   getHyperEvmWallet,
@@ -87,6 +88,9 @@ export default async function PortfolioPage({
         }
       />
       <BridgeUsdc />
+      <div className="mx-4 mt-4 md:mx-6">
+        <PredictionPaperAccount />
+      </div>
       <section className="m-4 border border-line bg-panel p-5 md:m-6">
         <p className="eyebrow">HyperEVM · chain 999</p>
         <h2 className="mt-2 text-base font-semibold text-slate-100">Funding wallet</h2>
@@ -289,7 +293,7 @@ export default async function PortfolioPage({
       <div className="grid gap-4 p-4 xl:grid-cols-[1.45fr_.55fr]">
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <span className="text-xs font-semibold">Positions</span>
+            <span className="text-xs font-semibold">Observed Hyperliquid positions</span>
             <div className="flex items-center gap-3">
               <button
                 type="button"

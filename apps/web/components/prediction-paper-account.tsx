@@ -41,8 +41,10 @@ export function PredictionPaperAccount() {
           }
         })
         .catch((reason: unknown) => {
-          if (active)
+          if (active) {
+            setData(null);
             setError(reason instanceof Error ? reason.message : "Paper account unavailable.");
+          }
         });
     };
     load();
@@ -72,6 +74,19 @@ export function PredictionPaperAccount() {
             {Object.keys(data.account.positions).length} open outcome positions ·{" "}
             {data.orders.length} recorded paper orders
           </p>
+          {Object.entries(data.account.positions).length > 0 && (
+            <div className="mt-3 divide-y divide-line border-t border-line">
+              {Object.entries(data.account.positions).map(([instrument, position]) => (
+                <div key={instrument} className="flex flex-wrap justify-between gap-2 py-2 text-xs">
+                  <span className="break-all font-mono text-slate-300">{instrument}</span>
+                  <span className="font-mono text-slate-400">
+                    {Number(position.contracts).toFixed(2)} contracts ·{" "}
+                    {Number(position.costUsd).toFixed(2)} USDC cost
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {data.orders.length > 0 && (
             <div className="mt-3 space-y-1 border-t border-line pt-3">
               {data.orders.slice(0, 5).map((order) => (

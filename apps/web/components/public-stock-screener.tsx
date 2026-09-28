@@ -173,7 +173,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
                       className="px-5 py-3 text-right font-mono text-slate-300"
                       title={
                         reference
-                          ? `${reference.referenceFreshness.replace("_", " ")} · generated ${new Date(reference.feedUpdateTimestamp).toLocaleString()}`
+                          ? `Share price updated ${new Date(reference.feedUpdateTimestamp).toLocaleString()}`
                           : undefined
                       }
                     >

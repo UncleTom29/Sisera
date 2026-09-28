@@ -1,12 +1,4 @@
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Bot,
-  ChartNoAxesCombined,
-  Layers3,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight, ChartNoAxesCombined, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { LandingRefresh } from "../components/landing-refresh";
 import { SiseraMark } from "../components/sisera-mark";
@@ -312,69 +304,36 @@ export default async function LandingPage() {
         </section>
       )}
 
-      <section className="mx-auto grid max-w-[1440px] gap-12 px-5 py-20 md:px-10 md:py-28 lg:grid-cols-[.8fr_1.2fr]">
-        <div>
-          <p className="text-[11px] uppercase tracking-[.18em] text-cyan-300">Beyond the price</p>
-          <h2 className="mt-4 text-3xl font-medium leading-tight tracking-tight text-white md:text-5xl">
-            From a market move to a considered trade.
-          </h2>
-          <p className="mt-5 max-w-md text-sm leading-7 text-slate-400">
-            See the company behind the token, the risk already in your wallet, and the real order
-            details before you sign.
-          </p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {[
-            {
-              icon: ChartNoAxesCombined,
-              title: "See the whole market",
-              body: "Screen tokenized stocks and private markets beside crypto and macro conditions.",
-            },
-            {
-              icon: Sparkles,
-              title: "Understand the move",
-              body: "Bring prices, news, market depth, and AI research into the same conversation.",
-            },
-            {
-              icon: Layers3,
-              title: "Know your exposure",
-              body: "See holdings and concentrations across connected wallets before adding a position.",
-            },
-            {
-              icon: ShieldCheck,
-              title: "Stay in control",
-              body: "Practice, review trade details, and keep clear limits around execution and agents.",
-            },
-          ].map(({ icon: Icon, title, body }) => (
-            <div key={title} className="rounded-xl border border-white/10 bg-[#111c25] p-6">
-              <Icon size={20} className="text-cyan-300" />
-              <h3 className="mt-5 text-base font-semibold text-white">{title}</h3>
-              <p className="mt-3 text-xs leading-6 text-slate-400">{body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y border-white/10 bg-[#101c25] px-5 py-14 md:px-10">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-6">
+      <section className="border-y border-white/10 bg-[#101c25] px-5 py-16 md:px-10">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-end justify-between gap-8">
           <div>
-            <Bot size={22} className="text-cyan-300" />
-            <h2 className="mt-3 text-2xl font-medium text-white">Put your strategy to the test.</h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400">
-              Define your markets, capital, and risk limits. Explore ideas with AI, inspect the
-              evidence, and test before moving further.
+            <p className="text-xs uppercase tracking-[.18em] text-cyan-300">Inside the terminal</p>
+            <h2 className="mt-3 max-w-2xl text-3xl font-medium tracking-tight text-white md:text-4xl">
+              Follow the evidence through to the order.
+            </h2>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
+              Open a company to see its token chart, mark or share comparison, recent coverage, and
+              trade details. Connect your account to see what the decision means for your portfolio.
             </p>
           </div>
-          <Link
-            href="/agents"
-            className="inline-flex items-center gap-2 rounded-md border border-cyan-300/40 px-5 py-3 text-sm font-medium text-cyan-200 hover:bg-cyan-300/10"
-          >
-            Explore agents <ArrowRight size={15} />
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/intelligence"
+              className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-4 py-3 text-sm font-semibold text-[#07151e] hover:bg-cyan-200"
+            >
+              Open research <ArrowRight size={15} />
+            </Link>
+            <Link
+              href="/portfolio"
+              className="inline-flex items-center gap-2 rounded-md border border-white/20 px-4 py-3 text-sm text-white hover:border-white/40"
+            >
+              View portfolio <ArrowUpRight size={15} />
+            </Link>
+          </div>
         </div>
       </section>
       <footer className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-5 px-5 py-10 text-xs text-slate-500 md:px-10">
-        <span>Sisera · See further. Trade with intent.</span>
+        <span>Sisera · Markets, research, trading.</span>
         <div className="flex flex-wrap gap-5">
           <Link href="/stocks" className="hover:text-white">
             Stocks

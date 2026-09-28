@@ -109,7 +109,7 @@ export function MarketOrderTicket({
     <div className="flex h-full flex-col bg-panel">
       <div className="flex h-12 items-center justify-between border-b border-line px-4">
         <span className="text-sm font-semibold text-slate-100">Order ticket</span>
-        <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-cyan-300">
+        <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-bronze-300">
           <ShieldCheck size={13} /> {mode}
         </span>
       </div>
@@ -124,7 +124,7 @@ export function MarketOrderTicket({
                 setMode(option);
                 setMessage(null);
               }}
-              className={`rounded py-2 text-xs font-semibold disabled:cursor-not-allowed ${mode === option ? "bg-cyan-400/15 text-cyan-300" : "text-slate-500"}`}
+              className={`rounded py-2 text-xs font-semibold disabled:cursor-not-allowed ${mode === option ? "bg-bronze-400/15 text-bronze-300" : "text-slate-500"}`}
             >
               {option === "paper" ? "Paper" : "Live"}
             </button>
@@ -160,7 +160,7 @@ export function MarketOrderTicket({
             onChange={(event) => setQuantity(event.target.value)}
             inputMode="decimal"
             placeholder="0.00000"
-            className="mt-2 h-11 w-full rounded border border-line bg-[#0f1a22] px-3 text-right font-mono text-sm text-white"
+            className="mt-2 h-11 w-full rounded border border-line bg-ink-raised px-3 text-right font-mono text-sm text-white"
           />
         </label>
         <div className="divide-y divide-line border-y border-line text-xs">
@@ -184,21 +184,23 @@ export function MarketOrderTicket({
           A fresh venue quote is checked when you submit.
         </p>
         {mode === "live" && venue === "hyperliquid" && (
-          <div className="space-y-2 border border-cyan-400/20 bg-cyan-400/[0.04] p-3 text-xs text-slate-300">
+          <div className="space-y-2 border border-bronze-400/20 bg-bronze-400/[0.04] p-3 text-xs text-slate-300">
             <p>
               EVM wallet:{" "}
-              <span className="font-mono text-cyan-300">{wallet?.address ?? "Not connected"}</span>
+              <span className="font-mono text-bronze-300">
+                {wallet?.address ?? "Not connected"}
+              </span>
             </p>
             {!wallet && (
               <div className="flex gap-3">
-                <button type="button" onClick={() => connectWallet()} className="text-cyan-300">
+                <button type="button" onClick={() => connectWallet()} className="text-bronze-300">
                   Connect EVM wallet
                 </button>
                 {authenticated && (
                   <button
                     type="button"
                     onClick={() => void createWallet()}
-                    className="text-cyan-300"
+                    className="text-bronze-300"
                   >
                     Create Privy wallet
                   </button>
@@ -213,14 +215,14 @@ export function MarketOrderTicket({
               href="https://app.hyperliquid.xyz/trade"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-cyan-300"
+              className="text-bronze-300"
             >
               Open Hyperliquid deposit ↗
             </a>
           </div>
         )}
         {mode === "live" && venue === "binance" && (
-          <div className="space-y-3 border border-cyan-400/20 bg-cyan-400/[0.04] p-3 text-xs text-slate-300">
+          <div className="space-y-3 border border-bronze-400/20 bg-bronze-400/[0.04] p-3 text-xs text-slate-300">
             <p>
               Binance HMAC trading credentials. They stay in this page's memory and are sent only
               for the order request.
@@ -232,7 +234,7 @@ export function MarketOrderTicket({
                 onChange={(event) => setApiKey(event.target.value)}
                 type="password"
                 autoComplete="off"
-                className="mt-1 h-9 w-full rounded border border-line bg-[#0f1a22] px-2 text-white"
+                className="mt-1 h-9 w-full rounded border border-line bg-ink-raised px-2 text-white"
               />
             </label>
             <label className="block">
@@ -242,7 +244,7 @@ export function MarketOrderTicket({
                 onChange={(event) => setApiSecret(event.target.value)}
                 type="password"
                 autoComplete="off"
-                className="mt-1 h-9 w-full rounded border border-line bg-[#0f1a22] px-2 text-white"
+                className="mt-1 h-9 w-full rounded border border-line bg-ink-raised px-2 text-white"
               />
             </label>
             <p>
@@ -261,7 +263,7 @@ export function MarketOrderTicket({
             (mode === "live" &&
               (venue === "binance" ? !authenticated || !apiKey || !apiSecret : !wallet))
           }
-          className="h-11 w-full rounded border border-cyan-400/40 bg-cyan-400/10 text-xs font-semibold text-cyan-200 disabled:cursor-not-allowed disabled:border-line disabled:bg-slate-800 disabled:text-slate-500"
+          className="h-11 w-full rounded border border-bronze-400/40 bg-bronze-400/10 text-xs font-semibold text-bronze-200 disabled:cursor-not-allowed disabled:border-line disabled:bg-slate-800 disabled:text-slate-500"
         >
           {busy
             ? "Submitting…"

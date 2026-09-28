@@ -114,7 +114,7 @@ export function MarketScreener({
                 ? `/spot/${row.original.instrument.baseAsset}USDT`
                 : `/terminal?symbol=${row.original.instrument.baseAsset}USDT&venue=hyperliquid`
             }
-            className="inline-flex h-9 items-center gap-1 rounded-md border border-cyan-400/30 bg-cyan-400/[0.08] px-3 text-xs font-medium text-cyan-300 hover:bg-cyan-400/[0.14]"
+            className="inline-flex h-9 items-center gap-1 rounded-md border border-bronze-400/30 bg-bronze-400/[0.08] px-3 text-xs font-medium text-bronze-300 hover:bg-bronze-400/[0.14]"
           >
             Open <ArrowUpRight size={13} />
           </Link>
@@ -147,7 +147,7 @@ export function MarketScreener({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex h-9 items-center gap-2 rounded-md border border-line bg-[#0f1a22] px-3">
+          <div className="flex h-9 items-center gap-2 rounded-md border border-line bg-ink-raised px-3">
             <Search size={14} className="text-slate-400" />
             <input
               aria-label="Filter instruments"
@@ -161,7 +161,7 @@ export function MarketScreener({
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] border-collapse text-left text-xs">
-          <thead className="bg-[#101b23] text-slate-400">
+          <thead className="bg-ink-raised text-slate-400">
             <tr>
               {table.getHeaderGroups()[0]?.headers.map((header) => (
                 <th

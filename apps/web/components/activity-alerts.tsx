@@ -97,7 +97,7 @@ export function ActivityAlerts() {
             <button
               type="button"
               onClick={() => void acknowledge(alert.id)}
-              className="rounded border border-line px-3 py-2 text-xs text-cyan-300"
+              className="rounded border border-line px-3 py-2 text-xs text-bronze-300"
             >
               Acknowledge
             </button>

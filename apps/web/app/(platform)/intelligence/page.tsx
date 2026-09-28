@@ -1,4 +1,5 @@
 import { Activity, ArrowUpRight, Bot, Newspaper, ScanSearch } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "../../../auth";
 import { NewsBrowser } from "../../../components/news-browser";
@@ -10,6 +11,12 @@ import {
   getPythReferences,
   getStockNews,
 } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Intelligence",
+  description:
+    "Why prices moved: token moves beside company news, reference prices, and the wider market.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -103,7 +110,7 @@ export default async function IntelligencePage() {
         title="Market intelligence"
         description="Connect the dots between price, market activity, company news, and the bigger picture before your next decision."
         actions={
-          <Link href="/agents" className="inline-flex items-center gap-1 text-xs text-cyan-300">
+          <Link href="/agents" className="inline-flex items-center gap-1 text-xs text-bronze-300">
             Explore strategies <ArrowUpRight size={13} />
           </Link>
         }
@@ -139,7 +146,7 @@ export default async function IntelligencePage() {
         <section className="rounded-lg border border-line bg-panel xl:col-span-2">
           <div className="border-b border-line p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-              <Activity size={16} className="text-cyan-300" />
+              <Activity size={16} className="text-bronze-300" />
               Where stock tokens differ
             </h2>
             <p className="mt-2 text-xs text-slate-400">
@@ -166,7 +173,7 @@ export default async function IntelligencePage() {
                   <p className="mt-2 font-mono text-[10px] text-slate-400">
                     Token {formatUsd(stock.dexPriceUsd)} · share {formatUsd(reference.price)}
                   </p>
-                  <p className="mt-2 font-mono text-[9px] text-slate-600">
+                  <p className="mt-2 font-mono text-[10px] text-slate-400">
                     Share price updated {utcTime(reference.feedUpdateTimestamp)}
                   </p>
                 </Link>
@@ -177,7 +184,7 @@ export default async function IntelligencePage() {
               <p className="text-sm text-slate-300">
                 Explore the most active stocks while the underlying share market updates.
               </p>
-              <Link href="/stocks" className="mt-3 inline-block text-xs text-cyan-300">
+              <Link href="/stocks" className="mt-3 inline-block text-xs text-bronze-300">
                 Browse stocks →
               </Link>
             </div>
@@ -186,7 +193,7 @@ export default async function IntelligencePage() {
         <section className="rounded-lg border border-line bg-panel">
           <div className="border-b border-line p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-              <ScanSearch size={16} className="text-cyan-300" />
+              <ScanSearch size={16} className="text-bronze-300" />
               Public stock movement
             </h2>
             <p className="mt-2 text-xs text-slate-400">
@@ -224,14 +231,14 @@ export default async function IntelligencePage() {
               <p className="text-sm text-slate-300">
                 Find the companies and token markets on your radar.
               </p>
-              <Link href="/stocks" className="mt-3 inline-block text-xs text-cyan-300">
+              <Link href="/stocks" className="mt-3 inline-block text-xs text-bronze-300">
                 Explore public stocks →
               </Link>
             </div>
           )}
           <Link
             href="/stocks"
-            className="block border-t border-line px-5 py-3 text-xs text-cyan-300"
+            className="block border-t border-line px-5 py-3 text-xs text-bronze-300"
           >
             Open stock screener →
           </Link>
@@ -239,7 +246,7 @@ export default async function IntelligencePage() {
         <section className="rounded-lg border border-line bg-panel">
           <div className="border-b border-line p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-              <ScanSearch size={16} className="text-cyan-300" />
+              <ScanSearch size={16} className="text-bronze-300" />
               Private companies in motion
             </h2>
             <p className="mt-2 text-xs text-slate-400">
@@ -277,14 +284,14 @@ export default async function IntelligencePage() {
               <p className="text-sm text-slate-300">
                 Discover private companies and see how their token prices compare.
               </p>
-              <Link href="/private-markets" className="mt-3 inline-block text-xs text-cyan-300">
+              <Link href="/private-markets" className="mt-3 inline-block text-xs text-bronze-300">
                 Explore private markets →
               </Link>
             </div>
           )}
           <Link
             href="/private-markets"
-            className="block border-t border-line px-5 py-3 text-xs text-cyan-300"
+            className="block border-t border-line px-5 py-3 text-xs text-bronze-300"
           >
             Open private market screener →
           </Link>
@@ -292,7 +299,7 @@ export default async function IntelligencePage() {
         <section className="rounded-lg border border-line bg-panel">
           <div className="border-b border-line p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-              <Newspaper size={16} className="text-cyan-300" />
+              <Newspaper size={16} className="text-bronze-300" />
               In the news
             </h2>
             <p className="mt-2 text-xs text-slate-400">
@@ -307,7 +314,7 @@ export default async function IntelligencePage() {
               <p className="text-sm text-slate-300">
                 See what is moving prices even when company headlines are quiet.
               </p>
-              <Link href="/macro" className="mt-3 inline-block text-xs text-cyan-300">
+              <Link href="/macro" className="mt-3 inline-block text-xs text-bronze-300">
                 Explore the market climate →
               </Link>
             </div>
@@ -315,7 +322,7 @@ export default async function IntelligencePage() {
           {focus && (
             <Link
               href={`/private-markets/${encodeURIComponent(focus.instrument.baseAsset)}`}
-              className="block border-t border-line px-5 py-3 text-xs text-cyan-300"
+              className="block border-t border-line px-5 py-3 text-xs text-bronze-300"
             >
               Explore {focus.company} more deeply →
             </Link>
@@ -323,7 +330,7 @@ export default async function IntelligencePage() {
         </section>
         <section className="rounded-lg border border-line bg-panel p-5">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
-            <Bot size={16} className="text-cyan-300" />
+            <Bot size={16} className="text-bronze-300" />
             From research to an agent
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-300">
@@ -336,7 +343,7 @@ export default async function IntelligencePage() {
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/agents"
-              className="rounded border border-cyan-400/30 bg-cyan-400/[.08] px-3 py-2 text-xs text-cyan-300"
+              className="rounded border border-bronze-400/30 bg-bronze-400/[.08] px-3 py-2 text-xs text-bronze-300"
             >
               Explore agents
             </Link>

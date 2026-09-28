@@ -77,7 +77,7 @@ export function PrivateMarketScreener({ markets }: { markets: PreStock[] }) {
       {rows.length ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[920px] text-left text-xs">
-            <thead className="border-b border-line bg-[#111d26] font-mono text-[10px] uppercase tracking-[.08em] text-slate-500">
+            <thead className="border-b border-line bg-ink-raised font-mono text-[10px] uppercase tracking-[.08em] text-slate-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Company</th>
                 <th className="px-4 py-3 text-right font-medium">Token price</th>
@@ -127,7 +127,7 @@ export function PrivateMarketScreener({ markets }: { markets: PreStock[] }) {
                     <td className="px-4 py-3">
                       <Link
                         href={`/private-markets/${encodeURIComponent(market.instrument.baseAsset)}`}
-                        className="inline-flex items-center gap-1 text-cyan-300 hover:text-cyan-100"
+                        className="inline-flex items-center gap-1 text-bronze-300 hover:text-bronze-100"
                       >
                         Inspect <ArrowUpRight size={12} />
                       </Link>

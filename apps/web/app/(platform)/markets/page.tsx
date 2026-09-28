@@ -1,5 +1,6 @@
 import { StatusBadge } from "@sisera/ui";
 import { ListFilter } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "../../../auth";
@@ -9,6 +10,11 @@ import { MarketScreener } from "../../../components/market-screener";
 import { PageHeader } from "../../../components/page-header";
 import { ReferenceScreener } from "../../../components/reference-screener";
 import { getMarketOverview, getMarkets, getReferenceMarkets } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Crypto spot",
+  description: "Crypto spot markets with reference prices and market overview.",
+};
 
 export const dynamic = "force-dynamic";
 const symbols = [
@@ -73,7 +79,7 @@ export default async function MarketsPage({
           </Link>
           <Link
             href="/markets?venue=binance"
-            className="rounded border border-line bg-cyan-400/10 px-3 py-2 text-cyan-300"
+            className="rounded border border-line bg-bronze-400/10 px-3 py-2 text-bronze-300"
           >
             Binance spot
           </Link>

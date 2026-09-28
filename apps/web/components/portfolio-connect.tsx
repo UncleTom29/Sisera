@@ -161,12 +161,12 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
         <button
           type="button"
           onClick={() => setDropdownOpen((prev) => !prev)}
-          className="flex h-9 items-center gap-2 rounded border border-cyan-400/40 bg-cyan-400/10 px-3 text-xs font-mono font-medium text-cyan-200 hover:bg-cyan-400/20 transition-colors"
+          className="flex h-9 items-center gap-2 rounded border border-bronze-400/40 bg-bronze-400/10 px-3 text-xs font-mono font-medium text-bronze-200 hover:bg-bronze-400/20 transition-colors"
           aria-expanded={dropdownOpen}
           aria-label="Connected Solana wallet"
         >
           <span className="size-2 rounded-full bg-emerald-400" />
-          <WalletCards size={14} className="text-cyan-300" />
+          <WalletCards size={14} className="text-bronze-300" />
           <span>{shortAddress}</span>
         </button>
       ) : (
@@ -176,7 +176,7 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
             setError(null);
             setModalOpen(true);
           }}
-          className="flex h-9 items-center gap-2 rounded border border-cyan-400/30 bg-cyan-400/10 px-3 text-xs font-medium text-cyan-200 hover:bg-cyan-400/20 transition-colors"
+          className="flex h-9 items-center gap-2 rounded border border-bronze-400/30 bg-bronze-400/10 px-3 text-xs font-medium text-bronze-200 hover:bg-bronze-400/20 transition-colors"
         >
           <WalletCards size={14} />
           <span>{compact ? "Connect" : "Connect wallet"}</span>
@@ -196,7 +196,7 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
             <button
               type="button"
               onClick={handleCopy}
-              className="flex items-center gap-1 rounded border border-line bg-[#101b23] px-2 py-1 text-[11px] text-slate-300 hover:text-white"
+              className="flex items-center gap-1 rounded border border-line bg-ink-raised px-2 py-1 text-[11px] text-slate-300 hover:text-white"
               title="Copy full address"
             >
               {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
@@ -247,7 +247,7 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
           <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-line bg-panel p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-line pb-4">
               <div className="flex items-center gap-2">
-                <Wallet className="text-cyan-300" size={18} />
+                <Wallet className="text-bronze-300" size={18} />
                 <Dialog.Title className="text-base font-semibold text-white">
                   Connect Solana Wallet
                 </Dialog.Title>
@@ -270,10 +270,10 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
                   type="button"
                   disabled={connecting}
                   onClick={connectBrowserWallet}
-                  className="flex w-full items-center justify-between rounded-lg border border-cyan-400/40 bg-[#101b23] p-3.5 text-left transition-colors hover:border-cyan-300 hover:bg-[#14232f]"
+                  className="flex w-full items-center justify-between rounded-lg border border-bronze-400/40 bg-ink-raised p-3.5 text-left transition-colors hover:border-bronze-300 hover:bg-[#14232f]"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="grid size-9 place-items-center rounded bg-cyan-300/10 text-cyan-300">
+                    <div className="grid size-9 place-items-center rounded bg-bronze-300/10 text-bronze-300">
                       <WalletCards size={18} />
                     </div>
                     <div>
@@ -281,7 +281,7 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
                       <p className="text-[11px] text-slate-400">Phantom, Backpack, or Solflare</p>
                     </div>
                   </div>
-                  <span className="rounded bg-cyan-300/20 px-2 py-1 font-mono text-[10px] text-cyan-300">
+                  <span className="rounded bg-bronze-300/20 px-2 py-1 font-mono text-[10px] text-bronze-300">
                     {connecting ? "Connecting…" : "Connect"}
                   </span>
                 </button>
@@ -306,12 +306,12 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
                       if (e.key === "Enter") connectManualAddress();
                     }}
                     placeholder="Solana address (base58)"
-                    className="flex-1 rounded border border-line bg-panel px-3 py-1.5 font-mono text-xs text-white placeholder-slate-600 outline-none focus:border-cyan-400"
+                    className="flex-1 rounded border border-line bg-panel px-3 py-1.5 font-mono text-xs text-white placeholder-slate-600 outline-none focus:border-bronze-400"
                   />
                   <button
                     type="button"
                     onClick={() => connectManualAddress()}
-                    className="rounded bg-cyan-300 px-3 py-1.5 text-xs font-semibold text-[#14202a] hover:bg-cyan-200 transition-colors"
+                    className="rounded bg-bronze-300 px-3 py-1.5 text-xs font-semibold text-panel hover:bg-bronze-200 transition-colors"
                   >
                     View
                   </button>
@@ -322,7 +322,7 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
                   <button
                     type="button"
                     onClick={() => connectManualAddress(SAMPLE_WALLET)}
-                    className="font-mono text-cyan-300 hover:underline"
+                    className="font-mono text-bronze-300 hover:underline"
                   >
                     Use sample address
                   </button>

@@ -9,11 +9,11 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 const buttonVariants = cva(
-  "inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap border px-4 text-[12px] font-semibold tracking-[-0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 disabled:pointer-events-none disabled:opacity-40",
+  "inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap border px-4 text-[12px] font-semibold tracking-[-0.01em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bronze-400/50 disabled:pointer-events-none disabled:opacity-40",
   {
     variants: {
       variant: {
-        primary: "border-cyan-300 bg-cyan-300 text-slate-950 hover:bg-cyan-200",
+        primary: "border-bronze-300 bg-bronze-300 text-slate-950 hover:bg-bronze-200",
         secondary:
           "border-slate-700 bg-slate-900 text-slate-100 hover:border-slate-600 hover:bg-slate-800",
         ghost:
@@ -46,7 +46,7 @@ export function StatusBadge({
     positive: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
     negative: "border-rose-500/30 bg-rose-500/10 text-rose-300",
     warning: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-    info: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
+    info: "border-bronze-500/30 bg-bronze-500/10 text-bronze-300",
   };
   return (
     <span

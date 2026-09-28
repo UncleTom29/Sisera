@@ -36,14 +36,14 @@ export function AgentResearch({ id }: { id: string }) {
         type="button"
         onClick={run}
         disabled={busy}
-        className="rounded border border-cyan-400/30 px-2 py-1 text-[10px] text-cyan-300 disabled:opacity-50"
+        className="rounded border border-bronze-400/30 px-2 py-1 text-[10px] text-bronze-300 disabled:opacity-50"
       >
         {busy ? "Researching…" : "Run current research"}
       </button>
       {message && <p className="mt-2 text-[10px] text-amber-300">{message}</p>}
       {report && (
         <div className="mt-3 text-[10px] leading-5 text-slate-300">
-          <p className="font-mono text-cyan-300">
+          <p className="font-mono text-bronze-300">
             {report.market} · {report.stance.replaceAll("_", " ")}
           </p>
           <p className="text-slate-500">

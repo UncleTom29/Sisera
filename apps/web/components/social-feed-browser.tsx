@@ -53,7 +53,7 @@ export function SocialFeedBrowser({
         <div className="grid gap-3 xl:grid-cols-2">
           {filtered.map((post) => (
             <article key={post.id} className="border border-line bg-panel p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase text-cyan-300">
+              <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase text-bronze-300">
                 <span>
                   {post.platform} · {post.community}
                 </span>
@@ -78,7 +78,7 @@ export function SocialFeedBrowser({
                 href={post.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-3 inline-block text-[11px] text-cyan-300"
+                className="mt-3 inline-block text-[11px] text-bronze-300"
               >
                 Open original source →
               </a>

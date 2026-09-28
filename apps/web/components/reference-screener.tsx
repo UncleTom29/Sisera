@@ -19,7 +19,7 @@ export function ReferenceScreener({ rows }: { rows: ReferenceMarket[] }) {
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[680px] border-collapse text-left text-xs">
-          <thead className="bg-[#101b23] font-mono text-[10px] uppercase tracking-wider text-slate-400">
+          <thead className="bg-ink-raised font-mono text-[10px] uppercase tracking-wider text-slate-400">
             <tr className="border-b border-line">
               <th className="h-11 px-5 font-medium">Market</th>
               <th className="px-5 font-medium">Price · USD</th>
@@ -56,7 +56,7 @@ export function ReferenceScreener({ rows }: { rows: ReferenceMarket[] }) {
                 <td className="px-5">
                   <Link
                     href={`/spot/${row.symbol}`}
-                    className="inline-flex items-center gap-1 text-xs text-cyan-300 hover:text-cyan-200"
+                    className="inline-flex items-center gap-1 text-xs text-bronze-300 hover:text-bronze-200"
                   >
                     Inspect <ArrowUpRight size={13} />
                   </Link>

@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "../../../auth";
 import { PageHeader } from "../../../components/page-header";
 import { accountErrorMessage, getLeaderboard } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Leaderboard",
+  description: "How paper portfolios perform across stocks, crypto, and perpetuals.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +67,7 @@ export default async function LeaderboardPage() {
               </p>
               <Link
                 href="/settings"
-                className="mt-4 inline-block rounded border border-cyan-400/30 px-3 py-2 text-cyan-300 hover:text-white"
+                className="mt-4 inline-block rounded border border-bronze-400/30 px-3 py-2 text-bronze-300 hover:text-white"
               >
                 Review leaderboard preference →
               </Link>

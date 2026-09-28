@@ -1,5 +1,6 @@
 import { StatusBadge } from "@sisera/ui";
 import { BriefcaseBusiness, Layers3, ShieldCheck } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { auth } from "../../../auth";
@@ -19,6 +20,11 @@ import {
   getSolanaWallet,
 } from "../../../lib/api";
 import { valueSolanaWallet } from "../../../lib/wallet-observation";
+
+export const metadata: Metadata = {
+  title: "Portfolio",
+  description: "Your Solana, HyperEVM, and Hyperliquid holdings in one view.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +116,7 @@ export default async function PortfolioPage({
           <div key={label} className="bg-panel p-5">
             <p className="data-label">{label}</p>
             <p className="data-value mt-4 text-2xl text-slate-100">{value}</p>
-            <p className="mt-2 font-mono text-[8px] uppercase tracking-wider text-slate-700">
+            <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-slate-500">
               {value === "—" ? "No balance to show" : "Latest available balance"}
             </p>
           </div>
@@ -223,7 +229,7 @@ export default async function PortfolioPage({
           {observed && (
             <Link
               href={`/risk?address=${encodeURIComponent(observedAddress)}`}
-              className="rounded border border-cyan-400/30 px-3 py-2 text-xs text-cyan-300"
+              className="rounded border border-bronze-400/30 px-3 py-2 text-xs text-bronze-300"
             >
               Review risk →
             </Link>
@@ -235,11 +241,11 @@ export default async function PortfolioPage({
             defaultValue={watchAddress}
             aria-label="Hyperliquid wallet address"
             placeholder="0x… public wallet address"
-            className="min-w-64 flex-1 rounded border border-line bg-[#0f1a22] px-3 py-2 font-mono text-xs text-slate-100"
+            className="min-w-64 flex-1 rounded border border-line bg-ink-raised px-3 py-2 font-mono text-xs text-slate-100"
           />
           <button
             type="submit"
-            className="rounded border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300"
+            className="rounded border border-bronze-400/30 bg-bronze-400/10 px-4 py-2 text-xs font-semibold text-bronze-300"
           >
             View wallet
           </button>
@@ -266,7 +272,7 @@ export default async function PortfolioPage({
                 ["Margin used", observed.marginUsed],
                 ["Withdrawable", observed.withdrawable],
               ].map(([label, value]) => (
-                <div key={label} className="bg-[#101b23] p-4">
+                <div key={label} className="bg-ink-raised p-4">
                   <p className="data-label">{label}</p>
                   <p className="mt-2 font-mono text-lg text-white">
                     ${Number(value).toLocaleString()}
@@ -405,7 +411,7 @@ export default async function PortfolioPage({
                       </div>
                       <div className="mt-1 h-1.5 bg-slate-800">
                         <div
-                          className="h-full bg-cyan-400"
+                          className="h-full bg-bronze-400"
                           style={{
                             width: `${Math.min(100, ((holding.valueUsd ?? 0) / walletObservation.pricedValueUsd) * 100)}%`,
                           }}

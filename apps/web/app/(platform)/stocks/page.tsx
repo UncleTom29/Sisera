@@ -1,8 +1,15 @@
+import type { Metadata } from "next";
 import { auth } from "../../../auth";
 import { LiveRefresh } from "../../../components/live-refresh";
 import { PageHeader } from "../../../components/page-header";
 import { PublicStockScreener } from "../../../components/public-stock-screener";
 import { getPublicStocks, getRwaStocks, getStockNews } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Tokenized stocks",
+  description:
+    "Tokenized US stocks on Solana with prices, liquidity, and activity versus the underlying shares.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +62,7 @@ export default async function StocksPage() {
               .slice(0, 8)
               .map((asset) => (
                 <div key={asset.symbol} className="bg-panel p-5">
-                  <p className="font-mono text-xs text-cyan-300">{asset.symbol}</p>
+                  <p className="font-mono text-xs text-bronze-300">{asset.symbol}</p>
                   <p className="mt-1 truncate text-sm font-semibold text-white">{asset.name}</p>
                   <p className="mt-4 font-mono text-lg text-white">
                     {asset.averageTokenPriceUsd == null

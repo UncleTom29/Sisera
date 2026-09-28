@@ -68,7 +68,7 @@ export function PredictionBrowser({ markets }: { markets: PredictionMarket[] }) 
               key={market.id}
               type="button"
               onClick={() => setSelectedId(market.id)}
-              className={`block w-full border-b border-line px-4 py-3 text-left hover:bg-white/[.04] ${selected?.id === market.id ? "bg-cyan-400/[.07]" : ""}`}
+              className={`block w-full border-b border-line px-4 py-3 text-left hover:bg-white/[.04] ${selected?.id === market.id ? "bg-bronze-400/[.07]" : ""}`}
             >
               <p className="line-clamp-2 text-xs font-medium text-slate-100">{market.title}</p>
               <p className="mt-1 font-mono text-[10px] text-slate-500">
@@ -101,7 +101,7 @@ export function PredictionBrowser({ markets }: { markets: PredictionMarket[] }) 
                 className="flex items-center justify-between rounded border border-line bg-ink p-3 text-xs"
               >
                 <span className="text-slate-300">{outcome.label}</span>
-                <span className="font-mono text-cyan-300">
+                <span className="font-mono text-bronze-300">
                   {Number(outcome.probability).toFixed(4)} USDC
                 </span>
               </div>
@@ -114,7 +114,7 @@ export function PredictionBrowser({ markets }: { markets: PredictionMarket[] }) 
           </p>
           {selected.resolutionRules ? (
             <details className="mt-4 rounded border border-line p-3 text-xs text-slate-400">
-              <summary className="cursor-pointer text-cyan-300">Resolution rules</summary>
+              <summary className="cursor-pointer text-bronze-300">Resolution rules</summary>
               <p className="mt-2 max-h-52 overflow-y-auto whitespace-pre-line leading-5">
                 {selected.resolutionRules}
               </p>
@@ -167,8 +167,8 @@ function PredictionAnalysis({ market }: { market: PredictionMarket }) {
         ? "The buy and sell prices are far apart. A smaller size or waiting for a tighter market may matter more than the forecast."
         : "Compare the market price with your own evidence-based probability. A trade only has an edge if your view covers fees and execution costs.";
   return (
-    <section className="mt-5 rounded-lg border border-cyan-300/20 bg-cyan-300/[.035] p-4">
-      <p className="text-xs font-semibold text-cyan-200">Before you take a side</p>
+    <section className="mt-5 rounded-lg border border-bronze-300/20 bg-bronze-300/[.035] p-4">
+      <p className="text-xs font-semibold text-bronze-200">Before you take a side</p>
       <p className="mt-2 text-sm leading-6 text-slate-200">{position}</p>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <div className="rounded border border-line bg-ink p-3">
@@ -254,7 +254,7 @@ function PredictionAnalysis({ market }: { market: PredictionMarket }) {
             value={view}
             onChange={(event) => setView(event.target.value)}
             placeholder="Your probability %"
-            className="h-9 w-44 rounded border border-line bg-ink px-3 text-xs text-white outline-none focus:border-cyan-300"
+            className="h-9 w-44 rounded border border-line bg-ink px-3 text-xs text-white outline-none focus:border-bronze-300"
           />
         </div>
         {chosen && (

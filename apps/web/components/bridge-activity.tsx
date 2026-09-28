@@ -103,7 +103,7 @@ export function BridgeActivity() {
                   {new Date(transfer.quotedAt).toLocaleString()} · {transfer.originChainId} →{" "}
                   {transfer.destinationChainId}
                 </span>
-                <span className="text-cyan-300">{transfer.status.replaceAll("_", " ")}</span>
+                <span className="text-bronze-300">{transfer.status.replaceAll("_", " ")}</span>
               </div>
               <p className="mt-2">
                 {transfer.originAmountUsdc} USDC in · quoted {transfer.quotedOutputUsdc} USDC out
@@ -125,7 +125,7 @@ export function BridgeActivity() {
                 type="button"
                 disabled={refreshing === transfer.requestId}
                 onClick={() => void refresh(transfer.requestId)}
-                className="mt-3 rounded border border-line px-3 py-2 text-cyan-300 disabled:opacity-50"
+                className="mt-3 rounded border border-line px-3 py-2 text-bronze-300 disabled:opacity-50"
               >
                 Refresh status
               </button>

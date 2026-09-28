@@ -1,11 +1,17 @@
 import { StatusBadge } from "@sisera/ui";
 import { Target } from "lucide-react";
+import type { Metadata } from "next";
 import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
 import { PageHeader } from "../../../components/page-header";
 import { PredictionBrowser } from "../../../components/prediction-browser";
 import { PredictionPaperAccount } from "../../../components/prediction-paper-account";
 import { accountErrorMessage, getPredictionMarkets } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Predictions",
+  description: "Prediction markets with paper and live trading.",
+};
 
 export const dynamic = "force-dynamic";
 

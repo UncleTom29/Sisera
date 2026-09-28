@@ -221,7 +221,7 @@ function TradeTicketView({
       </div>
       <fieldset
         aria-label="Trading mode"
-        className="mt-5 grid grid-cols-2 rounded border border-line bg-[#0b141c] p-1"
+        className="mt-5 grid grid-cols-2 rounded border border-line bg-ink-deep p-1"
       >
         {(["paper", "live"] as const).map((option) => (
           <button
@@ -250,7 +250,7 @@ function TradeTicketView({
         <div className="mt-5 flex items-center justify-between gap-3 border-b border-line pb-4">
           <span className="text-xs text-slate-400">Solana wallet</span>
           {linkedAddress || accountAddress ? (
-            <span className="font-mono text-xs text-cyan-300">
+            <span className="font-mono text-xs text-bronze-300">
               {(linkedAddress ?? accountAddress)?.slice(0, 4)}…
               {(linkedAddress ?? accountAddress)?.slice(-4)}
             </span>
@@ -291,7 +291,7 @@ function TradeTicketView({
           }}
           inputMode="decimal"
           placeholder="0.00"
-          className="mt-2 h-12 w-full rounded border border-line bg-[#0b141c] px-3 text-right font-mono text-base text-white outline-none focus:border-cyan-400/50"
+          className="mt-2 h-12 w-full rounded border border-line bg-ink-deep px-3 text-right font-mono text-base text-white outline-none focus:border-bronze-400/50"
         />
       </label>
       <div className="mt-4 flex justify-between border-t border-line pt-4 text-xs">
@@ -313,12 +313,12 @@ function TradeTicketView({
             setReview(true);
             setMessage(null);
           }}
-          className="mt-6 h-11 w-full rounded bg-cyan-300 text-xs font-semibold text-[#0b1b24] hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40"
+          className="mt-6 h-11 w-full rounded bg-bronze-300 text-xs font-semibold text-[#0b1b24] hover:bg-bronze-200 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Review {mode === "paper" ? "paper" : "live"} trade
         </button>
       ) : (
-        <div className="mt-6 rounded border border-cyan-400/30 bg-cyan-400/[.06] p-3">
+        <div className="mt-6 rounded border border-bronze-400/30 bg-bronze-400/[.06] p-3">
           <p className="text-xs text-slate-200">
             {side === "buy" ? "Buy" : "Sell"} {symbol} · {amount} {side === "buy" ? "USDC" : symbol}
           </p>
@@ -343,7 +343,7 @@ function TradeTicketView({
             type="button"
             disabled={working}
             onClick={() => void submit()}
-            className="mt-4 h-10 w-full rounded bg-cyan-300 text-xs font-semibold text-[#0b1b24] disabled:opacity-50"
+            className="mt-4 h-10 w-full rounded bg-bronze-300 text-xs font-semibold text-[#0b1b24] disabled:opacity-50"
           >
             {working
               ? "Processing…"

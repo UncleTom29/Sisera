@@ -42,7 +42,7 @@ export function AgentReadiness({ id }: { id: string }) {
         type="button"
         onClick={inspect}
         disabled={busy}
-        className="rounded border border-cyan-400/30 px-2 py-1 text-[10px] text-cyan-300 disabled:opacity-50"
+        className="rounded border border-bronze-400/30 px-2 py-1 text-[10px] text-bronze-300 disabled:opacity-50"
       >
         {busy ? "Checking data…" : "Inspect evaluation readiness"}
       </button>

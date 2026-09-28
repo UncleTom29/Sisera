@@ -67,7 +67,7 @@ export function PredictionPaperAccount() {
       {error && <p className="mt-3 text-xs text-amber-300">{error}</p>}
       {data && (
         <>
-          <p className="mt-3 font-mono text-lg text-cyan-300">
+          <p className="mt-3 font-mono text-lg text-bronze-300">
             ${Number(data.account.cashUsd).toLocaleString()} paper USDC
           </p>
           <p className="mt-1 text-[11px] text-slate-500">

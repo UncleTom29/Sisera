@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import { ActivityAlerts } from "../../../components/activity-alerts";
 import { PageHeader } from "../../../components/page-header";
+
+export const metadata: Metadata = {
+  title: "Alerts",
+  description: "Uncertain orders and delayed bridges, checked against your account records.",
+};
 
 export default function AlertsPage() {
   return (

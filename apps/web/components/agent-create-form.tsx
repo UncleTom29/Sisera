@@ -157,7 +157,7 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
       <button
         type="submit"
         disabled={!enabled || working}
-        className="rounded bg-cyan-300 px-4 py-2 text-xs font-semibold text-ink disabled:opacity-40"
+        className="rounded bg-bronze-300 px-4 py-2 text-xs font-semibold text-ink disabled:opacity-40"
       >
         {working ? "Saving…" : "Save strategy"}
       </button>

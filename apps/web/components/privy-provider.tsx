@@ -17,7 +17,7 @@ export function SiseraPrivyProvider({
         loginMethods: ["email", "google", "twitter", "discord", "apple", "wallet", "passkey"],
         appearance: {
           theme: "dark",
-          accentColor: "#67e8f9",
+          accentColor: "#e9bd8c",
           logo: "/icon.svg",
           walletChainType: "ethereum-and-solana",
         },

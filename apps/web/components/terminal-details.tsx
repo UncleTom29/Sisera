@@ -31,7 +31,7 @@ export function TerminalDetails({ intelligence }: { intelligence: MarketIntellig
                 setActive(tabs[next] ?? tabs[0]);
                 document.getElementById(`${id}-tab-${next}`)?.focus();
               }}
-              className={`relative h-12 whitespace-nowrap text-sm transition-colors ${active === tab ? "font-medium text-slate-100 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-cyan-300" : "text-slate-500 hover:text-slate-200"}`}
+              className={`relative h-12 whitespace-nowrap text-sm transition-colors ${active === tab ? "font-medium text-slate-100 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-bronze-300" : "text-slate-500 hover:text-slate-200"}`}
             >
               {tab}
             </button>

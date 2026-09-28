@@ -1,10 +1,24 @@
-import { ArrowRight, ArrowUpRight, ChartNoAxesCombined, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import { LandingRefresh } from "../components/landing-refresh";
-import { SiseraMark } from "../components/sisera-mark";
+import { SiteFooter, SiteHeader } from "../components/site-chrome";
+import {
+  StructuredData,
+  applicationSchema,
+  faqSchema,
+  organizationSchema,
+  websiteSchema,
+} from "../components/structured-data";
+import { TickerTape } from "../components/ticker-tape";
 import { getMarketOverview, getPrivateMarkets, getPublicStocks } from "../lib/api";
+import { faqs, site } from "../lib/site";
+import ribbon from "../public/brand/sisera-signal.png";
+import screenIntelligence from "../public/screens/intelligence.png";
+import screenPrivate from "../public/screens/private-markets.png";
+import screenStock from "../public/screens/stock-detail.png";
+import screenStocks from "../public/screens/stocks.png";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 const money = (value: number | string | null | undefined, compact = false) =>
   value == null || !Number.isFinite(Number(value))
@@ -17,339 +31,391 @@ const money = (value: number | string | null | undefined, compact = false) =>
           : { maximumFractionDigits: 2 }),
       }).format(Number(value));
 
+const signedPct = (value: number) => `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
+
+const lifecycle = [
+  ["Draft", "Policy compiled and hashed: universe, factors, capital and drawdown caps."],
+  ["Backtest", "Historical evaluation against the declared universe and timeframe."],
+  ["Stress test", "Flash crashes, liquidity freezes, and de-pegs."],
+  ["Paper", "Forward execution against live order books with no capital."],
+  ["Shadow", "Runs beside live order flow and is compared, not executed."],
+  ["Limited live", "A small share of the allocation, under supervision."],
+  ["Live", "Full allocation with real-time risk supervision."],
+] as const;
+
+const safeguards = [
+  [
+    "Proposals, not orders",
+    "Agents compile to a policy with execution set to proposal-only. An operator places every order.",
+  ],
+  [
+    "Hard limits in the manifest",
+    "Capital cap, per-trade notional, daily drawdown, open positions, stop-loss, take-profit, and slippage are declared up front and hashed.",
+  ],
+  [
+    "Kill switch by default",
+    "Every draft carries a cancel-all-and-halt action and declares sandbox limits for CPU, memory, and network access.",
+  ],
+  [
+    "Paper before capital",
+    "Paper accounts for markets and prediction markets let you test a thesis before funding it.",
+  ],
+] as const;
+
+function Screen({
+  src,
+  alt,
+  priority = false,
+}: {
+  src: typeof screenStocks;
+  alt: string;
+  priority?: boolean;
+}) {
+  return (
+    <figure className="border border-line bg-ink-deep p-1.5">
+      <div className="flex h-6 items-center gap-1.5 border-b border-line px-2">
+        <span className="size-1.5 rounded-full bg-line-strong" />
+        <span className="size-1.5 rounded-full bg-line-strong" />
+        <span className="size-1.5 rounded-full bg-line-strong" />
+        <span className="ml-3 font-mono text-[10px] text-slate-400">sisera.xyz</span>
+      </div>
+      <Image
+        src={src}
+        alt={alt}
+        priority={priority}
+        sizes="(min-width: 1280px) 760px, 100vw"
+        className="h-auto w-full"
+      />
+    </figure>
+  );
+}
+
 export default async function LandingPage() {
+  const identity = {};
   const [stocks, privateMarkets, overview] = await Promise.all([
-    getPublicStocks({}).catch(() => []),
-    getPrivateMarkets({}).catch(() => []),
-    getMarketOverview({}).catch(() => null),
+    getPublicStocks(identity).catch(() => []),
+    getPrivateMarkets(identity).catch(() => []),
+    getMarketOverview(identity).catch(() => null),
   ]);
   const movers = stocks
     .filter((item) => item.dexPriceUsd && item.change24hPct != null)
     .sort((a, b) => Math.abs(b.change24hPct ?? 0) - Math.abs(a.change24hPct ?? 0))
-    .slice(0, 3);
+    .slice(0, 6);
   const privateGaps = privateMarkets
     .filter((item) => Number.isFinite(Number(item.premiumDiscountPct)))
     .sort((a, b) => Math.abs(Number(b.premiumDiscountPct)) - Math.abs(Number(a.premiumDiscountPct)))
-    .slice(0, 3);
-  const stock = movers[0] ?? stocks.find((item) => item.dexPriceUsd);
-  const privateAsset = privateGaps[0] ?? privateMarkets[0];
-  const rwa = (overview?.rwaStocks ?? [])
-    .filter((item) => item.averageTokenPriceUsd != null)
-    .sort((a, b) => (b.tokenizedVolume24hUsd ?? 0) - (a.tokenizedVolume24hUsd ?? 0))
-    .slice(0, 4);
+    .slice(0, 6);
+  const tokenizedVolume = (overview?.rwaStocks ?? []).reduce(
+    (total, item) => total + (item.tokenizedVolume24hUsd ?? 0),
+    0,
+  );
+
+  // Live figures when the market API answers; otherwise, coverage facts that are always true.
+  const proof: Array<[string, string]> =
+    stocks.length || privateMarkets.length
+      ? [
+          [String(stocks.length), "Tokenized stocks tracked on Solana"],
+          [String(privateMarkets.length), "Private companies with issuer marks"],
+          [money(tokenizedVolume, true) ?? "—", "Tokenized stock volume, 24h"],
+          [
+            overview?.sentiment ? `${overview.sentiment.score}/100` : "24/7",
+            overview?.sentiment ? `Market mood · ${overview.sentiment.label}` : "Token pricing",
+          ],
+        ]
+      : [
+          ["6", "Market types in one terminal"],
+          ["24/7", "Token prices beside the US session"],
+          ["7", "Lifecycle stages for every agent"],
+          ["0", "Agents that can place orders alone"],
+        ];
 
   return (
-    <main className="min-h-screen bg-[#080e14] text-slate-100">
-      <LandingRefresh />
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#080e14]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-5 md:px-10">
-          <Link href="/" className="flex items-center gap-3" aria-label="Sisera home">
-            <SiseraMark size={32} />
-            <span className="text-[17px] font-semibold tracking-[0.16em] text-white">SISERA</span>
-          </Link>
-          <nav className="hidden items-center gap-7 text-xs text-slate-400 md:flex">
-            <Link href="/stocks" className="hover:text-white">
-              Markets
-            </Link>
-            <Link href="/intelligence" className="hover:text-white">
-              Intelligence
-            </Link>
-            <Link href="/agents" className="hover:text-white">
-              Agents
-            </Link>
-          </nav>
-          <Link
-            href="/stocks"
-            className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-4 py-2.5 text-xs font-semibold text-[#07151e] hover:bg-cyan-200"
-          >
-            Open Sisera <ArrowUpRight size={14} />
-          </Link>
-        </div>
-      </header>
+    <main className="min-h-screen bg-ink-deep text-bone">
+      <StructuredData data={[organizationSchema, websiteSchema, applicationSchema, faqSchema]} />
+      <TickerTape identity={identity} />
+      <SiteHeader />
 
-      <section className="relative overflow-hidden border-b border-white/10">
-        <div className="pointer-events-none absolute -right-32 -top-64 size-[750px] rounded-full bg-cyan-400/[0.06] blur-[100px]" />
-        <div className="pointer-events-none absolute -bottom-40 left-1/4 size-[550px] rounded-full bg-indigo-500/[0.06] blur-[100px]" />
-        <div className="relative mx-auto grid max-w-[1440px] gap-12 px-5 py-20 md:px-10 md:py-28 xl:grid-cols-[1.15fr_.85fr] xl:items-center">
+      {/* Hero */}
+      <section className="relative overflow-hidden border-b border-line">
+        <Image
+          src={ribbon}
+          alt=""
+          priority
+          sizes="100vw"
+          className="pointer-events-none absolute inset-y-0 right-0 hidden h-full w-[58%] object-cover object-left opacity-60 xl:block"
+        />
+        <div className="relative mx-auto grid max-w-[1320px] gap-14 px-4 pb-20 pt-16 md:px-8 md:pt-24 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] xl:items-center">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/[.06] px-3 py-1.5 text-[11px] font-medium tracking-wide text-cyan-200">
-              <Sparkles size={12} /> Live stock and private market research
-            </div>
-            <h1 className="mt-7 text-[clamp(3.1rem,6.5vw,7rem)] font-medium leading-[.98] tracking-[-.065em] text-[#f5f4ef]">
-              See the move.
-              <br />
-              <span className="text-cyan-300">Know the reason.</span>
+            <p className="eyebrow">Tokenized stocks · Pre-IPO · Crypto</p>
+            <h1 className="display mt-6 text-[clamp(2.75rem,6vw,5.5rem)] leading-[0.98] text-bone">
+              The research terminal for tokenized stocks and{" "}
+              <em className="text-bronze-300">private markets.</em>
             </h1>
-            <p className="mt-7 max-w-xl text-base leading-8 text-slate-300 md:text-lg">
-              The public share, the token, the private-company mark, the news, and your exposure
-              belong in one decision. Sisera puts them there.
+            <p className="mt-7 max-w-xl text-[17px] leading-8 text-slate-300">
+              See the move, know the reason. The token, the underlying share, the private-company
+              mark, the news, and your exposure, on one screen.
             </p>
-            <div className="mt-9 flex flex-wrap gap-3">
+            <div className="mt-10 flex flex-wrap gap-3">
               <Link
                 href="/stocks"
-                className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-5 py-3 text-sm font-semibold text-[#07151e] hover:bg-cyan-200"
+                className="inline-flex items-center gap-2 bg-bronze-300 px-5 py-3.5 text-sm font-semibold text-ink hover:bg-bronze-200"
               >
-                Explore markets <ArrowRight size={16} />
+                Open the terminal <ArrowRight size={16} />
               </Link>
               <Link
-                href="/intelligence"
-                className="inline-flex items-center gap-2 rounded-md border border-white/15 px-5 py-3 text-sm font-medium text-slate-100 hover:border-white/40"
+                href="#markets"
+                className="inline-flex items-center gap-2 border border-line-strong px-5 py-3.5 text-sm text-bone hover:border-bone"
               >
-                See what matters <ArrowUpRight size={15} />
+                How it works
               </Link>
             </div>
-            <p className="mt-6 text-xs text-slate-500">
-              Trade where available. Research and practice before putting capital to work.
-            </p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-[#111c25]/90 p-4 shadow-[0_40px_120px_rgba(0,0,0,.35)] md:p-6">
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div>
-                <p className="text-[10px] uppercase tracking-[.18em] text-cyan-300">
-                  Markets in focus
-                </p>
-                <h2 className="mt-1 text-lg font-semibold text-white">What stands out now</h2>
-              </div>
-              <ChartNoAxesCombined size={21} className="text-cyan-300" />
+          <Screen
+            src={screenStock}
+            alt="Sisera asset page for a tokenized stock: price, premium to the underlying share, chart, and order ticket"
+            priority
+          />
+        </div>
+      </section>
+
+      {/* Proof band */}
+      <section aria-label="Coverage" className="border-b border-line bg-ink">
+        <dl className="mx-auto grid max-w-[1320px] grid-cols-2 lg:grid-cols-4">
+          {proof.map(([value, label]) => (
+            <div
+              key={label}
+              className="border-line px-4 py-8 odd:border-r md:px-8 lg:border-r lg:last:border-r-0"
+            >
+              <dt className="sr-only">{label}</dt>
+              <dd className="display text-5xl text-bone">{value}</dd>
+              <dd className="mt-2 text-[13px] text-slate-400">{label}</dd>
             </div>
-            <div className="grid grid-cols-2 gap-3 py-4">
-              <div className="rounded-lg border border-white/10 bg-white/[.025] p-4">
-                <p className="text-xs text-slate-500">Crypto market</p>
-                <p className="mt-2 font-mono text-xl text-white">
-                  {money(overview?.global?.marketCapUsd, true) ?? "Explore crypto"}
-                </p>
-                <p className="mt-2 text-[11px] text-slate-500">Total market value</p>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-white/[.025] p-4">
-                <p className="text-xs text-slate-500">Market mood</p>
-                <p className="mt-2 font-mono text-xl text-white">
-                  {overview?.sentiment ? `${overview.sentiment.score} / 100` : "See the signals"}
-                </p>
-                <p className="mt-2 text-[11px] text-slate-500">
-                  {overview?.sentiment?.label ?? "Macro and market context"}
-                </p>
-              </div>
-            </div>
-            <div className="grid gap-4 border-t border-white/10 pt-4 sm:grid-cols-2">
-              <div>
-                <p className="mb-2 text-xs font-semibold text-white">Stock tokens moving most</p>
+          ))}
+        </dl>
+        <div className="border-t border-line">
+          <p className="mx-auto flex max-w-[1320px] flex-wrap items-center gap-x-8 gap-y-2 px-4 py-5 font-mono text-[12px] text-slate-400 md:px-8">
+            <span className="text-slate-300">Market data from</span>
+            {site.dataSources.map((source) => (
+              <span key={source}>{source}</span>
+            ))}
+          </p>
+        </div>
+      </section>
+
+      {/* Markets */}
+      <section id="markets" className="scroll-mt-16 border-b border-line">
+        <div className="mx-auto grid max-w-[1320px] gap-12 px-4 py-24 md:px-8 lg:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)] lg:items-center">
+          <div>
+            <p className="eyebrow">01 · Tokenized stocks</p>
+            <h2 className="display mt-4 text-5xl leading-[1.02] text-bone">
+              Every stock token, measured against the share it tracks.
+            </h2>
+            <p className="mt-6 max-w-lg text-[15px] leading-7 text-slate-300">
+              Stock tokens trade around the clock; the shares do not. Sisera puts the Solana price
+              beside the Pyth reference for the underlying share, shows the premium or discount, and
+              tells you when the US market is closed and the gap is likely to be wide.
+            </p>
+            <ul className="mt-8 space-y-3 text-[14px] text-slate-300">
+              {[
+                "Premium or discount to the underlying share",
+                "Liquidity and 24h volume before you size a trade",
+                "Company news on the same page as the chart",
+              ].map((item) => (
+                <li key={item} className="flex gap-3">
+                  <span className="mt-2 size-1.5 shrink-0 bg-bronze-300" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            {movers.length > 0 && (
+              <div className="mt-10 border border-line bg-ink">
+                <p className="border-b border-line px-4 py-3 data-label">Moving most · 24h</p>
                 {movers.map((item) => (
                   <Link
                     key={item.mint}
                     href={`/stocks/${encodeURIComponent(item.symbol)}`}
-                    className="flex items-center justify-between gap-3 border-b border-white/10 py-2.5 text-xs last:border-0 hover:text-cyan-300"
+                    className="flex items-center justify-between border-b border-line px-4 py-2.5 font-mono text-[13px] last:border-0 hover:bg-white/[.03]"
                   >
-                    <span>{item.symbol}</span>
-                    <span className="font-mono">
-                      {money(item.dexPriceUsd)}{" "}
+                    <span className="text-bone">{item.symbol}</span>
+                    <span className="flex gap-5">
+                      <span className="text-slate-300">{money(item.dexPriceUsd)}</span>
                       <span
-                        className={
-                          (item.change24hPct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"
-                        }
+                        className={`w-16 text-right ${(item.change24hPct ?? 0) >= 0 ? "text-[var(--up)]" : "text-[var(--down)]"}`}
                       >
-                        {(item.change24hPct ?? 0) > 0 ? "+" : ""}
-                        {item.change24hPct?.toFixed(1)}%
+                        {signedPct(item.change24hPct ?? 0)}
                       </span>
                     </span>
                   </Link>
                 ))}
-                {!movers.length && (
-                  <p className="py-3 text-xs text-slate-400">Stock prices are updating.</p>
-                )}
               </div>
-              <div>
-                <p className="mb-2 text-xs font-semibold text-white">Private price gaps</p>
+            )}
+          </div>
+          <Screen
+            src={screenStocks}
+            alt="Sisera tokenized stocks screener with prices, 24h change, volume, and liquidity"
+          />
+        </div>
+      </section>
+
+      {/* Private markets */}
+      <section id="private" className="scroll-mt-16 border-b border-line bg-ink">
+        <div className="mx-auto grid max-w-[1320px] gap-12 px-4 py-24 md:px-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)] lg:items-center">
+          <Screen
+            src={screenPrivate}
+            alt="Sisera private markets view comparing pre-IPO token prices with issuer marks"
+          />
+          <div className="lg:order-first xl:order-none">
+            <p className="eyebrow">02 · Private markets</p>
+            <h2 className="display mt-4 text-5xl leading-[1.02] text-bone">
+              Pre-IPO tokens, priced against the issuer's own mark.
+            </h2>
+            <p className="mt-6 max-w-lg text-[15px] leading-7 text-slate-300">
+              For private-company tokens, the number that matters is the gap between what the token
+              trades at and what the issuer says the company is worth. Sisera shows both, the
+              implied valuation, and the history behind them.
+            </p>
+            {privateGaps.length > 0 && (
+              <div className="mt-10 border border-line bg-ink-deep">
+                <p className="border-b border-line px-4 py-3 data-label">Widest gaps to mark</p>
                 {privateGaps.map((item) => (
                   <Link
                     key={item.instrument.id}
                     href={`/private-markets/${encodeURIComponent(item.instrument.baseAsset)}`}
-                    className="flex items-center justify-between gap-3 border-b border-white/10 py-2.5 text-xs last:border-0 hover:text-cyan-300"
+                    className="flex items-center justify-between border-b border-line px-4 py-2.5 text-[13px] last:border-0 hover:bg-white/[.03]"
                   >
-                    <span>{item.company}</span>
+                    <span className="text-bone">{item.company}</span>
                     <span
-                      className={`font-mono ${Number(item.premiumDiscountPct) >= 0 ? "text-amber-300" : "text-emerald-300"}`}
+                      className={`font-mono ${Number(item.premiumDiscountPct) >= 0 ? "text-bronze-300" : "text-verdigris-300"}`}
                     >
-                      {Number(item.premiumDiscountPct) > 0 ? "+" : ""}
-                      {Number(item.premiumDiscountPct).toFixed(1)}%
+                      {signedPct(Number(item.premiumDiscountPct))}
                     </span>
                   </Link>
                 ))}
-                {!privateGaps.length && (
-                  <p className="py-3 text-xs text-slate-400">
-                    Private-company prices are updating.
-                  </p>
-                )}
               </div>
-            </div>
-            {movers[0] && (
-              <p className="border-t border-white/10 pt-3 text-xs leading-5 text-slate-400">
-                {movers[0].symbol} has moved {movers[0].change24hPct?.toFixed(1)}% in 24 hours.
-                Check liquidity and the underlying share before trading.
-              </p>
             )}
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1440px] px-5 py-16 md:px-10 md:py-24">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-[.18em] text-cyan-300">
-              Across the market
+      {/* Intelligence */}
+      <section className="border-b border-line">
+        <div className="mx-auto max-w-[1320px] px-4 py-24 md:px-8">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-end">
+            <div>
+              <p className="eyebrow">03 · Intelligence</p>
+              <h2 className="display mt-4 text-5xl leading-[1.02] text-bone">
+                Ask why it moved before you ask whether to trade.
+              </h2>
+            </div>
+            <p className="max-w-lg text-[15px] leading-7 text-slate-300 lg:justify-self-end">
+              A price move next to company coverage, reference prices, market mood, and your own
+              portfolio. Start with the evidence, then decide whether the trade still makes sense.
             </p>
-            <h2 className="mt-3 text-3xl font-medium tracking-tight text-white md:text-4xl">
-              Follow the numbers that change the decision.
-            </h2>
           </div>
-          <Link href="/stocks" className="inline-flex items-center gap-1 text-sm text-cyan-300">
-            All markets <ArrowRight size={15} />
-          </Link>
-        </div>
-        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <Link
-            href={stock ? `/stocks/${encodeURIComponent(stock.symbol)}` : "/stocks"}
-            className="group rounded-xl border border-white/10 bg-[#111c25] p-6 hover:border-cyan-300/40"
-          >
-            <p className="text-xs text-cyan-300">Public stocks</p>
-            <h3 className="mt-3 text-xl font-semibold text-white">
-              {stock?.name ?? "Public stocks"}
-            </h3>
-            <p className="mt-5 font-mono text-3xl text-white">
-              {money(stock?.dexPriceUsd) ?? "Explore the market"}
-            </p>
-            <p className="mt-3 text-xs leading-5 text-slate-400">
-              {stock?.change24hPct == null
-                ? "Compare the token with its underlying share and the liquidity available to trade."
-                : `${stock.change24hPct > 0 ? "+" : ""}${stock.change24hPct.toFixed(2)}% in 24h · ${money(stock.volume24hUsd, true)} traded. Check the share price before following the move.`}
-            </p>
-            <ArrowUpRight
-              size={16}
-              className="mt-5 text-cyan-300 transition-transform group-hover:translate-x-1"
+          <div className="mt-12">
+            <Screen
+              src={screenIntelligence}
+              alt="Sisera intelligence view linking price moves to news and market context"
             />
-          </Link>
-          <Link
-            href={
-              privateAsset
-                ? `/private-markets/${encodeURIComponent(privateAsset.instrument.baseAsset)}`
-                : "/private-markets"
-            }
-            className="group rounded-xl border border-white/10 bg-[#111c25] p-6 hover:border-cyan-300/40"
-          >
-            <p className="text-xs text-cyan-300">Private markets</p>
-            <h3 className="mt-3 text-xl font-semibold text-white">
-              {privateAsset?.company ?? "Private companies"}
-            </h3>
-            <p className="mt-5 font-mono text-3xl text-white">
-              {money(privateAsset?.tokenPrice) ?? "Discover opportunities"}
-            </p>
-            <p className="mt-3 text-xs leading-5 text-slate-400">
-              {privateAsset
-                ? `Issuer mark ${money(privateAsset.markPrice)} · token ${Number(privateAsset.premiumDiscountPct) > 0 ? "above" : "below"} mark by ${Math.abs(Number(privateAsset.premiumDiscountPct)).toFixed(1)}%. Review liquidity and rights before trading.`
-                : "Compare token prices with issuer marks and company news."}
-            </p>
-            <ArrowUpRight
-              size={16}
-              className="mt-5 text-cyan-300 transition-transform group-hover:translate-x-1"
-            />
-          </Link>
-          <Link
-            href="/intelligence"
-            className="group rounded-xl border border-white/10 bg-[#111c25] p-6 hover:border-cyan-300/40 md:col-span-2 xl:col-span-1"
-          >
-            <p className="text-xs text-cyan-300">Market intelligence</p>
-            <h3 className="mt-3 text-xl font-semibold text-white">Ask why the price moved</h3>
-            <p className="mt-5 max-w-sm text-sm leading-7 text-slate-300">
-              Put the price move beside company coverage, the broader market, and your portfolio.
-              Start with the evidence, then decide whether the trade still makes sense.
-            </p>
-            <ArrowUpRight
-              size={16}
-              className="mt-5 text-cyan-300 transition-transform group-hover:translate-x-1"
-            />
-          </Link>
+          </div>
         </div>
       </section>
 
-      {rwa.length > 0 && (
-        <section className="border-y border-white/10 bg-[#0d171f] px-5 py-14 md:px-10">
-          <div className="mx-auto max-w-[1440px]">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="text-[11px] uppercase tracking-[.18em] text-cyan-300">
-                  Tokenized equities
-                </p>
-                <h2 className="mt-3 text-2xl font-medium text-white md:text-3xl">
-                  Where stock tokens are trading.
-                </h2>
-              </div>
-              <Link href="/stocks" className="text-xs text-cyan-300">
-                Explore stocks →
-              </Link>
+      {/* Agents */}
+      <section id="agents" className="scroll-mt-16 border-b border-line bg-ink">
+        <div className="mx-auto max-w-[1320px] px-4 py-24 md:px-8">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-end">
+            <div>
+              <p className="eyebrow">04 · Agents</p>
+              <h2 className="display mt-4 text-5xl leading-[1.02] text-bone">
+                Seven gates between an idea and your capital.
+              </h2>
             </div>
-            <div className="mt-7 grid gap-px overflow-hidden rounded-xl border border-white/10 bg-white/10 sm:grid-cols-2 xl:grid-cols-4">
-              {rwa.map((item) => (
-                <div key={item.symbol} className="bg-[#111c25] p-5">
-                  <p className="font-mono text-xs text-cyan-300">{item.symbol}</p>
-                  <p className="mt-2 truncate text-sm font-semibold text-white">{item.name}</p>
-                  <p className="mt-5 font-mono text-xl text-white">
-                    {money(item.averageTokenPriceUsd)}
-                  </p>
-                  <p className="mt-2 text-[11px] text-slate-500">
-                    {money(item.tokenizedVolume24hUsd, true)} traded in 24h
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      <section className="border-y border-white/10 bg-[#101c25] px-5 py-16 md:px-10">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-end justify-between gap-8">
-          <div>
-            <p className="text-xs uppercase tracking-[.18em] text-cyan-300">Inside the terminal</p>
-            <h2 className="mt-3 max-w-2xl text-3xl font-medium tracking-tight text-white md:text-4xl">
-              Follow the evidence through to the order.
-            </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
-              Open a company to see its token chart, mark or share comparison, recent coverage, and
-              trade details. Connect your account to see what the decision means for your portfolio.
+            <p className="max-w-lg text-[15px] leading-7 text-slate-300 lg:justify-self-end">
+              Research agents are written as policies, not scripts. Each one starts as a hashed
+              draft with its limits declared up front, and the lifecycle sets out what it must pass
+              before it touches capital. Today, agents research and propose; you decide.
             </p>
           </div>
+          <ol className="mt-14 grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-7">
+            {lifecycle.map(([stage, detail], index) => (
+              <li key={stage} className="flex flex-col bg-ink-deep p-5">
+                <span className="font-mono text-[11px] text-bronze-300">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="mt-6 text-[15px] font-semibold text-bone">{stage}</span>
+                <span className="mt-2 text-[12px] leading-5 text-slate-400">{detail}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-16 grid gap-px border border-line bg-line md:grid-cols-2 xl:grid-cols-4">
+            {safeguards.map(([title, detail]) => (
+              <div key={title} className="bg-ink p-6">
+                <p className="text-[15px] font-semibold text-bone">{title}</p>
+                <p className="mt-3 text-[13px] leading-6 text-slate-400">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ on a light band */}
+      <section id="faq" className="scroll-mt-16 bg-bone text-ink">
+        <div className="mx-auto grid max-w-[1320px] gap-12 px-4 py-24 md:px-8 lg:grid-cols-[.8fr_1.2fr]">
+          <div>
+            <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-bronze-600">
+              Questions
+            </p>
+            <h2 className="display mt-4 text-5xl leading-[1.02]">What people ask first.</h2>
+            <p className="mt-6 max-w-sm text-[15px] leading-7 text-[#3b4a53]">
+              Still unsure? Read the{" "}
+              <Link href="/risk-disclosure" className="underline underline-offset-4">
+                risk disclosure
+              </Link>{" "}
+              or{" "}
+              <Link href="/about" className="underline underline-offset-4">
+                how Sisera works
+              </Link>
+              .
+            </p>
+          </div>
+          <div className="border-t border-ink/15">
+            {faqs.map((faq) => (
+              <details key={faq.question} className="group border-b border-ink/15">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-[17px] font-medium">
+                  {faq.question}
+                  <span className="font-mono text-lg text-bronze-600 group-open:rotate-45">+</span>
+                </summary>
+                <p className="max-w-2xl pb-6 text-[15px] leading-7 text-[#3b4a53]">{faq.answer}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Closing call to action */}
+      <section className="border-b border-line">
+        <div className="mx-auto flex max-w-[1320px] flex-wrap items-end justify-between gap-8 px-4 py-20 md:px-8">
+          <h2 className="display max-w-3xl text-5xl leading-[1.02] text-bone">
+            Follow the evidence all the way to the order.
+          </h2>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/intelligence"
-              className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-4 py-3 text-sm font-semibold text-[#07151e] hover:bg-cyan-200"
+              href="/stocks"
+              className="inline-flex items-center gap-2 bg-bronze-300 px-5 py-3.5 text-sm font-semibold text-ink hover:bg-bronze-200"
             >
-              Open research <ArrowRight size={15} />
+              Open the terminal <ArrowRight size={16} />
             </Link>
             <Link
-              href="/portfolio"
-              className="inline-flex items-center gap-2 rounded-md border border-white/20 px-4 py-3 text-sm text-white hover:border-white/40"
+              href="/about"
+              className="inline-flex items-center gap-2 border border-line-strong px-5 py-3.5 text-sm text-bone hover:border-bone"
             >
-              View portfolio <ArrowUpRight size={15} />
+              About Sisera <ArrowUpRight size={15} />
             </Link>
           </div>
         </div>
       </section>
-      <footer className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-5 px-5 py-10 text-xs text-slate-500 md:px-10">
-        <span>Sisera · Markets, research, trading.</span>
-        <div className="flex flex-wrap gap-5">
-          <Link href="/stocks" className="hover:text-white">
-            Stocks
-          </Link>
-          <Link href="/private-markets" className="hover:text-white">
-            Private markets
-          </Link>
-          <Link href="/portfolio" className="hover:text-white">
-            Portfolio
-          </Link>
-          <Link href="/agents" className="hover:text-white">
-            Agents
-          </Link>
-        </div>
-        <span>Market information is for research. Review prices and risks before trading.</span>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

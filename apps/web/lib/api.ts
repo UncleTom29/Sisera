@@ -272,7 +272,7 @@ export type MarketIntelligence = {
   sampleSize: number;
 };
 
-type ApiIdentity = { accessToken?: string | undefined; localOperator?: boolean | undefined };
+export type ApiIdentity = { accessToken?: string | undefined; localOperator?: boolean | undefined };
 
 export class ApiError extends Error {
   constructor(
@@ -315,7 +315,10 @@ function identityHeaders(identity: ApiIdentity): HeadersInit {
 async function getJson<T>(path: string, identity: ApiIdentity, timeoutMs = 5000): Promise<T> {
   const response = await fetch(`${serverApiUrl()}${path}`, {
     headers: { accept: "application/json", ...identityHeaders(identity) },
-    cache: "no-store",
+    // Signed-in requests are always fresh; public pages share a short-lived cache.
+    ...(identity.accessToken || identity.localOperator
+      ? { cache: "no-store" as const }
+      : { next: { revalidate: 60 } }),
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!response.ok) {

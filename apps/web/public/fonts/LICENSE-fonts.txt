@@ -1,0 +1,9 @@
+Sisera web fonts. All three families are licensed under the SIL Open Font License 1.1
+(https://openfontlicense.org). Files are the Latin subsets distributed by Fontsource.
+
+- Newsreader — Copyright 2020 The Newsreader Project Authors (Production Type).
+  https://github.com/productiontype/Newsreader
+- Schibsted Grotesk — Copyright 2022 The Schibsted Grotesk Project Authors.
+  https://github.com/schibsted/schibsted-grotesk
+- Commit Mono — Copyright 2023 Eigil Nikolajsen.
+  https://github.com/eigilnikolajsen/commit-mono

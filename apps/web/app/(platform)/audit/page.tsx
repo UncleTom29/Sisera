@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "../../../auth";
 import { ActivityTimeline } from "../../../components/activity-timeline";
@@ -11,6 +12,11 @@ import {
   getPredictionOrders,
   getSolanaOrders,
 } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Activity",
+  description: "Every order, bridge transfer, and account event in one timeline.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -72,13 +78,13 @@ export default async function ActivityPage() {
               <div className="mt-4 flex flex-wrap gap-3 text-xs">
                 <Link
                   href="/stocks"
-                  className="rounded bg-cyan-300 px-3 py-2 font-semibold text-ink"
+                  className="rounded bg-bronze-300 px-3 py-2 font-semibold text-ink"
                 >
                   Browse stocks
                 </Link>
                 <Link
                   href="/private-markets"
-                  className="rounded border border-line px-3 py-2 text-cyan-300"
+                  className="rounded border border-line px-3 py-2 text-bronze-300"
                 >
                   Browse private markets
                 </Link>
@@ -169,7 +175,7 @@ export default async function ActivityPage() {
                         {order.inputMint.slice(0, 8)}… → {order.outputMint.slice(0, 8)}…
                         {order.signature && (
                           <a
-                            className="ml-2 text-cyan-300"
+                            className="ml-2 text-bronze-300"
                             href={`https://solscan.io/tx/${order.signature}`}
                             target="_blank"
                             rel="noopener noreferrer"
@@ -208,7 +214,7 @@ export default async function ActivityPage() {
                         className={
                           order.status === "failed" || order.status === "unknown"
                             ? "text-rose-300"
-                            : "text-cyan-300"
+                            : "text-bronze-300"
                         }
                       >
                         {order.venueStatus

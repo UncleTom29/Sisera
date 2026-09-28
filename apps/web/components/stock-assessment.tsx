@@ -62,9 +62,9 @@ export function StockAssessment({ symbol }: { symbol: string }) {
           type="button"
           disabled={loading}
           onClick={run}
-          className="inline-flex items-center gap-2 rounded border border-line bg-[#101b23] px-3 py-2 text-xs font-medium text-slate-200 hover:border-cyan-300 hover:text-white disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded border border-line bg-ink-raised px-3 py-2 text-xs font-medium text-slate-200 hover:border-bronze-300 hover:text-white disabled:opacity-50"
         >
-          <FileText size={13} className="text-cyan-300" />
+          <FileText size={13} className="text-bronze-300" />
           {loading ? "Analyzing…" : "Run assessment"}
         </button>
       </div>
@@ -141,7 +141,7 @@ export function StockAssessment({ symbol }: { symbol: string }) {
                       href={article.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-cyan-300 hover:text-white"
+                      className="text-bronze-300 hover:text-white"
                     >
                       {article.title}
                     </a>

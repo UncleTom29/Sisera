@@ -67,7 +67,7 @@ export function ActivityTimeline({ events }: { events: AccountEvent[] }) {
                   event.status === "unknown" ||
                   event.status === "rejected"
                     ? "text-rose-300"
-                    : "text-cyan-300"
+                    : "text-bronze-300"
                 }
               >
                 {event.status}

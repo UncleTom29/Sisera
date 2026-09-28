@@ -1,8 +1,14 @@
 import { Boxes, CircleAlert, Search } from "lucide-react";
+import type { Metadata } from "next";
 import { auth } from "../../../auth";
 import { LiveRefresh } from "../../../components/live-refresh";
 import { PageHeader } from "../../../components/page-header";
 import { accountErrorMessage, searchClawpump } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Agent markets",
+  description: "Tokens tied to trading agents, with activity and asset details.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +55,7 @@ export default async function ClawpumpMarkets({
           </label>
           <button
             type="submit"
-            className="rounded-md bg-cyan-300 px-5 text-xs font-semibold text-[#14202a]"
+            className="rounded-md bg-bronze-300 px-5 text-xs font-semibold text-panel"
           >
             Search
           </button>
@@ -70,7 +76,7 @@ export default async function ClawpumpMarkets({
           <section className="overflow-x-auto rounded-lg border border-line bg-panel">
             <div className="flex items-center justify-between border-b border-line px-5 py-4">
               <div className="flex items-center gap-2">
-                <Boxes size={16} className="text-cyan-300" />
+                <Boxes size={16} className="text-bronze-300" />
                 <h2 className="text-sm font-semibold text-white">Search results</h2>
               </div>
               <span className="font-mono text-[10px] text-slate-500">{tokens.length} assets</span>

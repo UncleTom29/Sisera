@@ -2,49 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@font-face {
-  font-family: "IBM Plex Sans";
-  src: url("/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: "IBM Plex Sans";
-  src: url("/fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-}
-@font-face {
-  font-family: "IBM Plex Sans";
-  src: url("/fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-}
-@font-face {
-  font-family: "IBM Plex Sans";
-  src: url("/fonts/ibm-plex-sans-latin-700-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-}
-@font-face {
-  font-family: "IBM Plex Mono";
-  src: url("/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: "IBM Plex Mono";
-  src: url("/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-}
-
 :root {
   color-scheme: dark;
   --background: #0c141b;
@@ -55,10 +12,11 @@
   --text: #f2f0e9;
   --muted: #a5b1b7;
   --faint: #70828b;
-  --cyan: #e9bd8c;
-  --green: #83c8ad;
-  --red: #ed8585;
-  --amber: #e9bd8c;
+  --bronze: #e9bd8c;
+  --verdigris: #78b9ad;
+  /* P&L colours are deliberately separate from the verdigris brand accent. */
+  --up: #4fd18b;
+  --down: #f07474;
 }
 
 * {
@@ -73,7 +31,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--text);
-  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 a {
@@ -108,24 +66,25 @@ input {
 }
 
 .eyebrow {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--cyan);
+  color: var(--bronze);
 }
 
 .data-label {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: var(--font-mono), ui-monospace, monospace;
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--faint);
 }
 
-.data-value {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+.data-value,
+.num {
+  font-family: var(--font-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 
@@ -153,8 +112,122 @@ input {
 .pulse-live {
   animation: pulse-live 2s steps(2, end) infinite;
 }
+/* Brief background tick when a live value changes; colour follows the direction of the move. */
+@keyframes tick-up {
+  from {
+    background-color: rgba(79, 209, 139, 0.22);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+@keyframes tick-down {
+  from {
+    background-color: rgba(240, 116, 116, 0.22);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.tick-up {
+  animation: tick-up 900ms steps(6, end);
+}
+.tick-down {
+  animation: tick-down 900ms steps(6, end);
+}
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.ticker-track {
+  animation: ticker-scroll 60s linear infinite;
+}
+.ticker-track:hover {
+  animation-play-state: paused;
+}
+
+@keyframes skeleton {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+.skeleton {
+  background: #192833;
+  animation: skeleton 1.4s steps(4, end) infinite;
+}
+
+.display {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .pulse-live {
+  .pulse-live,
+  .tick-up,
+  .tick-down,
+  .ticker-track,
+  .skeleton {
     animation: none;
   }
+}
+
+/* Long-form public pages (about, legal, brand). */
+:where(.prose-sisera) h2 {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+  font-size: 30px;
+  line-height: 1.15;
+  color: var(--text);
+  margin: 56px 0 16px;
+}
+:where(.prose-sisera) h2:first-child {
+  margin-top: 0;
+}
+:where(.prose-sisera) h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 32px 0 8px;
+}
+:where(.prose-sisera) p,
+:where(.prose-sisera) li {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #c4ccd0;
+}
+:where(.prose-sisera) p + p {
+  margin-top: 16px;
+}
+:where(.prose-sisera) ul {
+  margin: 16px 0;
+  padding-left: 0;
+  list-style: none;
+}
+:where(.prose-sisera) li {
+  position: relative;
+  padding-left: 20px;
+  margin-top: 8px;
+}
+:where(.prose-sisera) li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.8em;
+  width: 6px;
+  height: 6px;
+  background: var(--bronze);
+}
+:where(.prose-sisera) a {
+  color: var(--bronze);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }

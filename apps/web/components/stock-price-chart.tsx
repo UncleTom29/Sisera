@@ -94,11 +94,11 @@ export function StockPriceChart({
         <path
           d={line}
           fill="none"
-          stroke="#67e8f9"
+          stroke="#e9bd8c"
           strokeWidth="2.5"
           vectorEffect="non-scaling-stroke"
         />
-        <circle cx={x(latest.time)} cy={y(latest.value)} r="4" fill="#67e8f9" />
+        <circle cx={x(latest.time)} cy={y(latest.value)} r="4" fill="#e9bd8c" />
       </svg>
       <div className="flex justify-between text-[11px] text-slate-500">
         <span>{new Date(start).toLocaleDateString()}</span>
@@ -132,7 +132,7 @@ export function PrivatePriceComparison({
       <div className="mt-7 space-y-5">
         {(
           [
-            ["Token price", token, "bg-cyan-300"],
+            ["Token price", token, "bg-bronze-300"],
             ["Issuer mark", mark, "bg-slate-500"],
           ] as const
         ).map(([label, value, color]) => (

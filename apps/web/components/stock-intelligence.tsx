@@ -61,7 +61,7 @@ export async function StockIntelligence() {
               <Link
                 key={stock.mint}
                 href={`/stocks/${encodeURIComponent(stock.symbol)}`}
-                className="rounded border border-line px-3 py-2 text-xs text-slate-300 hover:text-cyan-300"
+                className="rounded border border-line px-3 py-2 text-xs text-slate-300 hover:text-bronze-300"
               >
                 {stock.symbol} ·{" "}
                 {stock.priceUsd ? `$${Number(stock.priceUsd).toFixed(2)}` : "unpriced"}
@@ -80,7 +80,7 @@ export async function StockIntelligence() {
               <p className="eyebrow">Private companies</p>
               <h2 className="mt-1 text-base font-semibold text-white">Largest price gaps</h2>
             </div>
-            <RadioTower size={16} className="text-cyan-300" />
+            <RadioTower size={16} className="text-bronze-300" />
           </div>
           {ranked.length ? (
             <div className="overflow-x-auto">
@@ -104,7 +104,7 @@ export async function StockIntelligence() {
                         <td className="px-5 py-3">
                           <Link
                             href={`/private-markets/${encodeURIComponent(asset.instrument.baseAsset)}`}
-                            className="inline-flex items-center gap-1 font-semibold text-slate-100 hover:text-cyan-300"
+                            className="inline-flex items-center gap-1 font-semibold text-slate-100 hover:text-bronze-300"
                           >
                             {asset.company}
                             <ArrowUpRight size={12} />

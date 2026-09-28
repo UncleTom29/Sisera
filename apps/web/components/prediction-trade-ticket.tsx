@@ -141,7 +141,7 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
               setPrepared(null);
               setMessage(null);
             }}
-            className={`rounded border px-2 py-2 uppercase disabled:opacity-40 ${mode === option ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300" : "border-line text-slate-500"}`}
+            className={`rounded border px-2 py-2 uppercase disabled:opacity-40 ${mode === option ? "border-bronze-400/40 bg-bronze-400/10 text-bronze-300" : "border-line text-slate-500"}`}
           >
             {option}
           </button>
@@ -162,7 +162,7 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
               setPrepared(null);
               paperRequestId.current = null;
             }}
-            className={`rounded border px-2 py-2 uppercase ${outcome === side ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-300" : "border-line text-slate-500"}`}
+            className={`rounded border px-2 py-2 uppercase ${outcome === side ? "border-bronze-400/40 bg-bronze-400/10 text-bronze-300" : "border-line text-slate-500"}`}
           >
             {side}
           </button>
@@ -179,7 +179,7 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
           }}
           inputMode="decimal"
           placeholder="5.00"
-          className="mt-1 h-9 w-full rounded border border-line bg-[#0f1a22] px-2 font-mono text-white"
+          className="mt-1 h-9 w-full rounded border border-line bg-ink-raised px-2 font-mono text-white"
         />
       </label>
       {prepared && (
@@ -194,7 +194,7 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
         disabled={
           working || !authenticated || !amount || (mode === "live" && (!account || !liveAvailable))
         }
-        className="mt-2 h-9 w-full rounded border border-cyan-400/40 bg-cyan-400/10 text-cyan-200 disabled:opacity-40"
+        className="mt-2 h-9 w-full rounded border border-bronze-400/40 bg-bronze-400/10 text-bronze-200 disabled:opacity-40"
       >
         {working
           ? "Working…"

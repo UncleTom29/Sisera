@@ -40,7 +40,7 @@ export function PortfolioExport({ rows }: { rows: ExportRow[] }) {
         anchor.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       }}
-      className="inline-flex items-center gap-1.5 text-[10px] text-cyan-300 disabled:text-slate-700"
+      className="inline-flex items-center gap-1.5 text-[10px] text-bronze-300 disabled:text-slate-500"
     >
       <Download size={12} /> Export observations
     </button>

@@ -205,7 +205,7 @@ export function BridgeUsdc() {
               setOrigin(Number(event.target.value));
               setQuote(null);
             }}
-            className="mt-1 w-full rounded border border-line bg-[#0f1a22] p-2 text-slate-100"
+            className="mt-1 w-full rounded border border-line bg-ink-raised p-2 text-slate-100"
           >
             {chains.map((chain) => (
               <option key={chain.id} value={chain.id}>
@@ -222,7 +222,7 @@ export function BridgeUsdc() {
               setDestination(Number(event.target.value) as 999 | 792703809);
               setQuote(null);
             }}
-            className="mt-1 w-full rounded border border-line bg-[#0f1a22] p-2 text-slate-100"
+            className="mt-1 w-full rounded border border-line bg-ink-raised p-2 text-slate-100"
           >
             <option value={999}>HyperEVM</option>
             <option value={792703809}>Solana</option>
@@ -240,7 +240,7 @@ export function BridgeUsdc() {
               setAmount(event.target.value);
               setQuote(null);
             }}
-            className="mt-1 w-full rounded border border-line bg-[#0f1a22] p-2 text-slate-100"
+            className="mt-1 w-full rounded border border-line bg-ink-raised p-2 text-slate-100"
             placeholder="100"
           />
         </label>
@@ -252,7 +252,7 @@ export function BridgeUsdc() {
         <button
           type="button"
           onClick={() => connectWallet()}
-          className="mt-4 rounded border border-cyan-400/30 px-3 py-2 text-xs text-cyan-300"
+          className="mt-4 rounded border border-bronze-400/30 px-3 py-2 text-xs text-bronze-300"
         >
           Connect EVM wallet
         </button>
@@ -262,13 +262,13 @@ export function BridgeUsdc() {
           type="button"
           disabled={busy || !amount || !recipient}
           onClick={() => run(getQuote)}
-          className="mt-4 rounded border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-300 disabled:opacity-50"
+          className="mt-4 rounded border border-bronze-400/30 bg-bronze-400/10 px-3 py-2 text-xs text-bronze-300 disabled:opacity-50"
         >
           Get bridge quote
         </button>
       )}
       {quote && (
-        <div className="mt-4 rounded border border-line bg-[#0f1a22] p-4 text-xs text-slate-300">
+        <div className="mt-4 rounded border border-line bg-ink-raised p-4 text-xs text-slate-300">
           <p>
             Expected destination amount: <strong>{quote.outputAmountUsdc} USDC</strong>
           </p>
@@ -286,7 +286,7 @@ export function BridgeUsdc() {
             type="button"
             disabled={busy}
             onClick={() => run(submit)}
-            className="mt-3 rounded border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 font-semibold text-cyan-300 disabled:opacity-50"
+            className="mt-3 rounded border border-bronze-400/30 bg-bronze-400/10 px-3 py-2 font-semibold text-bronze-300 disabled:opacity-50"
           >
             Confirm bridge in wallet
           </button>

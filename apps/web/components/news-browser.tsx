@@ -36,7 +36,7 @@ export function NewsBrowser({ articles }: { articles: Article[] }) {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search headlines"
-          className="h-9 rounded border border-line bg-ink px-3 text-xs text-white outline-none focus:border-cyan-300"
+          className="h-9 rounded border border-line bg-ink px-3 text-xs text-white outline-none focus:border-bronze-300"
         />
         <select
           aria-label="Filter news by company"

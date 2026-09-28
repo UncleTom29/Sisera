@@ -131,7 +131,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
       {rows.length ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1050px] text-left text-xs">
-            <thead className="border-b border-line bg-[#111d26] text-[10px] uppercase tracking-wider text-slate-500">
+            <thead className="border-b border-line bg-ink-raised text-[10px] uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="px-5 py-3 font-medium">Company</th>
                 <th className="px-5 py-3 font-medium">Token</th>
@@ -181,7 +181,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
                         <>
                           {`$${referencePrice.toFixed(2)}`}
                           <span
-                            className={`ml-1 text-[9px] ${reference?.referenceFreshness === "live" ? "text-emerald-300" : "text-amber-300"}`}
+                            className={`ml-1 text-[10px] ${reference?.referenceFreshness === "live" ? "text-emerald-300" : "text-amber-300"}`}
                           >
                             {reference?.referenceFreshness === "live" ? "live" : "prior close"}
                           </span>
@@ -211,7 +211,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
                     <td className="px-5 py-3 text-right">
                       <Link
                         href={`/stocks/${encodeURIComponent(stock.symbol)}`}
-                        className="text-cyan-300 hover:text-white"
+                        className="text-bronze-300 hover:text-white"
                       >
                         Inspect <ArrowUpRight size={12} className="inline" />
                       </Link>

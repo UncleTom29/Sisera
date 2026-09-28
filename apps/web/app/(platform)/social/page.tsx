@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { auth } from "../../../auth";
 import { PageHeader } from "../../../components/page-header";
 import { SocialFeedBrowser } from "../../../components/social-feed-browser";
 import { getSocialFeed } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Social feeds",
+  description: "Market chatter from tracked X, Telegram, Reddit, and Discord communities.",
+};
 
 export const dynamic = "force-dynamic";
 

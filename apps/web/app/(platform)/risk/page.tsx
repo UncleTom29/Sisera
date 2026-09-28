@@ -1,5 +1,6 @@
 import { StatusBadge } from "@sisera/ui";
 import { Activity, Ban, CircleGauge, ShieldAlert, Waves } from "lucide-react";
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { auth } from "../../../auth";
 import { PageHeader } from "../../../components/page-header";
@@ -12,6 +13,11 @@ import {
   getSolanaWallet,
 } from "../../../lib/api";
 import { valueSolanaWallet } from "../../../lib/wallet-observation";
+
+export const metadata: Metadata = {
+  title: "Risk",
+  description: "Exposure, market shock tests, and the limits that protect your trades.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -114,14 +120,14 @@ export default async function RiskPage({
           {
             label: "Quote freshness",
             value: "Checked at order",
-            tone: "text-cyan-300",
+            tone: "text-bronze-300",
             icon: Activity,
           },
         ].map((item) => (
           <div key={item.label} className="bg-panel p-5">
             <div className="flex items-center justify-between">
               <p className="data-label">{item.label}</p>
-              <item.icon size={13} className="text-slate-700" />
+              <item.icon size={13} className="text-slate-500" />
             </div>
             <p className={`data-value mt-4 text-xl ${item.tone}`}>{item.value}</p>
           </div>
@@ -149,7 +155,7 @@ export default async function RiskPage({
           />
           <button
             type="submit"
-            className="rounded border border-cyan-400/30 px-3 text-xs text-cyan-300"
+            className="rounded border border-bronze-400/30 px-3 text-xs text-bronze-300"
           >
             Inspect
           </button>
@@ -216,11 +222,11 @@ export default async function RiskPage({
             defaultValue={address}
             aria-label="Hyperliquid wallet address"
             placeholder="0x… public wallet address"
-            className="min-w-64 flex-1 rounded border border-line bg-[#0f1a22] px-3 py-2 font-mono text-xs text-slate-100"
+            className="min-w-64 flex-1 rounded border border-line bg-ink-raised px-3 py-2 font-mono text-xs text-slate-100"
           />
           <button
             type="submit"
-            className="rounded border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300"
+            className="rounded border border-bronze-400/30 bg-bronze-400/10 px-4 py-2 text-xs font-semibold text-bronze-300"
           >
             View exposure
           </button>
@@ -238,7 +244,7 @@ export default async function RiskPage({
                 marginUtilization == null ? "—" : `${marginUtilization.toFixed(1)}%`,
               ],
             ].map(([label, value]) => (
-              <div key={label} className="bg-[#101b23] p-4">
+              <div key={label} className="bg-ink-raised p-4">
                 <p className="data-label">{label}</p>
                 <p className="mt-2 font-mono text-lg text-white">{value}</p>
               </div>
@@ -274,8 +280,8 @@ export default async function RiskPage({
                   <p className="text-[11px] text-slate-300">{limit}</p>
                   <div className="mt-2 h-1 max-w-sm bg-slate-800" />
                 </div>
-                <span className="data-value text-right text-[10px] text-slate-600">{value}</span>
-                <span className="data-value text-right text-[10px] text-slate-700">Checked</span>
+                <span className="data-value text-right text-[10px] text-slate-400">{value}</span>
+                <span className="data-value text-right text-[10px] text-slate-500">Checked</span>
               </div>
             ))}
           </div>
@@ -283,7 +289,7 @@ export default async function RiskPage({
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <span className="text-xs font-semibold">What if the market falls?</span>
-            <Waves size={13} className="text-slate-600" />
+            <Waves size={13} className="text-slate-400" />
           </div>
           <div className="divide-y divide-line">
             {scenarios.map((scenario) => {
@@ -306,7 +312,7 @@ export default async function RiskPage({
                 >
                   <div>
                     <p className="text-[11px] font-medium text-slate-300">{scenario.name}</p>
-                    <p className="mt-1 font-mono text-[9px] text-slate-600">{scenario.detail}</p>
+                    <p className="mt-1 font-mono text-[10px] text-slate-400">{scenario.detail}</p>
                   </div>
                   <div className="text-right">
                     <p
@@ -318,7 +324,7 @@ export default async function RiskPage({
                           ? "No matching position"
                           : "No perpetual account in view"}
                     </p>
-                    <p className="mt-1 text-[9px] text-slate-600">
+                    <p className="mt-1 text-[10px] text-slate-400">
                       {covered.length}/{observed?.positions.length ?? 0} positions included
                     </p>
                   </div>

@@ -1,9 +1,15 @@
 import { CircleAlert, Landmark, RadioTower } from "lucide-react";
+import type { Metadata } from "next";
 import { auth } from "../../../auth";
 import { LiveRefresh } from "../../../components/live-refresh";
 import { PageHeader } from "../../../components/page-header";
 import { PrivateMarketScreener } from "../../../components/private-market-screener";
 import { getPrivateMarkets } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Private markets",
+  description: "Pre-IPO company tokens compared with issuer marks and implied valuations.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +33,7 @@ export default async function PrivateMarketsPage() {
       <div className="space-y-5 p-4 md:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
           <div className="flex items-center gap-3">
-            <Landmark size={17} className="text-cyan-300" />
+            <Landmark size={17} className="text-bronze-300" />
             <span className="text-sm font-semibold text-white">Private companies</span>
             <span className="rounded border border-line px-2 py-1 font-mono text-[10px] text-slate-400">
               {markets.length} assets

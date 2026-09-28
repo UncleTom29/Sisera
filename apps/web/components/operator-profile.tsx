@@ -55,7 +55,7 @@ export function OperatorProfile({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="grid size-8 place-items-center rounded border border-line bg-slate-900 text-slate-300 hover:border-cyan-400/40 hover:text-white transition-colors"
+        className="grid size-8 place-items-center rounded border border-line bg-slate-900 text-slate-300 hover:border-bronze-400/40 hover:text-white transition-colors"
         aria-label="Operator profile"
         title={displayName}
         aria-expanded={open}
@@ -66,7 +66,7 @@ export function OperatorProfile({
       {open && (
         <div className="absolute right-0 top-11 z-50 w-72 rounded-lg border border-line bg-panel p-4 shadow-2xl animate-in fade-in zoom-in-95 duration-100">
           <div className="flex items-center gap-3 border-b border-line pb-3">
-            <div className="grid size-9 place-items-center rounded-full bg-cyan-300/10 text-cyan-300">
+            <div className="grid size-9 place-items-center rounded-full bg-bronze-300/10 text-bronze-300">
               <User size={16} />
             </div>
             <div className="min-w-0 flex-1">
@@ -83,14 +83,14 @@ export function OperatorProfile({
             </div>
           </div>
 
-          <div className="mt-3 space-y-1.5 rounded border border-line/60 bg-[#101b23] p-2.5 text-[11px] text-slate-400">
+          <div className="mt-3 space-y-1.5 rounded border border-line/60 bg-ink-raised p-2.5 text-[11px] text-slate-400">
             <div className="flex justify-between">
               <span>Environment:</span>
               <span className="font-mono text-slate-200">Terminal V2</span>
             </div>
             <div className="flex justify-between">
               <span>Network:</span>
-              <span className="font-mono text-cyan-300">Solana Mainnet</span>
+              <span className="font-mono text-bronze-300">Solana Mainnet</span>
             </div>
             <div className="flex justify-between">
               <span>Pre-trade Risk:</span>

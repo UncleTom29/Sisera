@@ -1,4 +1,5 @@
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "../../../../auth";
@@ -6,6 +7,18 @@ import { StockAssessment } from "../../../../components/stock-assessment";
 import { PrivatePriceComparison, StockPriceChart } from "../../../../components/stock-price-chart";
 import { StockTradeTicket } from "../../../../components/stock-trade-ticket";
 import { getPrivateMarkets, getSolanaTokenHistory, getStockNews } from "../../../../lib/api";
+
+export async function generateMetadata({
+  params,
+}: { params: Promise<{ symbol: string }> }): Promise<Metadata> {
+  const { symbol } = await params;
+  const ticker = decodeURIComponent(symbol).toUpperCase();
+  return {
+    title: `${ticker} pre-IPO token price vs issuer mark`,
+    description: `${ticker} private-company token price compared with the issuer mark and implied valuation, with price history and news.`,
+    alternates: { canonical: `/private-markets/${encodeURIComponent(ticker)}` },
+  };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +91,7 @@ export default async function PreStockDetail({ params }: { params: Promise<{ sym
               href={asset.productUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-5 inline-flex items-center gap-2 text-xs text-cyan-300"
+              className="mt-5 inline-flex items-center gap-2 text-xs text-bronze-300"
             >
               Official product page <ArrowUpRight size={13} />
             </a>
@@ -127,7 +140,7 @@ export default async function PreStockDetail({ params }: { params: Promise<{ sym
               >
                 <div className="flex items-start justify-between gap-5">
                   <p className="text-sm font-medium text-slate-100">{item.title}</p>
-                  <ArrowUpRight size={13} className="shrink-0 text-cyan-300" />
+                  <ArrowUpRight size={13} className="shrink-0 text-bronze-300" />
                 </div>
                 <p className="mt-2 font-mono text-[10px] text-slate-500">
                   {item.publisher} · {new Date(item.publishedAt).toLocaleString()}

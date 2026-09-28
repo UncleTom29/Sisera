@@ -1,6 +1,7 @@
 import type { OrderBook } from "@sisera/domain";
 import { formatMoney } from "@sisera/ui";
 import { ArrowUpRight, BookOpen, CandlestickChart, ShieldCheck } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "../../../auth";
@@ -18,6 +19,11 @@ import {
   getOrderBook,
   getReferenceMarkets,
 } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Perpetuals terminal",
+  description: "Charts, order book, and order entry for perpetual and spot markets.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -81,7 +87,7 @@ export default async function TerminalPage({
         <div className="mb-4 flex items-center gap-2 border-b border-line pb-3 text-xs">
           <Link
             href={`/terminal?symbol=${symbol}&interval=${interval}&venue=hyperliquid`}
-            className={`rounded px-3 py-2 ${venue === "hyperliquid" ? "bg-cyan-400/10 text-cyan-300" : "text-slate-400"}`}
+            className={`rounded px-3 py-2 ${venue === "hyperliquid" ? "bg-bronze-400/10 text-bronze-300" : "text-slate-400"}`}
           >
             Hyperliquid perps
           </Link>
@@ -99,7 +105,7 @@ export default async function TerminalPage({
               <Link
                 key={instrument.id}
                 href={`/terminal?symbol=${instrument.baseAsset}USDT&interval=${interval}&venue=${venue}`}
-                className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-md border px-3 py-2.5 transition-colors hover:border-slate-500 ${symbol === `${instrument.baseAsset}USDT` ? "border-cyan-400/50 bg-cyan-400/[0.08]" : "border-line bg-panel"}`}
+                className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-md border px-3 py-2.5 transition-colors hover:border-slate-500 ${symbol === `${instrument.baseAsset}USDT` ? "border-bronze-400/50 bg-bronze-400/[0.08]" : "border-line bg-panel"}`}
               >
                 <div>
                   <p className="text-xs font-semibold text-slate-100">{instrument.baseAsset}</p>
@@ -120,7 +126,7 @@ export default async function TerminalPage({
               <Link
                 key={item.symbol}
                 href={`/terminal?symbol=${item.symbol}&interval=${interval}&venue=${venue}`}
-                className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-md border px-3 py-2.5 hover:border-slate-500 ${symbol === item.symbol ? "border-cyan-400/50 bg-cyan-400/[0.08]" : "border-line bg-panel"}`}
+                className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-md border px-3 py-2.5 hover:border-slate-500 ${symbol === item.symbol ? "border-bronze-400/50 bg-bronze-400/[0.08]" : "border-line bg-panel"}`}
               >
                 <div>
                   <p className="text-xs font-semibold text-slate-100">
@@ -203,13 +209,13 @@ export default async function TerminalPage({
           <section className="flex min-h-[570px] flex-col overflow-hidden rounded-lg border border-line bg-panel">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
               <div className="flex items-center gap-2">
-                <CandlestickChart size={16} className="text-cyan-300" />
+                <CandlestickChart size={16} className="text-bronze-300" />
                 <h3 className="text-sm font-semibold text-slate-100">Price chart</h3>
                 <span className="ml-1 font-mono text-[10px] text-slate-500">
                   {market?.instrument.displaySymbol ?? symbol} · {interval}
                 </span>
               </div>
-              <div className="flex items-center rounded-md bg-[#0f1a22] p-1">
+              <div className="flex items-center rounded-md bg-ink-raised p-1">
                 {intervals.map((value) => (
                   <Link
                     key={value}
@@ -236,7 +242,7 @@ export default async function TerminalPage({
           <section className="min-h-[570px] overflow-hidden rounded-lg border border-line bg-panel">
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-                <BookOpen size={15} className="text-cyan-300" /> Order book
+                <BookOpen size={15} className="text-bronze-300" /> Order book
               </h3>
               <span className="font-mono text-[10px] text-slate-500">L2 · 20 levels</span>
             </div>
@@ -267,14 +273,14 @@ export default async function TerminalPage({
           <TerminalDetails intelligence={intelligence} />
           <section className="rounded-lg border border-line bg-panel p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-              <ShieldCheck size={16} className="text-cyan-300" /> Execution controls
+              <ShieldCheck size={16} className="text-bronze-300" /> Execution controls
             </div>
             <p className="mt-4 text-xs leading-5 text-slate-400">
               Orders require a reconciled portfolio, mandate limits, and a fresh venue quote.
             </p>
             <Link
               href="/risk"
-              className="mt-5 inline-flex items-center gap-1 text-xs font-medium text-cyan-300 hover:text-cyan-200"
+              className="mt-5 inline-flex items-center gap-1 text-xs font-medium text-bronze-300 hover:text-bronze-200"
             >
               Review risk controls <ArrowUpRight size={14} />
             </Link>

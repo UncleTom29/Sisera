@@ -1,5 +1,6 @@
 import { StatusBadge } from "@sisera/ui";
 import { Activity, Database, Globe2, RadioTower } from "lucide-react";
+import type { Metadata } from "next";
 import { auth } from "../../../auth";
 import { PageHeader } from "../../../components/page-header";
 import {
@@ -8,6 +9,11 @@ import {
   getMarketOverview,
   getPerpetualMetrics,
 } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Macro & chains",
+  description: "Macro regime, perpetuals funding and open interest, and chain-level TVL.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -225,7 +231,7 @@ export default async function MacroPage() {
             What the backdrop suggests
           </div>
           <div className="p-5">
-            <Globe2 size={20} className="text-cyan-300" />
+            <Globe2 size={20} className="text-bronze-300" />
             <p className="mt-8 data-label">Current climate</p>
             <p className="mt-2 text-2xl font-medium text-slate-100">
               {regime ? regime.state.replace("_", " ").toUpperCase() : "Market read updating"}
@@ -258,7 +264,7 @@ export default async function MacroPage() {
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <span className="text-xs font-semibold">Market breadth</span>
-            <Globe2 size={14} className="text-cyan-300" />
+            <Globe2 size={14} className="text-bronze-300" />
           </div>
           {overview?.crypto.length ? (
             <div className="divide-y divide-line">
@@ -295,7 +301,7 @@ export default async function MacroPage() {
               <p className="text-sm text-slate-300">
                 Follow market leaders and their changing momentum alongside rates and liquidity.
               </p>
-              <a href="/markets" className="mt-3 inline-block text-xs text-cyan-300">
+              <a href="/markets" className="mt-3 inline-block text-xs text-bronze-300">
                 Explore markets →
               </a>
             </div>
@@ -410,9 +416,9 @@ function StateCell({
 }: { icon: typeof Activity; label: string; available: boolean }) {
   return (
     <div className="bg-panel p-3">
-      <Icon size={12} className="text-slate-700" />
+      <Icon size={12} className="text-slate-500" />
       <p className="mt-3 data-label">{label}</p>
-      <p className={`mt-1 text-[9px] ${available ? "text-emerald-300" : "text-slate-700"}`}>
+      <p className={`mt-1 text-[10px] ${available ? "text-emerald-300" : "text-slate-500"}`}>
         {available ? "Fresh observation" : "No observation"}
       </p>
     </div>

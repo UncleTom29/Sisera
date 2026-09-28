@@ -1,5 +1,11 @@
+import type { Metadata } from "next";
 import { PageHeader } from "../../../components/page-header";
 import { WorkspaceSettings } from "../../../components/workspace-settings";
+
+export const metadata: Metadata = {
+  title: "Settings",
+  description: "Workspace preferences.",
+};
 
 export default function SettingsPage() {
   return (

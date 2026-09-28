@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "../../../../auth";
 import { MarketChart } from "../../../../components/market-chart";
@@ -11,6 +12,18 @@ import {
   getMarketOverview,
   getOrderBook,
 } from "../../../../lib/api";
+
+export async function generateMetadata({
+  params,
+}: { params: Promise<{ symbol: string }> }): Promise<Metadata> {
+  const { symbol } = await params;
+  const ticker = decodeURIComponent(symbol).toUpperCase();
+  return {
+    title: `${ticker} spot price, chart, and order book`,
+    description: `${ticker} spot market with chart, order book depth, price structure, and order entry.`,
+    alternates: { canonical: `/spot/${encodeURIComponent(ticker)}` },
+  };
+}
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +62,7 @@ export default async function SpotMarketPage({ params }: { params: Promise<{ sym
         title={market?.instrument.displaySymbol ?? symbol}
         description="Follow price, liquidity and the bigger market story before placing a trade."
         actions={
-          <Link href="/markets?venue=binance" className="text-xs text-cyan-300">
+          <Link href="/markets?venue=binance" className="text-xs text-bronze-300">
             ← Spot markets
           </Link>
         }
@@ -131,7 +144,7 @@ export default async function SpotMarketPage({ params }: { params: Promise<{ sym
               <div className="mt-3 space-y-2 text-xs text-slate-300">
                 <p>
                   Direction:{" "}
-                  <span className="font-semibold text-cyan-300">{analysis.direction}</span>
+                  <span className="font-semibold text-bronze-300">{analysis.direction}</span>
                 </p>
                 <p>Confidence: {(analysis.confidence * 100).toFixed(0)}%</p>
                 <p>Regime: {analysis.regime.replace("_", " ")}</p>
@@ -153,7 +166,7 @@ export default async function SpotMarketPage({ params }: { params: Promise<{ sym
               {asset?.name ?? baseSymbol} at a glance
             </h2>
           </div>
-          <Link href="/macro" className="text-xs text-cyan-300 hover:text-white">
+          <Link href="/macro" className="text-xs text-bronze-300 hover:text-white">
             Explore market trends →
           </Link>
         </div>
@@ -209,7 +222,7 @@ export default async function SpotMarketPage({ params }: { params: Promise<{ sym
               href={profile.website}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-5 inline-block text-xs text-cyan-300 hover:text-white"
+              className="mt-5 inline-block text-xs text-bronze-300 hover:text-white"
             >
               Visit project website ↗
             </a>

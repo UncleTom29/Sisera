@@ -1,10 +1,17 @@
 import { StatusBadge } from "@sisera/ui";
+import type { Metadata } from "next";
 import { auth } from "../../../auth";
 import { AgentCreateForm } from "../../../components/agent-create-form";
 import { AgentReadiness } from "../../../components/agent-readiness";
 import { AgentResearch } from "../../../components/agent-research";
 import { PageHeader } from "../../../components/page-header";
 import { accountErrorMessage, getAgents } from "../../../lib/api";
+
+export const metadata: Metadata = {
+  title: "Agents",
+  description:
+    "Draft rule-bound research agents with capital caps, drawdown limits, and a kill switch.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -81,7 +88,7 @@ export default async function AgentsPage() {
                     <StatusBadge tone="neutral">Research</StatusBadge>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-slate-400">{agent.description}</p>
-                  <p className="mt-3 font-mono text-[10px] text-cyan-300">
+                  <p className="mt-3 font-mono text-[10px] text-bronze-300">
                     {agent.universe.join(" · ")} · {agent.timeframe}
                   </p>
                   <ul className="mt-3 list-inside list-disc space-y-1 text-[11px] text-slate-400">

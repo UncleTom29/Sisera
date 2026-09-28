@@ -23,12 +23,12 @@ export function OrderTicket({
     <div className="flex h-full flex-col bg-panel">
       <div className="flex h-12 items-center justify-between border-b border-line px-4">
         <span className="text-sm font-semibold text-slate-100">Order ticket</span>
-        <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-cyan-300">
+        <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-bronze-300">
           <ShieldCheck size={13} /> Paper
         </span>
       </div>
       <div className="flex-1 p-4">
-        <div className="grid grid-cols-2 rounded-md border border-line bg-[#0f1a22] p-1">
+        <div className="grid grid-cols-2 rounded-md border border-line bg-ink-raised p-1">
           <button
             type="button"
             onClick={() => setSide("buy")}
@@ -50,7 +50,7 @@ export function OrderTicket({
             <select
               value={orderType}
               onChange={(event) => setOrderType(event.target.value as "market" | "limit")}
-              className="mt-2 h-10 w-full rounded-md border border-line bg-[#0f1a22] px-3 text-xs text-slate-200 outline-none"
+              className="mt-2 h-10 w-full rounded-md border border-line bg-ink-raised px-3 text-xs text-slate-200 outline-none"
             >
               <option value="market">Market</option>
               <option value="limit">Limit</option>
@@ -60,7 +60,7 @@ export function OrderTicket({
             <span className="data-label">Time in force</span>
             <select
               disabled
-              className="mt-2 h-10 w-full rounded-md border border-line bg-[#0f1a22] px-3 text-xs text-slate-500 outline-none"
+              className="mt-2 h-10 w-full rounded-md border border-line bg-ink-raised px-3 text-xs text-slate-500 outline-none"
             >
               <option>GTC</option>
               <option>IOC</option>
@@ -76,7 +76,7 @@ export function OrderTicket({
               onChange={(event) => setLimitPrice(event.target.value)}
               inputMode="decimal"
               placeholder={side === "buy" ? ask : bid}
-              className="data-value mt-2 h-11 w-full rounded-md border border-line bg-[#0f1a22] px-3 text-right text-sm text-slate-100 outline-none focus:border-cyan-400/50"
+              className="data-value mt-2 h-11 w-full rounded-md border border-line bg-ink-raised px-3 text-right text-sm text-slate-100 outline-none focus:border-bronze-400/50"
             />
           </label>
         )}
@@ -87,7 +87,7 @@ export function OrderTicket({
             onChange={(event) => setQuantity(event.target.value)}
             inputMode="decimal"
             placeholder="0.00000"
-            className="data-value mt-2 h-11 w-full rounded-md border border-line bg-[#0f1a22] px-3 text-right text-sm text-slate-100 outline-none focus:border-cyan-400/50"
+            className="data-value mt-2 h-11 w-full rounded-md border border-line bg-ink-raised px-3 text-right text-sm text-slate-100 outline-none focus:border-bronze-400/50"
           />
         </label>
         <div className="mt-2 grid grid-cols-4 gap-1">
@@ -114,7 +114,7 @@ export function OrderTicket({
           <TicketRow label="Buying power" value="Portfolio required" />
         </div>
         <label className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-          <input type="checkbox" disabled className="accent-cyan-300" /> Reduce only
+          <input type="checkbox" disabled className="accent-bronze-300" /> Reduce only
         </label>
         <button
           type="button"

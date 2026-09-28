@@ -98,8 +98,8 @@ export default async function PreStockDetail({ params }: { params: Promise<{ sym
             <StockPriceChart
               token={asset.instrument.baseAsset}
               history={history}
-              current={Number(asset.tokenPrice)}
-              currentAt={asset.fetchedAt}
+              current={null}
+              currentAt={null}
             />
           </div>
         )}

@@ -378,7 +378,7 @@ export class CoinMarketCapClient {
     );
     if (!response.ok) throw new Error(`Token chart returned ${response.status}`);
     const data = this.normalizeDexCandles(await response.json());
-    this.dexCache.set(key, { until: Date.now() + 5 * 60_000, data });
+    this.dexCache.set(key, { until: Date.now() + 60_000, data });
     return data;
   }
 

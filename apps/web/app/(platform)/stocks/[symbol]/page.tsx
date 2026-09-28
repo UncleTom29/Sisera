@@ -182,16 +182,10 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
           }
           history={history}
           current={
-            dexHistory.length > 1
-              ? stock.dexPriceUsd
-                ? Number(stock.dexPriceUsd)
-                : null
-              : (cmcToken?.priceUsd ?? (price ? Number(price) : null))
+            dexHistory.length > 1 ? null : (cmcToken?.priceUsd ?? (price ? Number(price) : null))
           }
           currentAt={
-            dexHistory.length > 1
-              ? stock.fetchedAt
-              : (broaderMarket?.market?.updatedAt ?? stock.fetchedAt)
+            dexHistory.length > 1 ? null : (broaderMarket?.market?.updatedAt ?? stock.fetchedAt)
           }
         />
       </div>

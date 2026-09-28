@@ -106,8 +106,10 @@ export function StockPriceChart({
       </div>
       <p className="mt-3 text-[11px] text-slate-500">
         Latest point:{" "}
-        {currentAt ? new Date(currentAt).toLocaleString() : new Date(end).toLocaleString()}. This
-        chart tracks the named token across markets; your Solana execution price may differ.
+        {currentAt && Date.parse(currentAt) > end
+          ? new Date(currentAt).toLocaleString()
+          : new Date(end).toLocaleString()}
+        . The price available when you trade may differ.
       </p>
     </section>
   );

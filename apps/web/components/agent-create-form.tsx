@@ -38,7 +38,7 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message ?? "Could not save the agent.");
-      setMessage("Draft agent saved. It cannot trade until it passes the promotion pipeline.");
+      setMessage("Strategy saved. Test and review it before enabling live trading.");
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save the agent.");
@@ -48,10 +48,9 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
   }
   return (
     <form action={submit} className="space-y-3 border border-line bg-panel p-5">
-      <h2 className="text-sm font-semibold text-white">Create a strategy agent</h2>
+      <h2 className="text-sm font-semibold text-white">Build your strategy</h2>
       <p className="text-xs text-slate-400">
-        New agents start as research-only drafts. Define your universe and measurable rules; the
-        evaluation check will show historical data coverage before a real backtest can run.
+        Choose the markets to follow, describe your rules and set limits before testing the idea.
       </p>
       <input
         name="name"
@@ -160,7 +159,7 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
         disabled={!enabled || working}
         className="rounded bg-cyan-300 px-4 py-2 text-xs font-semibold text-ink disabled:opacity-40"
       >
-        {working ? "Saving…" : "Save draft agent"}
+        {working ? "Saving…" : "Save strategy"}
       </button>
       {!enabled && (
         <p className="text-xs text-amber-300">

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { auth } from "../../../../auth";
 import { StockAssessment } from "../../../../components/stock-assessment";
 import { StockTradeTicket } from "../../../../components/stock-trade-ticket";
-import { getPublicStocks, getPythReference, getStockNews } from "../../../../lib/api";
+import { getPublicStocks, getPythReference, getRwaDetail, getStockNews } from "../../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +18,20 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
   const stocks = await getPublicStocks(identity).catch(() => []);
   const stock = stocks.find((item) => item.symbol.toLowerCase() === symbol.toLowerCase());
   if (!stock) notFound();
-  const [news, reference] = await Promise.all([
+  const [news, reference, broaderMarket] = await Promise.all([
     getStockNews(stock.symbol, identity).catch(() => null),
     getPythReference(stock.underlyingSymbol, identity).catch(() => null),
+    getRwaDetail(stock.underlyingSymbol, identity).catch(() => null),
   ]);
   const price = stock.dexPriceUsd ?? stock.priceUsd;
   const referencePrice = reference ? Number(reference.price) : null;
   const tokenPrice = stock.dexPriceUsd ? Number(stock.dexPriceUsd) : null;
   const premium =
-    reference?.referenceFreshness === "live" && referencePrice && referencePrice > 0 && tokenPrice
+    reference &&
+    reference.referenceFreshness !== "stale" &&
+    referencePrice &&
+    referencePrice > 0 &&
+    tokenPrice
       ? (tokenPrice / referencePrice - 1) * 100
       : null;
   return (
@@ -82,21 +87,20 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
       </div>
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <section className="rounded-lg border border-line bg-panel p-6">
-          <h2 className="text-base font-semibold text-white">Market and reference</h2>
+          <h2 className="text-base font-semibold text-white">Two sides of the market</h2>
           <p className="mt-2 text-xs text-slate-400">
-            The onchain quote and the underlying equity reference come from different markets. The
-            comparison is indicative, not an executable spread. Premiums appear only while the
-            equity reference is live.
+            See how this token compares with the underlying share. The difference can reflect market
+            hours, liquidity, and trading costs.
           </p>
           <div className="mt-5 grid gap-4 text-xs sm:grid-cols-2">
             <div>
-              <p className="text-slate-500">Pyth Core equity oracle</p>
+              <p className="text-slate-500">Underlying share</p>
               <p className="mt-2 font-mono text-white">
-                {referencePrice ? `$${referencePrice.toFixed(2)}` : "Unavailable"}
+                {referencePrice ? `$${referencePrice.toFixed(2)}` : "Latest price pending"}
               </p>
             </div>
             <div>
-              <p className="text-slate-500">Solana market price</p>
+              <p className="text-slate-500">Token price on Solana</p>
               <p className="mt-2 font-mono text-white">
                 {stock.dexPriceUsd ? `$${Number(stock.dexPriceUsd).toFixed(2)}` : "—"}
               </p>
@@ -107,23 +111,23 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
                 className={`mt-2 font-mono ${premium == null ? "text-slate-400" : premium >= 0 ? "text-amber-300" : "text-emerald-300"}`}
               >
                 {premium == null
-                  ? "Unavailable"
+                  ? "Comparison pending"
                   : `${premium > 0 ? "+" : ""}${premium.toFixed(2)}%`}
               </p>
             </div>
             <div>
-              <p className="text-slate-500">Reference status</p>
+              <p className="text-slate-500">Price timing</p>
               <p className="mt-2 font-mono text-white">
-                {reference ? `${reference.referenceFreshness} · Core feed` : "Feed unavailable"}
+                {reference?.referenceFreshness === "live" ? "Current" : "Outside live market hours"}
               </p>
               {reference && (
                 <p className="mt-1 text-[10px] text-slate-500">
-                  Published {new Date(reference.feedUpdateTimestamp).toLocaleString()}
+                  Last share price {new Date(reference.feedUpdateTimestamp).toLocaleString()}
                 </p>
               )}
             </div>
             <div className="sm:col-span-2">
-              <p className="text-slate-500">Token address</p>
+              <p className="text-slate-500">Token address for wallet verification</p>
               <p className="mt-2 break-all font-mono text-white">{stock.mint}</p>
             </div>
           </div>
@@ -147,6 +151,70 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
           />
         </div>
       </div>
+      {broaderMarket && (broaderMarket.market || broaderMarket.profile) && (
+        <section className="mt-5 rounded-lg border border-line bg-panel p-6">
+          <p className="eyebrow">Company and token landscape</p>
+          <h2 className="mt-2 text-lg font-semibold text-white">
+            A broader view of {stock.underlyingSymbol}
+          </h2>
+          {broaderMarket.profile?.description && (
+            <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300">
+              {broaderMarket.profile.description}
+            </p>
+          )}
+          <div className="mt-5 grid gap-px bg-line sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["Industry", broaderMarket.profile?.industry ?? "Explore company news"],
+              ["Founded", broaderMarket.profile?.founded?.slice(0, 4) ?? "Company profile"],
+              [
+                "Tokenized market value",
+                broaderMarket.market?.tokenizedMarketCapUsd == null
+                  ? "Market view"
+                  : `$${Intl.NumberFormat("en-US", { notation: "compact" }).format(broaderMarket.market.tokenizedMarketCapUsd)}`,
+              ],
+              [
+                "24h token trading",
+                broaderMarket.market?.tokenizedVolume24hUsd == null
+                  ? "Activity view"
+                  : `$${Intl.NumberFormat("en-US", { notation: "compact" }).format(broaderMarket.market.tokenizedVolume24hUsd)}`,
+              ],
+            ].map(([label, value]) => (
+              <div key={label} className="bg-ink p-4">
+                <p className="data-label">{label}</p>
+                <p className="mt-2 text-sm font-medium text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+          {broaderMarket.market?.tokens.length ? (
+            <div className="mt-5">
+              <h3 className="text-sm font-semibold text-white">Other versions of this stock</h3>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {broaderMarket.market.tokens.slice(0, 6).map((token) => (
+                  <div
+                    key={`${token.symbol}-${token.issuer}`}
+                    className="rounded border border-line bg-ink p-3"
+                  >
+                    <p className="font-mono text-xs text-cyan-300">{token.symbol}</p>
+                    <p className="mt-1 truncate text-xs text-slate-300">{token.name}</p>
+                    <p className="mt-2 font-mono text-sm text-white">
+                      {token.priceUsd == null
+                        ? "Explore this token"
+                        : `$${token.priceUsd.toFixed(2)}`}
+                    </p>
+                    {token.issuer && (
+                      <p className="mt-1 text-[10px] text-slate-500">Issued by {token.issuer}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <p className="mt-4 text-[10px] text-slate-500">
+            Market-wide token figures combine multiple issuers and are separate from the Solana
+            price in the trade ticket.
+          </p>
+        </section>
+      )}
       <StockAssessment symbol={stock.symbol} />
       <section className="mt-5 rounded-lg border border-line bg-panel">
         <div className="border-b border-line px-6 py-4">
@@ -170,7 +238,9 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
             ))}
           </div>
         ) : (
-          <p className="p-6 text-sm text-slate-400">No recent headlines found.</p>
+          <p className="p-6 text-sm text-slate-400">
+            Browse the company profile and market activity above while the next headlines arrive.
+          </p>
         )}
       </section>
     </div>

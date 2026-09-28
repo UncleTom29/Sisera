@@ -19,9 +19,9 @@ export default async function PrivateMarketsPage() {
   return (
     <div className="min-h-full bg-ink">
       <PageHeader
-        eyebrow="Solana / PreStocks Layer"
-        title="PreStocks private markets"
-        description="Compare onchain private-market token quotes with PreStocks provider marks and inspect valuation context before trading."
+        eyebrow="Before the IPO"
+        title="Private markets"
+        description="Follow private companies, compare token prices with company marks and see the context behind each move."
         actions={<LiveRefresh />}
       />
       <div className="space-y-5 p-4 md:p-6">
@@ -35,15 +35,15 @@ export default async function PrivateMarketsPage() {
           </div>
           <div className="flex items-center gap-2 font-mono text-[10px] text-slate-500">
             <RadioTower size={12} /> Updated{" "}
-            {fetchedAt ? new Date(fetchedAt).toLocaleTimeString() : "unavailable"}
+            {fetchedAt ? new Date(fetchedAt).toLocaleTimeString() : "soon"}
           </div>
         </div>
         {markets.length ? (
           <PrivateMarketScreener markets={markets} />
         ) : (
           <div className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/[.06] p-5 text-sm text-amber-100">
-            <CircleAlert size={16} className="mt-0.5" /> Private-market prices are temporarily
-            unavailable.
+            <CircleAlert size={16} className="mt-0.5" /> Private market prices are refreshing.
+            Explore public stocks while the next update arrives.
           </div>
         )}
       </div>

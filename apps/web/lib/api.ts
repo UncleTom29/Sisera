@@ -80,6 +80,72 @@ export type PublicStock = {
   fetchedAt: string;
   source: "xstocks";
 };
+export type RwaMarket = {
+  name: string;
+  symbol: string;
+  assetType: string;
+  averageTokenPriceUsd: number | null;
+  tokenizedMarketCapUsd: number | null;
+  tokenizedVolume24hUsd: number | null;
+  updatedAt: string | null;
+  tokens: Array<{
+    name: string;
+    symbol: string;
+    priceUsd: number | null;
+    marketCapUsd: number | null;
+    volume24hUsd: number | null;
+    issuer: string | null;
+  }>;
+  markets: string[];
+};
+export type RwaProfile = {
+  name: string;
+  symbol: string;
+  industry: string | null;
+  employees: number | null;
+  founded: string | null;
+  website: string | null;
+  primaryExchange: string | null;
+  description: string | null;
+};
+export type MarketOverview = {
+  global: {
+    marketCapUsd: number | null;
+    volume24hUsd: number | null;
+    btcDominancePct: number | null;
+    ethDominancePct: number | null;
+    activeAssets: number | null;
+    updatedAt: string;
+  } | null;
+  sentiment: { score: number; label: string; updatedAt: string } | null;
+  crypto: Array<{
+    id: number;
+    name: string;
+    symbol: string;
+    rank: number | null;
+    priceUsd: number | null;
+    marketCapUsd: number | null;
+    volume24hUsd: number | null;
+    dominancePct: number | null;
+    change1hPct: number | null;
+    change24hPct: number | null;
+    change7dPct: number | null;
+    change30dPct: number | null;
+    circulatingSupply: number | null;
+    maxSupply: number | null;
+    updatedAt: string;
+  }>;
+  rwaStocks: RwaMarket[];
+};
+export type CryptoProfile = {
+  name: string;
+  symbol: string;
+  description: string | null;
+  categories: string[];
+  launchedAt: string | null;
+  website: string | null;
+  explorer: string | null;
+};
 export type PythReference = {
   symbol: string;
   price: string;
@@ -88,7 +154,7 @@ export type PythReference = {
   feedUpdateTimestamp: string;
   referenceFreshness: "live" | "carried_forward" | "stale";
   ageMs: number;
-  source: "pyth-core";
+  source: "pyth-core" | "public-equity";
 };
 export type ClawpumpToken = {
   mint?: string;
@@ -298,6 +364,34 @@ export async function getPrivateMarkets(identity: ApiIdentity) {
 
 export async function getPublicStocks(identity: ApiIdentity) {
   const payload = await getJson<{ data: PublicStock[] }>("/v1/public-stocks", identity, 15000);
+  return payload.data;
+}
+
+export async function getMarketOverview(identity: ApiIdentity) {
+  const payload = await getJson<{ data: MarketOverview }>("/v1/market-overview", identity, 10000);
+  return payload.data;
+}
+
+export async function getCryptoProfile(id: number, identity: ApiIdentity) {
+  const payload = await getJson<{ data: CryptoProfile }>(
+    `/v1/crypto/${id}/profile`,
+    identity,
+    10000,
+  );
+  return payload.data;
+}
+
+export async function getRwaStocks(identity: ApiIdentity) {
+  const payload = await getJson<{ data: RwaMarket[] }>("/v1/rwa/stocks", identity, 10000);
+  return payload.data;
+}
+
+export async function getRwaDetail(symbol: string, identity: ApiIdentity) {
+  const payload = await getJson<{ data: { market: RwaMarket | null; profile: RwaProfile | null } }>(
+    `/v1/rwa/${encodeURIComponent(symbol)}`,
+    identity,
+    10000,
+  );
   return payload.data;
 }
 

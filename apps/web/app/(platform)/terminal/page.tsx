@@ -140,7 +140,7 @@ export default async function TerminalPage({
             ))
           ) : (
             <div className="w-full rounded-md border border-line bg-panel px-4 py-3 text-sm text-slate-400">
-              Market tape unavailable. Check your data connection and refresh.
+              Live markets are reconnecting. Explore stocks and market trends while prices refresh.
             </div>
           )}
         </div>
@@ -184,19 +184,18 @@ export default async function TerminalPage({
                     {venue === "hyperliquid" ? "perpetual" : "spot"} venue data
                   </span>
                   <p className="mt-1 font-mono text-[10px] text-slate-500">
-                    {snapshot.quality.source} ·{" "}
-                    {new Date(snapshot.quality.receivedAt).toLocaleTimeString()}
+                    Updated {new Date(snapshot.quality.receivedAt).toLocaleTimeString()}
                   </p>
                 </div>
               ) : reference ? (
                 <div className="text-right">
                   <span className="text-xs text-amber-200">Reference price · not executable</span>
                   <p className="mt-1 font-mono text-[10px] text-slate-500">
-                    CoinGecko · {new Date(reference.observedAt).toLocaleTimeString()}
+                    Updated {new Date(reference.observedAt).toLocaleTimeString()}
                   </p>
                 </div>
               ) : (
-                <span className="text-xs text-rose-300">Providers unavailable</span>
+                <span className="text-xs text-amber-300">Market prices reconnecting</span>
               )}
             </div>
           </div>
@@ -230,8 +229,8 @@ export default async function TerminalPage({
               </div>
             ) : (
               <DataUnavailable
-                title="Chart unavailable"
-                detail="The public venue has not returned verified candles."
+                title="Chart reconnecting"
+                detail="Recent price history will appear as soon as the market connection resumes."
               />
             )}
           </section>
@@ -247,8 +246,8 @@ export default async function TerminalPage({
               <OrderBookPanel book={depth} quoteAsset={market?.instrument.quoteAsset ?? "USDT"} />
             ) : (
               <DataUnavailable
-                title="Depth unavailable"
-                detail="The venue has not returned order-book depth."
+                title="Order book reconnecting"
+                detail="Current bids and asks will appear when market depth returns. Trading remains paused without a live quote."
               />
             )}
           </section>

@@ -14,8 +14,8 @@ type Assessment = {
     marketObservedAt: string;
     tokenPrice: string | null;
     referencePrice: string | null;
-    referenceKind: "prestocks_mark" | "pyth_core_equity" | "unavailable";
-    referenceFreshness: "live" | "stale" | "unavailable";
+    referenceKind: "prestocks_mark" | "pyth_core_equity" | "public_equity" | "unavailable";
+    referenceFreshness: "live" | "carried_forward" | "stale" | "unavailable";
     referenceObservedAt: string | null;
     liquidityUsd: number | null;
     articles: Array<{ title: string; publishedAt: string; publisher: string; url: string }>;
@@ -91,27 +91,29 @@ export function StockAssessment({ symbol }: { symbol: string }) {
           </div>
           <div className="border-t border-line pt-4">
             <p className="font-mono text-[10px] text-slate-400">
-              Model confidence {(assessment.confidence * 100).toFixed(0)}% · Research only · Market
-              observation {new Date(assessment.evidence.marketObservedAt).toLocaleString()}
+              Research confidence {(assessment.confidence * 100).toFixed(0)}% · Updated{" "}
+              {new Date(assessment.evidence.marketObservedAt).toLocaleString()}
             </p>
             <div className="mt-3 grid gap-px bg-line sm:grid-cols-3">
               {[
                 [
-                  "Token observation",
-                  assessment.evidence.tokenPrice ?? "Unavailable",
-                  assessment.evidence.marketSource,
+                  "Token price",
+                  assessment.evidence.tokenPrice ?? "Price pending",
+                  "Latest market reading",
                 ],
                 [
-                  "Reference",
-                  assessment.evidence.referencePrice ?? "Unavailable",
-                  `${assessment.evidence.referenceKind.replaceAll("_", " ")} · ${assessment.evidence.referenceFreshness}`,
+                  "Share price",
+                  assessment.evidence.referencePrice ?? "Price pending",
+                  assessment.evidence.referenceFreshness === "live"
+                    ? "Current session"
+                    : "Latest available",
                 ],
                 [
                   "Liquidity",
                   assessment.evidence.liquidityUsd == null
-                    ? "Unavailable"
+                    ? "Market data pending"
                     : `$${assessment.evidence.liquidityUsd.toLocaleString()}`,
-                  "Observed market depth",
+                  "Available market liquidity",
                 ],
               ].map(([label, value, source]) => (
                 <div key={label} className="bg-ink p-3">
@@ -122,12 +124,12 @@ export function StockAssessment({ symbol }: { symbol: string }) {
               ))}
             </div>
             <p className="mt-2 text-[11px] text-slate-500">
-              The model uses supplied headlines, not article bodies, and does not independently
-              value the company.
+              This research uses recent headlines and market activity. Review the underlying news
+              before trading.
             </p>
             {assessment.evidence.referenceObservedAt && (
               <p className="mt-1 font-mono text-[10px] text-slate-500">
-                Oracle price published{" "}
+                Share price updated{" "}
                 {new Date(assessment.evidence.referenceObservedAt).toLocaleString()}
               </p>
             )}
@@ -151,15 +153,14 @@ export function StockAssessment({ symbol }: { symbol: string }) {
               </ul>
             ) : (
               <p className="mt-2 text-xs text-amber-300">
-                No current company headlines were available for this assessment.
+                Explore the company profile and market activity while fresh news arrives.
               </p>
             )}
           </div>
         </div>
       ) : (
         <p className="mt-4 text-xs leading-5 text-slate-500">
-          Analyzes observed prices, reference data when available, and source-linked company
-          headlines. Missing inputs are shown with the result.
+          Get a concise view of catalysts, risks, price differences and recent headlines.
         </p>
       )}
       {error && (

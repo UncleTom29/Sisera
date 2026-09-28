@@ -2,19 +2,14 @@ import { StatusBadge } from "@sisera/ui";
 import { Activity, Database, Globe2, RadioTower } from "lucide-react";
 import { auth } from "../../../auth";
 import { PageHeader } from "../../../components/page-header";
-import { getChains, getMacroRegime, getPerpetualMetrics } from "../../../lib/api";
+import {
+  getChains,
+  getMacroRegime,
+  getMarketOverview,
+  getPerpetualMetrics,
+} from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
-
-const sources = [
-  {
-    name: "Federal Reserve Economic Data",
-    key: "fred",
-    scope: "VIX · 10-year Treasury yield · 10Y–2Y spread",
-  },
-  { name: "DeFiLlama", key: null, scope: "Chain TVL snapshot" },
-  { name: "Venue funding feeds", key: null, scope: "Funding · open interest" },
-];
 
 export default async function MacroPage() {
   const session = await auth();
@@ -22,10 +17,11 @@ export default async function MacroPage() {
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const [metrics, chains, regime] = await Promise.all([
+  const [metrics, chains, regime, overview] = await Promise.all([
     getPerpetualMetrics(identity).catch(() => []),
     getChains(identity).catch(() => []),
     getMacroRegime(identity).catch(() => null),
+    getMarketOverview(identity).catch(() => null),
   ]);
   const freshMetrics = metrics.filter(
     (item) => Date.now() - Date.parse(item.observedAt) < 10 * 60_000,
@@ -56,42 +52,75 @@ export default async function MacroPage() {
   return (
     <div className="min-h-full">
       <PageHeader
-        eyebrow="Cross-asset regime"
-        title="Macro & chain monitor"
-        description="Point-in-time macro, liquidity, derivatives, and onchain inputs with explicit source readiness and no retrospective model leakage."
+        eyebrow="The bigger picture"
+        title="Market climate"
+        description="Track the forces around your trades: investor mood, crypto capital flows, rates, onchain liquidity, and derivatives positioning."
         actions={
           <StatusBadge tone={freshMetrics.length ? "positive" : "warning"}>
-            {freshMetrics.length ? "Derivatives feed fresh" : "Derivatives feed unavailable"}
+            {freshMetrics.length ? "Markets updating" : "Market update pending"}
           </StatusBadge>
         }
       />
+      <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          [
+            "Crypto market value",
+            overview?.global?.marketCapUsd == null
+              ? "Explore markets"
+              : `$${Intl.NumberFormat("en-US", { notation: "compact" }).format(overview.global.marketCapUsd)}`,
+          ],
+          [
+            "24h trading",
+            overview?.global?.volume24hUsd == null
+              ? "Explore markets"
+              : `$${Intl.NumberFormat("en-US", { notation: "compact" }).format(overview.global.volume24hUsd)}`,
+          ],
+          [
+            "Bitcoin share",
+            overview?.global?.btcDominancePct == null
+              ? "Market view"
+              : `${overview.global.btcDominancePct.toFixed(1)}%`,
+          ],
+          [
+            "Investor mood",
+            overview?.sentiment
+              ? `${overview.sentiment.score} · ${overview.sentiment.label}`
+              : "Read the market",
+          ],
+        ].map(([label, value]) => (
+          <div key={label} className="bg-panel p-5">
+            <p className="data-label">{label}</p>
+            <p className="mt-3 font-mono text-xl text-white">{value}</p>
+          </div>
+        ))}
+      </div>
       <div className="grid gap-4 p-4 xl:grid-cols-[1.25fr_.75fr]">
         <aside className="border border-line bg-[#091019]">
-          <div className="border-b border-line px-4 py-3 text-xs font-semibold">Regime state</div>
+          <div className="border-b border-line px-4 py-3 text-xs font-semibold">
+            What the backdrop suggests
+          </div>
           <div className="p-5">
             <Globe2 size={20} className="text-cyan-300" />
-            <p className="mt-8 data-label">Current classification</p>
+            <p className="mt-8 data-label">Current climate</p>
             <p className="mt-2 text-2xl font-medium text-slate-100">
-              {regime ? regime.state.replace("_", " ").toUpperCase() : "Unavailable"}
+              {regime ? regime.state.replace("_", " ").toUpperCase() : "Market read updating"}
             </p>
             <p className="mt-4 text-xs leading-6 text-slate-400">
               {regime?.rationale ??
-                "FRED volatility and Treasury sources have not passed the five-day freshness check."}
+                "Rates and volatility are being updated. Explore market breadth and positioning while the next macro read comes in."}
             </p>
             {regime && (
               <div className="mt-4 space-y-2 font-mono text-[10px] text-slate-500">
-                {regime.sources.map((source) => (
-                  <p key={source.id}>
-                    {source.id}: {source.value.toFixed(2)} · {source.asOf}
-                  </p>
-                ))}
-                <p>20-session 10Y change: {regime.tenYearChange20d.toFixed(3)} percentage points</p>
+                <p>
+                  10 year yield change over 20 sessions: {regime.tenYearChange20d.toFixed(3)}{" "}
+                  percentage points
+                </p>
               </div>
             )}
             <p className="mt-4 text-xs leading-6 text-slate-500">
               {tone
-                ? `Derivatives positioning: ${tone.toLowerCase()} across ${funding.length} markets and ${freshChains.length} chain snapshots.`
-                : "Derivatives positioning is unavailable."}
+                ? `Derivatives positioning looks ${tone.toLowerCase()} across ${funding.length} markets.`
+                : "Explore current crypto breadth and tokenized stock activity while derivatives data updates."}
             </p>
             <div className="mt-8 grid grid-cols-2 gap-px bg-line">
               <StateCell icon={Activity} label="Rates" available={regime !== null} />
@@ -103,46 +132,54 @@ export default async function MacroPage() {
         </aside>
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <span className="text-xs font-semibold">Source registry</span>
-            <Database size={14} className="text-slate-600" />
+            <span className="text-xs font-semibold">Market breadth</span>
+            <Globe2 size={14} className="text-cyan-300" />
           </div>
-          <div className="divide-y divide-line">
-            {sources.map((source) => {
-              const configured =
-                source.key === "fred"
-                  ? regime !== null
-                  : source.name === "DeFiLlama"
-                    ? freshChains.length > 0
-                    : freshMetrics.length > 0;
-              return (
+          {overview?.crypto.length ? (
+            <div className="divide-y divide-line">
+              {overview.crypto.slice(0, 7).map((asset) => (
                 <div
-                  key={source.name}
-                  className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_1fr_auto] sm:items-center"
+                  key={asset.id}
+                  className="flex items-center justify-between gap-4 px-4 py-3 text-xs"
                 >
                   <div>
-                    <p className="text-xs font-medium text-slate-200">{source.name}</p>
-                    <p className="mt-1 text-[10px] text-slate-600">{source.scope}</p>
+                    <p className="font-semibold text-white">{asset.name}</p>
+                    <p className="mt-1 font-mono text-[10px] text-slate-500">
+                      {asset.symbol} · {asset.rank ? `#${asset.rank}` : "Crypto"}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`size-1.5 rounded-full ${configured ? "bg-emerald-400" : "bg-amber-400"}`}
-                    />
-                    <span className="font-mono text-[9px] uppercase tracking-wider text-slate-500">
-                      {configured ? "Fresh data" : "Unavailable"}
-                    </span>
+                  <div className="text-right font-mono">
+                    <p className="text-white">
+                      {asset.priceUsd == null
+                        ? "Market view"
+                        : `$${asset.priceUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
+                    </p>
+                    <p
+                      className={`mt-1 text-[10px] ${asset.change24hPct != null && asset.change24hPct >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                    >
+                      {asset.change24hPct == null
+                        ? "See trend"
+                        : `${asset.change24hPct > 0 ? "+" : ""}${asset.change24hPct.toFixed(2)}% today`}
+                    </p>
                   </div>
-                  <StatusBadge tone={configured ? "positive" : "warning"}>
-                    {configured ? "Ready" : "No data"}
-                  </StatusBadge>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-5">
+              <p className="text-sm text-slate-300">
+                Follow market leaders and their changing momentum alongside rates and liquidity.
+              </p>
+              <a href="/markets" className="mt-3 inline-block text-xs text-cyan-300">
+                Explore markets →
+              </a>
+            </div>
+          )}
         </section>
         <section className="overflow-hidden border border-line bg-panel xl:col-span-2">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <span className="text-xs font-semibold">Chain liquidity ranking · top 10 + Solana</span>
-            <span className="data-label">DeFiLlama · TVL snapshot · USD</span>
+            <span className="text-xs font-semibold">Where onchain liquidity is growing</span>
+            <span className="data-label">Value locked · USD</span>
           </div>
           {chains.length ? (
             <div className="overflow-x-auto">
@@ -151,9 +188,8 @@ export default async function MacroPage() {
                   <tr>
                     <th className="px-4 py-3">Chain</th>
                     <th>TVL / USD</th>
-                    <th>Gas token</th>
-                    <th>Chain ID</th>
-                    <th>Fetched</th>
+                    <th>Native token</th>
+                    <th>Updated</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -167,7 +203,6 @@ export default async function MacroPage() {
                         }).format(chain.tvlUsd)}
                       </td>
                       <td>{chain.tokenSymbol ?? "—"}</td>
-                      <td>{chain.chainId ?? "—"}</td>
                       <td>{new Date(chain.observedAt).toLocaleTimeString()}</td>
                     </tr>
                   ))}
@@ -176,14 +211,15 @@ export default async function MacroPage() {
             </div>
           ) : (
             <p className="p-5 text-xs text-slate-500">
-              Chain TVL feed unavailable. No values are inferred.
+              Chain liquidity is refreshing. Explore crypto leaders above while the latest figures
+              arrive.
             </p>
           )}
         </section>
         <section className="overflow-hidden border border-line bg-panel xl:col-span-2">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <span className="text-xs font-semibold">Perpetuals liquidity & funding</span>
-            <span className="data-label">Hyperliquid · public venue feed</span>
+            <span className="data-label">Current market view</span>
           </div>
           {metrics.length ? (
             <div className="overflow-x-auto">
@@ -192,11 +228,11 @@ export default async function MacroPage() {
                   <tr>
                     <th className="px-4 py-3">Market</th>
                     <th>Mark / USDC</th>
-                    <th>Oracle</th>
+                    <th>Index</th>
                     <th>Funding / 1h</th>
                     <th>Open interest · base</th>
                     <th>24h notional / USDC</th>
-                    <th>Observed</th>
+                    <th>Updated</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -233,8 +269,7 @@ export default async function MacroPage() {
             </div>
           ) : (
             <p className="p-5 text-xs text-slate-500">
-              The public derivatives feed is unavailable. No funding or open-interest values are
-              inferred.
+              Perpetual market activity is refreshing. Browse crypto trends above in the meantime.
             </p>
           )}
         </section>

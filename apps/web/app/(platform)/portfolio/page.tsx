@@ -72,7 +72,7 @@ export default async function PortfolioPage({
   );
   const summary = [
     [
-      "Observed perp account value",
+      "Perpetual account value",
       observed ? `$${Number(observed.accountValue).toLocaleString()}` : "—",
     ],
     ["Solana cash", solana ? `${(Number(solana.solLamports) / 1e9).toFixed(4)} SOL` : "—"],
@@ -84,7 +84,7 @@ export default async function PortfolioPage({
     ],
     ["HyperEVM USDC", hyperEvm ? `$${(Number(hyperEvm.usdcRaw) / 1e6).toLocaleString()}` : "—"],
     [
-      "Perp gross exposure",
+      "Perpetual exposure",
       observed ? `$${Math.abs(Number(observed.notionalExposure)).toLocaleString()}` : "—",
     ],
     ["Perp positions", observed ? String(observed.positions.length) : "—"],
@@ -96,9 +96,9 @@ export default async function PortfolioPage({
         <PortfolioPrivyWallet mode="linked" />
       </Suspense>
       <PageHeader
-        eyebrow="Connected account observations"
+        eyebrow="Your assets"
         title="Portfolio"
-        description="Inspect connected-wallet balances, paper holdings, and optional public perp accounts. Sources are shown separately until their records can be reconciled."
+        description="See wallet balances, open positions and practice trades in one place. Connect a wallet to make this view yours."
         actions={
           <div className="flex items-center gap-2">
             <PortfolioConnect />
@@ -111,17 +111,16 @@ export default async function PortfolioPage({
             <p className="data-label">{label}</p>
             <p className="data-value mt-4 text-2xl text-slate-100">{value}</p>
             <p className="mt-2 font-mono text-[8px] uppercase tracking-wider text-slate-700">
-              {value === "—" ? "Connect a source" : "Observed · not reconciled"}
+              {value === "—" ? "Connect a wallet to view" : "Latest available balance"}
             </p>
           </div>
         ))}
       </div>
       <section className="m-4 border border-line bg-panel p-5 md:m-6">
         <p className="eyebrow">Solana</p>
-        <h2 className="mt-2 text-base font-semibold text-slate-100">Linked wallet observation</h2>
+        <h2 className="mt-2 text-base font-semibold text-slate-100">Solana wallet</h2>
         <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">
-          The connected wallet’s public balances appear here after its address is synced. Holdings
-          are observations and have not been reconciled against an account ledger.
+          Connect a Solana wallet to see its assets and an estimated value for supported tokens.
         </p>
         {solanaAddress && !validSolanaAddress && (
           <p className="mt-2 text-xs text-rose-300">Enter a valid base58 Solana address.</p>
@@ -136,8 +135,7 @@ export default async function PortfolioPage({
         {solana && (
           <div className="mt-5">
             <p className="font-mono text-[10px] text-slate-500">
-              {solana.source} · fetched {new Date(solana.fetchedAt).toLocaleTimeString()} · not
-              reconciled
+              Updated {new Date(solana.fetchedAt).toLocaleTimeString()}
             </p>
             <p className="mt-3 font-mono text-xl text-white">
               {(Number(solana.solLamports) / 1e9).toFixed(4)} SOL
@@ -151,8 +149,7 @@ export default async function PortfolioPage({
               )}
             </p>
             <p className="mt-2 text-[10px] text-slate-500">
-              Indicative token values use observed xStocks prices. Unpriced or halted tokens are
-              excluded.
+              Estimated values cover supported tokens with current prices.
             </p>
             <div className="mt-4 divide-y divide-line border-t border-line">
               {walletObservation?.holdings.map((holding) => (
@@ -178,7 +175,10 @@ export default async function PortfolioPage({
               ))}
             </div>
             {!solana.holdings.length && (
-              <p className="mt-4 text-xs text-slate-500">No indexed fungible holdings reported.</p>
+              <p className="mt-4 text-xs text-slate-500">
+                This wallet has no supported tokens yet. Explore stocks to find your next
+                opportunity.
+              </p>
             )}
           </div>
         )}
@@ -187,7 +187,7 @@ export default async function PortfolioPage({
         <PredictionPaperAccount />
       </div>
       <section className="m-4 border border-line bg-panel p-5 md:m-6">
-        <p className="eyebrow">HyperEVM · chain 999</p>
+        <p className="eyebrow">Trading funds</p>
         <h2 className="mt-2 text-base font-semibold text-slate-100">Funding wallet</h2>
         <p className="mt-2 break-all font-mono text-[10px] text-slate-500">
           {validAddress ? address : "Connect an EVM wallet or enter its address below."}
@@ -197,7 +197,7 @@ export default async function PortfolioPage({
             <span>{(Number(hyperEvm.usdcRaw) / 1e6).toLocaleString()} USDC</span>
             <span>{(Number(hyperEvm.hypeWei) / 1e18).toFixed(5)} HYPE</span>
             <span className="text-[10px] text-slate-500">
-              {hyperEvm.source} · {new Date(hyperEvm.fetchedAt).toLocaleTimeString()}
+              Updated {new Date(hyperEvm.fetchedAt).toLocaleTimeString()}
             </span>
           </div>
         ) : validAddress ? (
@@ -225,7 +225,7 @@ export default async function PortfolioPage({
               href={`/risk?address=${encodeURIComponent(observedAddress)}`}
               className="rounded border border-cyan-400/30 px-3 py-2 text-xs text-cyan-300"
             >
-              Review observed exposure →
+              Review risk →
             </Link>
           )}
         </div>
@@ -241,7 +241,7 @@ export default async function PortfolioPage({
             type="submit"
             className="rounded border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300"
           >
-            Observe wallet
+            View wallet
           </button>
         </form>
         {watchAddress && !validObservedAddress && (
@@ -257,8 +257,7 @@ export default async function PortfolioPage({
         {observed && (
           <div className="mt-5">
             <p className="font-mono text-[10px] text-slate-500">
-              {observed.source} · fetched {new Date(observed.fetchedAt).toLocaleTimeString()} ·
-              public read-only observation
+              Updated {new Date(observed.fetchedAt).toLocaleTimeString()} · Public wallet view
             </p>
             <div className="mt-3 grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-4">
               {[
@@ -315,7 +314,7 @@ export default async function PortfolioPage({
               </table>
               {!observed.positions.length && (
                 <p className="border-t border-line py-4 text-xs text-slate-500">
-                  No open perpetual positions reported.
+                  No open positions in this wallet. Explore perpetual markets to find a trade.
                 </p>
               )}
             </div>
@@ -325,7 +324,7 @@ export default async function PortfolioPage({
       <div className="grid gap-4 p-4 xl:grid-cols-[1.45fr_.55fr]">
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <span className="text-xs font-semibold">Observed Hyperliquid positions</span>
+            <span className="text-xs font-semibold">Perpetual positions</span>
             <PortfolioExport
               rows={[
                 ...(walletObservation?.holdings.map((holding) => ({
@@ -376,16 +375,15 @@ export default async function PortfolioPage({
           ) : (
             <EmptyState
               icon={BriefcaseBusiness}
-              title="No observed positions"
-              copy="Connect a Hyperliquid public address to inspect its reported open positions."
-              code="PORTFOLIO / EMPTY"
+              title="Your positions at a glance"
+              copy="Connect a trading wallet to see open positions here, or explore the perpetual markets."
             />
           )}
         </section>
         <div className="space-y-4">
           <section className="border border-line bg-panel">
             <div className="border-b border-line px-4 py-3 text-xs font-semibold">
-              Observed Solana token mix
+              Solana token mix
             </div>
             {walletObservation?.pricedValueUsd ? (
               <div className="space-y-3 p-4">
@@ -416,27 +414,23 @@ export default async function PortfolioPage({
                     </div>
                   ))}
                 <p className="text-[10px] text-slate-500">
-                  {walletObservation.unpricedCount} unpriced holdings excluded · wallet observation
-                  only
+                  {walletObservation.unpricedCount} holdings await a current price
                 </p>
               </div>
             ) : (
               <EmptyState
                 icon={Layers3}
-                title="No priced token mix"
-                copy="Connect a Solana wallet with priced xStocks holdings to see an indicative breakdown."
-                code="ALLOCATION / EMPTY"
+                title="See what you own"
+                copy="Connect a Solana wallet to see how your supported tokens are distributed."
               />
             )}
           </section>
           <section className="border border-emerald-500/15 bg-emerald-500/[0.035] p-4">
             <ShieldCheck size={16} className="text-emerald-300" />
-            <h3 className="mt-4 text-xs font-semibold text-slate-200">
-              Reconciliation is mandatory
-            </h3>
+            <h3 className="mt-4 text-xs font-semibold text-slate-200">Built for safer decisions</h3>
             <p className="mt-2 text-[10px] leading-5 text-slate-500">
-              A verified account ledger and venue reconciliation are required before these
-              observations can influence order sizing or live risk limits.
+              Wallet balances are estimates until trades and transfers are confirmed. Trading limits
+              use verified account data.
             </p>
           </section>
         </div>

@@ -3,7 +3,14 @@ import { auth } from "../../../../auth";
 import { MarketChart } from "../../../../components/market-chart";
 import { MarketOrderTicket } from "../../../../components/market-order-ticket";
 import { PageHeader } from "../../../../components/page-header";
-import { getCandles, getMarket, getMarketIntelligence, getOrderBook } from "../../../../lib/api";
+import {
+  getCandles,
+  getCryptoProfile,
+  getMarket,
+  getMarketIntelligence,
+  getMarketOverview,
+  getOrderBook,
+} from "../../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -15,22 +22,32 @@ export default async function SpotMarketPage({ params }: { params: Promise<{ sym
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const [marketResult, candlesResult, depthResult, analysisResult] = await Promise.allSettled([
-    getMarket(symbol, identity, "binance"),
-    getCandles(symbol, "15m", identity, "binance"),
-    getOrderBook(symbol, identity, "binance"),
-    getMarketIntelligence(symbol, identity, "binance"),
-  ]);
+  const [marketResult, candlesResult, depthResult, analysisResult, overviewResult] =
+    await Promise.allSettled([
+      getMarket(symbol, identity, "binance"),
+      getCandles(symbol, "15m", identity, "binance"),
+      getOrderBook(symbol, identity, "binance"),
+      getMarketIntelligence(symbol, identity, "binance"),
+      getMarketOverview(identity),
+    ]);
   const market = marketResult.status === "fulfilled" ? marketResult.value : null;
   const candles = candlesResult.status === "fulfilled" ? candlesResult.value : [];
   const depth = depthResult.status === "fulfilled" ? depthResult.value : null;
   const analysis = analysisResult.status === "fulfilled" ? analysisResult.value : null;
+  const overview = overviewResult.status === "fulfilled" ? overviewResult.value : null;
+  const baseSymbol = symbol.endsWith("USDT") ? symbol.slice(0, -4) : symbol;
+  const asset = overview?.crypto.find((item) => item.symbol === baseSymbol);
+  const profile = asset ? await getCryptoProfile(asset.id, identity).catch(() => null) : null;
+  const formatMoney = (value: number | null | undefined) =>
+    value == null
+      ? "Market data pending"
+      : `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(value)}`;
   return (
     <div>
       <PageHeader
-        eyebrow="Crypto spot / Binance"
+        eyebrow="Crypto / Spot"
         title={market?.instrument.displaySymbol ?? symbol}
-        description="Spot market quotes, candles and depth from Binance. This view does not route perpetual orders."
+        description="Follow price, liquidity and the bigger market story before placing a trade."
         actions={
           <Link href="/markets?venue=binance" className="text-xs text-cyan-300">
             ← Spot markets
@@ -43,21 +60,26 @@ export default async function SpotMarketPage({ params }: { params: Promise<{ sym
             <div>
               <p className="data-label">Last traded · USDT</p>
               <p className="mt-1 font-mono text-2xl text-white">
-                {market ? Number(market.snapshot.last).toLocaleString() : "Unavailable"}
+                {market ? Number(market.snapshot.last).toLocaleString() : "Waiting for live quote"}
               </p>
             </div>
-            <p className="font-mono text-xs text-slate-400">
-              {market?.snapshot.quality.source ?? "Source unavailable"}
-            </p>
+            {market?.snapshot.quality.observedAt && (
+              <p className="font-mono text-xs text-slate-400">
+                Updated {new Date(market.snapshot.quality.observedAt).toLocaleTimeString()}
+              </p>
+            )}
           </div>
           {candles.length ? (
             <div className="h-[440px]">
               <MarketChart candles={candles} />
             </div>
           ) : (
-            <p className="grid h-[440px] place-items-center text-sm text-slate-400">
-              Spot candles unavailable
-            </p>
+            <div className="grid h-[440px] place-items-center px-6 text-center text-sm text-slate-400">
+              <div>
+                <p className="font-semibold text-white">Chart is reconnecting</p>
+                <p className="mt-2">Explore the market context below while live history loads.</p>
+              </div>
+            </div>
           )}
         </section>
         <aside className="space-y-4">
@@ -93,11 +115,14 @@ export default async function SpotMarketPage({ params }: { params: Promise<{ sym
                   ),
                 )}
                 <p className="pt-2 text-[10px] text-slate-500">
-                  {depth.quality.source} · {new Date(depth.quality.receivedAt).toLocaleTimeString()}
+                  Updated {new Date(depth.quality.receivedAt).toLocaleTimeString()}
                 </p>
               </div>
             ) : (
-              <p className="mt-4 text-xs text-slate-400">Order book unavailable</p>
+              <p className="mt-4 text-xs leading-5 text-slate-400">
+                Live bids and asks will appear here when the market connection resumes. Trading
+                stays paused without a current quote.
+              </p>
             )}
           </section>
           <section className="border border-line bg-panel p-4">
@@ -113,11 +138,84 @@ export default async function SpotMarketPage({ params }: { params: Promise<{ sym
                 <p className="text-slate-500">Based on {analysis.sampleSize} verified candles.</p>
               </div>
             ) : (
-              <p className="mt-3 text-xs text-slate-400">Verified history unavailable</p>
+              <p className="mt-3 text-xs leading-5 text-slate-400">
+                A trend reading will appear after enough recent trading history is available.
+              </p>
             )}
           </section>
         </aside>
       </div>
+      <section className="mx-4 mb-4 rounded-lg border border-line bg-panel p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="eyebrow">The wider picture</p>
+            <h2 className="mt-1 text-base font-semibold text-white">
+              {asset?.name ?? baseSymbol} at a glance
+            </h2>
+          </div>
+          <Link href="/macro" className="text-xs text-cyan-300 hover:text-white">
+            Explore market trends →
+          </Link>
+        </div>
+        <div className="mt-5 grid gap-px bg-line sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Market value", formatMoney(asset?.marketCapUsd)],
+            ["24h trading", formatMoney(asset?.volume24hUsd)],
+            [
+              "Market share",
+              asset?.dominancePct == null
+                ? "Market data pending"
+                : `${asset.dominancePct.toFixed(2)}%`,
+            ],
+            [
+              "30 day change",
+              asset?.change30dPct == null
+                ? "Market data pending"
+                : `${asset.change30dPct > 0 ? "+" : ""}${asset.change30dPct.toFixed(2)}%`,
+            ],
+          ].map(([label, value]) => (
+            <div key={label} className="bg-panel p-4">
+              <p className="data-label">{label}</p>
+              <p className="mt-2 font-mono text-lg text-white">{value}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-[11px] text-slate-500">
+          Market-wide figures provide context. The trade ticket uses the live spot quote shown
+          above.
+        </p>
+      </section>
+      {profile && (
+        <section className="mx-4 mb-4 rounded-lg border border-line bg-panel p-5">
+          <p className="eyebrow">About the asset</p>
+          <h2 className="mt-2 text-lg font-semibold text-white">Get to know {profile.name}</h2>
+          <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-300">
+            {profile.description
+              ? `${profile.description.slice(0, 650)}${profile.description.length > 650 ? "…" : ""}`
+              : `${profile.name} is one of the assets tracked in Sisera’s crypto market view.`}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {profile.categories.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full border border-line px-3 py-1 text-[11px] text-slate-400"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+          {profile.website && (
+            <a
+              href={profile.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-5 inline-block text-xs text-cyan-300 hover:text-white"
+            >
+              Visit project website ↗
+            </a>
+          )}
+        </section>
+      )}
     </div>
   );
 }

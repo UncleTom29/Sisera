@@ -31,7 +31,7 @@ const scenarios = [
   },
   {
     name: "Broad crypto drawdown",
-    detail: "All observed perps −20%",
+    detail: "All open perpetuals −20%",
     shock: (_coin: string) => -0.2,
   },
 ];
@@ -83,12 +83,12 @@ export default async function RiskPage({
         <PortfolioPrivyWallet />
       </Suspense>
       <PageHeader
-        eyebrow="Deterministic Risk Engine"
-        title="Risk command center"
-        description="Inspect observed exposure and why execution is gated. Reconciled portfolio records are required before full limits and stress controls can operate."
+        eyebrow="Protect your portfolio"
+        title="Risk overview"
+        description="See your exposure, test market shocks and understand the limits that protect your trades."
         actions={
           <div className="flex items-center gap-2">
-            <StatusBadge tone="warning">Partial order limits</StatusBadge>
+            <StatusBadge tone="warning">Live trading safeguards</StatusBadge>
           </div>
         }
       />
@@ -96,12 +96,17 @@ export default async function RiskPage({
         {[
           {
             label: "Risk state",
-            value: "Execution gated",
+            value: "Protected",
             tone: "text-amber-300",
             icon: CircleGauge,
           },
-          { label: "Breaches", value: "—", tone: "text-slate-600", icon: ShieldAlert },
-          { label: "Blocked orders", value: "—", tone: "text-slate-600", icon: Ban },
+          {
+            label: "Limit alerts",
+            value: "Connect account",
+            tone: "text-slate-400",
+            icon: ShieldAlert,
+          },
+          { label: "Orders stopped", value: "Connect account", tone: "text-slate-400", icon: Ban },
           { label: "Quote freshness", value: "Live only", tone: "text-cyan-300", icon: Activity },
         ].map((item) => (
           <div key={item.label} className="bg-panel p-5">
@@ -114,18 +119,17 @@ export default async function RiskPage({
         ))}
       </div>
       <section className="m-4 rounded-lg border border-amber-400/20 bg-amber-400/[.05] p-5 text-xs leading-6 text-slate-300 md:m-6">
-        <h2 className="text-sm font-semibold text-white">Before live execution</h2>
+        <h2 className="text-sm font-semibold text-white">Your protection</h2>
         <p className="mt-2">
-          Verify wallet ownership, establish a reconciled portfolio ledger, validate fresh venue
-          quotes, and enforce order and exposure limits. The current wallet views are public
-          observations and do not satisfy these gates.
+          Connect your wallet to view exposure. Live orders need a verified account, current prices
+          and limits on trade size and losses.
         </p>
       </section>
       <section className="mx-4 border border-line bg-panel p-5 md:mx-6">
-        <h2 className="text-sm font-semibold text-white">Solana wallet risk observation</h2>
+        <h2 className="text-sm font-semibold text-white">Solana wallet exposure</h2>
         <p className="mt-2 text-xs text-slate-400">
-          Balance and indicative concentration use public wallet state and available xStocks prices.
-          Unpriced holdings are excluded.
+          Check balances and see how much of your wallet is concentrated in a single supported
+          asset.
         </p>
         <form action="/risk" className="mt-3 flex gap-2">
           <input
@@ -162,8 +166,10 @@ export default async function RiskPage({
               </p>
             </div>
             <div>
-              <p className="data-label">Source</p>
-              <p className="mt-1 font-mono text-xs text-white">{solana.source}</p>
+              <p className="data-label">Updated</p>
+              <p className="mt-1 font-mono text-xs text-white">
+                {new Date(solana.fetchedAt).toLocaleTimeString()}
+              </p>
             </div>
           </div>
         )}
@@ -173,9 +179,9 @@ export default async function RiskPage({
             {walletObservation.pricedValueUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })}{" "}
             priced tokens · {walletObservation.unpricedCount} unpriced ·{" "}
             {walletObservation.solValueUsd == null
-              ? "SOL spot unavailable"
+              ? "SOL value pending"
               : `SOL spot ≈ $${walletObservation.solValueUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}{" "}
-            · observations only
+            · estimated values
           </p>
         )}
         {solanaAddress && !solana && (
@@ -187,13 +193,13 @@ export default async function RiskPage({
         )}
       </section>
       <section className="m-4 border border-line bg-panel p-5 md:m-6">
-        <p className="eyebrow">Observed exposure · research only</p>
+        <p className="eyebrow">Public wallet view</p>
         <h2 className="mt-1 text-base font-semibold text-slate-100">
           Hyperliquid public wallet exposure
         </h2>
         <p className="mt-2 text-xs text-slate-400">
-          Enter a public address to inspect its reported perp exposure. These figures do not
-          activate risk limits or trading.
+          Enter a public wallet address to explore its open perpetual positions and potential
+          downside.
         </p>
         <form action="/risk" className="mt-4 flex flex-wrap gap-2">
           <input
@@ -207,7 +213,7 @@ export default async function RiskPage({
             type="submit"
             className="rounded border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-semibold text-cyan-300"
           >
-            Observe risk
+            View exposure
           </button>
         </form>
         {observed && (
@@ -232,8 +238,7 @@ export default async function RiskPage({
         )}
         {observed && (
           <p className="mt-3 font-mono text-[10px] text-slate-500">
-            {observed.source} · fetched {new Date(observed.fetchedAt).toLocaleTimeString()} · public
-            read-only data
+            Updated {new Date(observed.fetchedAt).toLocaleTimeString()} · Public wallet view
           </p>
         )}
         {address && !observed && (
@@ -247,8 +252,8 @@ export default async function RiskPage({
       <div className="grid gap-4 p-4 xl:grid-cols-[1.15fr_.85fr]">
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <span className="text-xs font-semibold">Mandate utilization</span>
-            <span className="data-label">Portfolio required</span>
+            <span className="text-xs font-semibold">Trading limits</span>
+            <span className="data-label">Connect your account</span>
           </div>
           <div className="divide-y divide-line">
             {limits.map((limit) => (
@@ -260,15 +265,19 @@ export default async function RiskPage({
                   <p className="text-[11px] text-slate-300">{limit}</p>
                   <div className="mt-2 h-1 max-w-sm bg-slate-800" />
                 </div>
-                <span className="data-value text-right text-[10px] text-slate-600">— used</span>
-                <span className="data-value text-right text-[10px] text-slate-700">/ — limit</span>
+                <span className="data-value text-right text-[10px] text-slate-600">
+                  Connect wallet
+                </span>
+                <span className="data-value text-right text-[10px] text-slate-700">
+                  Set a limit
+                </span>
               </div>
             ))}
           </div>
         </section>
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
-            <span className="text-xs font-semibold">Stress library</span>
+            <span className="text-xs font-semibold">What if the market falls?</span>
             <Waves size={13} className="text-slate-600" />
           </div>
           <div className="divide-y divide-line">
@@ -300,10 +309,10 @@ export default async function RiskPage({
                     >
                       {observed && covered.length
                         ? `${estimatedPnl < 0 ? "−" : "+"}$${Math.abs(estimatedPnl).toLocaleString("en-US", { maximumFractionDigits: 2 })}`
-                        : "—"}
+                        : "Connect wallet"}
                     </p>
                     <p className="mt-1 text-[9px] text-slate-600">
-                      {covered.length}/{observed?.positions.length ?? 0} perps covered
+                      {covered.length}/{observed?.positions.length ?? 0} positions included
                     </p>
                   </div>
                 </div>
@@ -312,9 +321,8 @@ export default async function RiskPage({
           </div>
           <div className="border-t border-line p-3">
             <p className="text-[10px] leading-5 text-slate-500">
-              Linear mark-to-market sensitivity using current public perp notionals and position
-              direction. Excludes slippage, funding, liquidation, other assets, and cross-venue
-              holdings. It is not a live risk limit.
+              These scenarios estimate the effect on visible perpetual positions. Actual losses can
+              differ because of liquidity, fees and liquidation.
             </p>
           </div>
         </section>

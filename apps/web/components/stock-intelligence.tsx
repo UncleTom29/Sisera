@@ -32,9 +32,9 @@ export async function StockIntelligence() {
   return (
     <div className="min-h-full bg-ink">
       <PageHeader
-        eyebrow="Multi-Dimensional Intelligence / Evidence"
+        eyebrow="Stock research"
         title="Stock intelligence"
-        description="Public stock coverage, private-market mark gaps, and recent source-linked company news."
+        description="Find price differences, company news and market context for the stocks you follow."
         actions={
           <Link
             href="/intelligence?universe=perps"
@@ -60,14 +60,16 @@ export async function StockIntelligence() {
             ))}
           </div>
           {!publicStocks.length && (
-            <p className="mt-3 text-xs text-slate-400">Public stock feed unavailable.</p>
+            <p className="mt-3 text-xs text-slate-400">
+              Public stocks are refreshing. Explore private market activity below.
+            </p>
           )}
         </section>
         <section className="overflow-hidden rounded-lg border border-line bg-panel">
           <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div>
-              <p className="eyebrow">PreStocks / Mark divergence</p>
-              <h2 className="mt-1 text-base font-semibold text-white">Largest observed gaps</h2>
+              <p className="eyebrow">Private companies</p>
+              <h2 className="mt-1 text-base font-semibold text-white">Largest price gaps</h2>
             </div>
             <RadioTower size={16} className="text-cyan-300" />
           </div>
@@ -122,13 +124,14 @@ export async function StockIntelligence() {
             </div>
           ) : (
             <div className="flex items-center gap-2 p-5 text-sm text-slate-400">
-              <CircleAlert size={16} /> PreStocks feed unavailable. No signals are shown.
+              <CircleAlert size={16} /> Private market comparisons are refreshing. Browse public
+              stocks above.
             </div>
           )}
           <p className="border-t border-line px-5 py-3 font-mono text-[10px] text-slate-500">
-            Source: PreStocks · fetched{" "}
-            {assets[0] ? new Date(assets[0].fetchedAt).toLocaleString() : "unavailable"} · issuer
-            source timestamp not provided
+            {assets[0]
+              ? `Updated ${new Date(assets[0].fetchedAt).toLocaleString()}`
+              : "Market view updating"}
           </p>
         </section>
         <section className="rounded-lg border border-line bg-panel">
@@ -155,8 +158,8 @@ export async function StockIntelligence() {
             </div>
           ) : (
             <p className="p-5 text-sm text-slate-400">
-              No configured company-news source returned articles. GNews free-tier coverage can be
-              delayed.
+              New company coverage will appear here. Explore the market and company pages in the
+              meantime.
             </p>
           )}
         </section>

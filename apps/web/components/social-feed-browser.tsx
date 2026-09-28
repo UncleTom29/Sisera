@@ -10,7 +10,6 @@ const tags = (post: SocialPost) =>
 
 export function SocialFeedBrowser({
   posts,
-  sources,
 }: { posts: SocialPost[]; sources: Record<string, string> }) {
   const [query, setQuery] = useState("");
   const [relevantOnly, setRelevantOnly] = useState(false);
@@ -24,12 +23,6 @@ export function SocialFeedBrowser({
           tags(b).length - tags(a).length || Date.parse(b.publishedAt) - Date.parse(a.publishedAt),
       );
   }, [posts, query, relevantOnly]);
-  const available = Object.entries(sources).filter(
-    ([, status]) => status === "live" || status === "ready",
-  );
-  const unavailable = Object.entries(sources).filter(
-    ([, status]) => status !== "live" && status !== "ready",
-  );
 
   return (
     <div>
@@ -39,7 +32,7 @@ export function SocialFeedBrowser({
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search posts or sources"
+            placeholder="Search conversations"
             aria-label="Search social posts"
             className="h-9 w-56 bg-transparent text-xs text-white outline-none placeholder:text-slate-500"
           />
@@ -97,24 +90,9 @@ export function SocialFeedBrowser({
         </div>
       ) : (
         <p className="border border-line bg-panel p-6 text-xs text-slate-400">
-          No posts match this view. Clear the filter to inspect all available sources.
+          No conversations match these filters. Try another search or show all posts.
         </p>
       )}
-      <details className="mt-4 border border-line bg-panel p-4 text-xs text-slate-400">
-        <summary className="cursor-pointer text-slate-200">
-          Source status · {available.length} available · {unavailable.length} unavailable
-        </summary>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {Object.entries(sources).map(([source, status]) => (
-            <span
-              key={source}
-              className="rounded border border-line px-2 py-1 font-mono text-[10px]"
-            >
-              {source} · {status.replaceAll("_", " ")}
-            </span>
-          ))}
-        </div>
-      </details>
     </div>
   );
 }

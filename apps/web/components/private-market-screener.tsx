@@ -81,7 +81,7 @@ export function PrivateMarketScreener({ markets }: { markets: PreStock[] }) {
               <tr>
                 <th className="px-4 py-3 font-medium">Company</th>
                 <th className="px-4 py-3 text-right font-medium">Token price</th>
-                <th className="px-4 py-3 text-right font-medium">Provider mark</th>
+                <th className="px-4 py-3 text-right font-medium">Company mark</th>
                 <th className="px-4 py-3 text-right font-medium">Premium / discount</th>
                 <th className="px-4 py-3 text-right font-medium">Implied valuation</th>
                 <th className="px-4 py-3 text-right font-medium">Mark valuation</th>

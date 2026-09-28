@@ -1,4 +1,4 @@
-import { ArrowUpRight, Boxes, CircleAlert, Search } from "lucide-react";
+import { Boxes, CircleAlert, Search } from "lucide-react";
 import { auth } from "../../../auth";
 import { LiveRefresh } from "../../../components/live-refresh";
 import { PageHeader } from "../../../components/page-header";
@@ -29,9 +29,9 @@ export default async function ClawpumpMarkets({
   return (
     <div className="min-h-full bg-ink">
       <PageHeader
-        eyebrow="Solana / Clawpump Integration"
-        title="Clawpump agent markets"
-        description="Search Clawpump agent tokens through a server-side partner feed. Market discovery is read-only while venue trading support is evaluated."
+        eyebrow="Agent assets"
+        title="Agent markets"
+        description="Discover tokens tied to trading agents, explore their activity and inspect each asset before making a decision."
         actions={<LiveRefresh />}
       />
       <div className="space-y-5 p-4 md:p-6">
@@ -71,11 +71,9 @@ export default async function ClawpumpMarkets({
             <div className="flex items-center justify-between border-b border-line px-5 py-4">
               <div className="flex items-center gap-2">
                 <Boxes size={16} className="text-cyan-300" />
-                <h2 className="text-sm font-semibold text-white">Provider search</h2>
+                <h2 className="text-sm font-semibold text-white">Search results</h2>
               </div>
-              <span className="font-mono text-[10px] text-slate-500">
-                {tokens.length} results · clawpump.tech
-              </span>
+              <span className="font-mono text-[10px] text-slate-500">{tokens.length} assets</span>
             </div>
             <table className="w-full min-w-[660px] text-left text-xs">
               <thead className="border-b border-line font-mono text-[10px] uppercase text-slate-500">
@@ -100,7 +98,7 @@ export default async function ClawpumpMarkets({
                       {token.mint ?? token.address ?? "Not supplied"}
                     </td>
                     <td className="px-5 py-3 text-slate-400">
-                      {token.verified ? "Provider verified" : "Unverified / not stated"}
+                      {token.verified ? "Verified" : "Check details"}
                     </td>
                     <td className="px-5 py-3">
                       {token.price != null ? (
@@ -108,7 +106,7 @@ export default async function ClawpumpMarkets({
                           ${Number(token.price).toLocaleString()}
                         </span>
                       ) : (
-                        <span className="text-slate-500">Price unavailable</span>
+                        <span className="text-slate-500">Price pending</span>
                       )}
                     </td>
                   </tr>
@@ -116,34 +114,28 @@ export default async function ClawpumpMarkets({
               </tbody>
             </table>
             {!tokens.length && (
-              <p className="p-5 text-sm text-slate-400">No matching tokens returned by Clawpump.</p>
+              <p className="p-5 text-sm text-slate-400">
+                No assets match this search. Try “agent”, “stock” or a company symbol above.
+              </p>
             )}
           </section>
         ) : (
           <div className="flex max-w-2xl gap-3 rounded-lg border border-amber-500/20 bg-amber-500/[.05] p-5">
             <CircleAlert size={17} className="shrink-0 text-amber-300" />
             <div>
-              <p className="text-sm text-white">Agent market feed unavailable</p>
+              <p className="text-sm text-white">Agent markets are reconnecting</p>
               <p className="mt-1 text-xs text-slate-400">
                 {response.error
                   ? accountErrorMessage(response.error)
                   : "Enter at least two characters to search."}{" "}
-                No sample or stale prices are substituted.
+                Try another search or explore stock markets while new results arrive.
               </p>
             </div>
           </div>
         )}
         <p className="max-w-3xl text-xs leading-5 text-slate-500">
-          Discovery does not imply a token is stock-linked, safe, or supported for launch. Verify
-          mint, creator, pair, and risk before trading.{" "}
-          <a
-            href="https://clawpump.tech/developers"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-cyan-300"
-          >
-            Provider documentation <ArrowUpRight size={11} />
-          </a>
+          Agent tokens can be volatile. Review the creator, token address and available liquidity
+          before trading.
         </p>
       </div>
     </div>

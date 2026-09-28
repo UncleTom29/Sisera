@@ -66,7 +66,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
               `EQUITY.US.${stock.underlyingSymbol.toUpperCase()}/USD`,
             );
             const price = Number(reference?.price);
-            return reference?.referenceFreshness === "live" && stock.dexPriceUsd && price > 0
+            return reference?.referenceFreshness !== "stale" && stock.dexPriceUsd && price > 0
               ? Math.abs((Number(stock.dexPriceUsd) / price - 1) * 100)
               : null;
           }
@@ -91,7 +91,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
         <div>
           <h2 className="text-base font-semibold text-white">Public stock screener</h2>
           <p className="mt-1 text-xs text-slate-400">
-            {rows.length} shown · {stocks.length} listed · prices are observed Solana market quotes
+            {rows.length} shown · {stocks.length} listed · prices reflect Solana trading
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -113,7 +113,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
           >
             <option value="volume">Volume</option>
             <option value="liquidity">Liquidity</option>
-            <option value="premium">Absolute live premium</option>
+            <option value="premium">Largest price gap</option>
             <option value="change">24h change</option>
             <option value="price">Price</option>
             <option value="name">Company</option>
@@ -136,8 +136,8 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
                 <th className="px-5 py-3 font-medium">Company</th>
                 <th className="px-5 py-3 font-medium">Token</th>
                 <th className="px-5 py-3 text-right font-medium">Solana price</th>
-                <th className="px-5 py-3 text-right font-medium">Pyth Core reference</th>
-                <th className="px-5 py-3 text-right font-medium">Premium</th>
+                <th className="px-5 py-3 text-right font-medium">Share price</th>
+                <th className="px-5 py-3 text-right font-medium">Price gap</th>
                 <th className="px-5 py-3 text-right font-medium">24h</th>
                 <th className="px-5 py-3 text-right font-medium">Volume</th>
                 <th className="px-5 py-3 text-right font-medium">Liquidity</th>
@@ -153,7 +153,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
                 );
                 const referencePrice = reference ? Number(reference.price) : null;
                 const premium =
-                  reference?.referenceFreshness === "live" &&
+                  reference?.referenceFreshness !== "stale" &&
                   referencePrice &&
                   referencePrice > 0 &&
                   stock.dexPriceUsd
@@ -183,7 +183,7 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
                           <span
                             className={`ml-1 text-[9px] ${reference?.referenceFreshness === "live" ? "text-emerald-300" : "text-amber-300"}`}
                           >
-                            {reference?.referenceFreshness}
+                            {reference?.referenceFreshness === "live" ? "live" : "prior close"}
                           </span>
                         </>
                       ) : (
@@ -223,16 +223,24 @@ export function PublicStockScreener({ stocks }: { stocks: PublicStock[] }) {
           </table>
         </div>
       ) : (
-        <p className="p-8 text-center text-sm text-slate-400">No stocks match these filters.</p>
+        <div className="p-8 text-center text-sm text-slate-400">
+          <p>
+            {stocks.length ? "No stocks match these filters." : "Stock quotes are reconnecting."}
+          </p>
+          <p className="mt-2 text-xs">
+            {stocks.length
+              ? "Try another company or turn off Priced only."
+              : "Explore the wider stock market below while live Solana quotes resume."}
+          </p>
+        </div>
       )}
       <p className="border-t border-line px-5 py-3 text-[11px] text-slate-500">
         {referenceState === "loading"
-          ? "Loading Pyth Core references. "
+          ? "Comparing share and token prices. "
           : referenceState === "unavailable"
-            ? "Pyth Core references unavailable. "
-            : "Premiums require a live equity reference; stale references remain visible with their status. "}
-        Unpriced tokens remain listed when “Priced only” is off. Reference differences are
-        indicative and are not firm execution spreads.
+            ? "Share price comparisons are reconnecting. "
+            : "Price gaps use current share prices when available. "}
+        A price gap is an estimate and may differ from the price available to trade.
       </p>
     </section>
   );

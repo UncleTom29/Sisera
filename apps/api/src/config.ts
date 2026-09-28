@@ -29,6 +29,7 @@ const Environment = z.object({
   PRESTOCKS_BASE_URL: z.string().url().default("https://prestocks.com"),
   PYTH_API_KEY: z.string().optional(),
   PYTH_HERMES_URL: z.string().url().default("https://pyth.dourolabs.app/hermes"),
+  COINMARKETCAP_API_KEY: z.string().optional(),
   HELIUS_API_KEY: z.string().optional(),
   HELIUS_WEBHOOK_SECRET: z.string().optional(),
   SOLANA_RPC_URL: z.preprocess(

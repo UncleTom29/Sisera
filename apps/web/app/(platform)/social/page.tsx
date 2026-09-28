@@ -15,15 +15,15 @@ export default async function SocialPage() {
   return (
     <div className="min-h-full">
       <PageHeader
-        eyebrow="Public community observations"
-        title="Social feeds"
-        description="Search public community posts and inspect original sources. Asset mentions are leads for research, not verified trading signals."
+        eyebrow="Market conversation"
+        title="What people are saying"
+        description="Follow public conversations about the assets you watch. Open the original post to judge the context for yourself."
       />
       <div className="p-4 md:p-6">
         <SocialFeedBrowser posts={posts} sources={feed?.sources ?? {}} />
         {!feed && (
           <p className="mt-3 text-xs text-amber-200">
-            Social feed service is temporarily unavailable.
+            Conversations are refreshing. Explore market news and research while new posts arrive.
           </p>
         )}
       </div>

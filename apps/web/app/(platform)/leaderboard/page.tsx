@@ -20,12 +20,12 @@ export default async function LeaderboardPage() {
       <PageHeader
         eyebrow="Paper performance"
         title="Leaderboard"
-        description="Opt-in pseudonymous paper rankings across priced Solana stock, Binance spot, and Hyperliquid perp accounts. Live venue and prediction P&L are not yet included."
+        description="See how practice portfolios perform across stocks, crypto and perpetuals. Join when you are ready to share your results."
       />
       <div className="p-4">
         <section className="border border-line bg-panel">
           <div className="flex justify-between border-b border-line px-4 py-3 text-xs">
-            <span>{result?.scope ?? "Ledger unavailable"}</span>
+            <span>Practice trading rankings</span>
             <span>{result?.data.length ?? 0} ranked</span>
           </div>
           {response.error ? (
@@ -52,10 +52,12 @@ export default async function LeaderboardPage() {
             </div>
           ) : (
             <div className="p-6 text-xs text-slate-400">
-              <p className="font-semibold text-slate-200">No eligible accounts to rank yet</p>
+              <p className="font-semibold text-slate-200">
+                Your place on the board starts with practice
+              </p>
               <p className="mt-2 max-w-xl leading-5">
-                A paper account appears only after its holdings can be priced and its owner opts in.
-                Unpriced balances are excluded rather than estimated.
+                Practice trading, track your progress and choose whether to join the rankings in
+                Settings.
               </p>
               <Link
                 href="/settings"
@@ -67,9 +69,8 @@ export default async function LeaderboardPage() {
           )}
           {result && (
             <p className="border-t border-line px-4 py-3 text-[10px] text-slate-500">
-              ${result.baselineUsd.toLocaleString()} initial capital per paper ledger ·{" "}
-              {result.skippedUnpriced} accounts excluded because a holding lacks a current mark.
-              Pseudonymous display names.
+              Rankings use ${result.baselineUsd.toLocaleString()} in starting practice capital.
+              Display names protect privacy.
             </p>
           )}
         </section>

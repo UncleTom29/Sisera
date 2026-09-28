@@ -24,14 +24,14 @@ export default async function PredictionsPage() {
       <PageHeader
         eyebrow="Outcome markets"
         title="Prediction markets"
-        description="Browse Jupiter outcome-market snapshots, inspect resolution rules, and test decisions in a paper account. Observed prices are not executable quotes or calibrated probabilities."
+        description="Explore outcome markets, understand how each question resolves and practice decisions before putting money at risk."
         actions={
           <StatusBadge tone={markets.length ? "positive" : "negative"}>
             {markets.length
               ? `${markets.length} snapshots`
               : result.error
-                ? "Feed unavailable"
-                : "No open markets"}
+                ? "Refreshing markets"
+                : "Explore outcomes"}
           </StatusBadge>
         }
       />
@@ -42,13 +42,12 @@ export default async function PredictionsPage() {
         ) : (
           <EmptyState
             icon={Target}
-            title="Prediction-market feed unavailable"
+            title="Explore what could happen next"
             copy={
               result.error
                 ? accountErrorMessage(result.error)
-                : "Jupiter has not returned open markets with current prices and resolution rules."
+                : "Markets are refreshing. Use the practice account above to explore how outcome trading works."
             }
-            code="PREDICTION_DATA_UNAVAILABLE"
           />
         )}
       </div>

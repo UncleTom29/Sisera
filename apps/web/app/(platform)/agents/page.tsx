@@ -31,17 +31,17 @@ export default async function AgentsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Governed strategies / Draft"
+        eyebrow="Trading strategies"
         title="Agents"
-        description="Five research strategy templates and your custom research-only drafts. Promotion requires backtesting, stress testing, paper and shadow evaluation before live authority."
+        description="Explore strategies, test ideas and build a plan with clear capital and risk limits."
         actions={
-          <StatusBadge tone="neutral">{agents?.custom.length ?? 0} custom drafts</StatusBadge>
+          <StatusBadge tone="neutral">{agents?.custom.length ?? 0} saved strategies</StatusBadge>
         }
       />
       <div className="overflow-x-auto border-b border-line bg-panel px-4 py-5">
         <p className="mb-4 text-xs text-amber-200">
-          Current capability: research and saved drafts. Later stages require measured evaluation
-          and explicit approval.
+          Strategies begin in research mode. Live trading becomes available after a strategy has
+          proven itself through testing and review.
         </p>
         <div className="flex min-w-[760px] items-center">
           {stages.map((stage, index) => (
@@ -66,8 +66,7 @@ export default async function AgentsPage() {
           )}
           {agents?.persistence === "unavailable" && (
             <p className="border border-amber-400/30 p-3 text-xs text-amber-200">
-              Saved agent drafts are unavailable because the account database cannot be read.
-              Research templates remain available.
+              Your saved strategies are reconnecting. You can still explore the ideas below.
             </p>
           )}
           <section className="border border-line bg-panel">
@@ -96,16 +95,20 @@ export default async function AgentsPage() {
                   <AgentResearch id={agent.id} />
                 </article>
               ))}
-              {!agents && <p className="p-4 text-xs text-amber-300">Agent service unavailable.</p>}
+              {!agents && (
+                <p className="p-4 text-xs text-amber-300">
+                  Strategy ideas are reconnecting. Explore markets and research in the meantime.
+                </p>
+              )}
             </div>
           </section>
           <section className="border border-line bg-panel">
             <h2 className="border-b border-line px-4 py-3 text-sm font-semibold">
-              Your custom agents
+              Your strategies
             </h2>
             {agents?.persistence === "unavailable" ? (
               <p className="p-5 text-xs text-amber-200">
-                Saved drafts cannot be checked right now.
+                Saved strategies will reappear when your account reconnects.
               </p>
             ) : agents?.custom.length ? (
               <div className="divide-y divide-line">
@@ -129,17 +132,14 @@ export default async function AgentsPage() {
                           ` · Daily drawdown ${agent.policy.riskGuardrails.maxDailyDrawdownPct}%`}
                       </p>
                     )}
-                    {agent.manifestHash && (
-                      <p className="mt-1 font-mono text-[10px] text-slate-500">
-                        Manifest {agent.manifestHash.slice(0, 16)}… · evaluation evidence pending
-                      </p>
-                    )}
                     <AgentReadiness id={agent.id} />
                   </article>
                 ))}
               </div>
             ) : (
-              <p className="p-5 text-xs text-slate-400">No custom agents saved yet.</p>
+              <p className="p-5 text-xs text-slate-400">
+                Start with a strategy above, then save your own idea with the builder alongside it.
+              </p>
             )}
           </section>
         </div>

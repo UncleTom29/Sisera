@@ -83,7 +83,7 @@ export function MarketScreener({
       {
         id: "source",
         accessorFn: (row) => row.snapshot.quality.source,
-        header: "Source",
+        header: "Market",
         cell: ({ row }) => (
           <div>
             <p className="font-mono text-[11px] text-slate-200">

@@ -8,7 +8,7 @@ import { LiveRefresh } from "../../../components/live-refresh";
 import { MarketScreener } from "../../../components/market-screener";
 import { PageHeader } from "../../../components/page-header";
 import { ReferenceScreener } from "../../../components/reference-screener";
-import { getMarkets, getReferenceMarkets } from "../../../lib/api";
+import { getMarketOverview, getMarkets, getReferenceMarkets } from "../../../lib/api";
 
 export const dynamic = "force-dynamic";
 const symbols = [
@@ -36,7 +36,10 @@ export default async function MarketsPage({
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const result = await getMarkets(symbols, identity, venue).catch(() => null);
+  const [result, overview] = await Promise.all([
+    getMarkets(symbols, identity, venue).catch(() => null),
+    getMarketOverview(identity).catch(() => null),
+  ]);
   const rows = result?.data ?? [];
   const references = !rows.length
     ? await getReferenceMarkets(symbols, identity).catch(() => [])
@@ -46,15 +49,15 @@ export default async function MarketsPage({
       <PageHeader
         eyebrow="Discover / Crypto spot"
         title="Crypto spot markets"
-        description="Venue-specific bid, ask, 24h activity, source, and update times. Spot and perpetual markets are never conflated."
+        description="Find the markets moving today, compare activity, and open a detailed trading view."
         actions={
           <div className="flex items-center gap-2">
             <StatusBadge tone={rows.length ? "positive" : "negative"}>
               {rows.length
                 ? `${rows.length} markets live`
                 : references.length
-                  ? "Reference data only"
-                  : "Providers unavailable"}
+                  ? "Market context available"
+                  : "Reconnecting"}
             </StatusBadge>
             <LiveRefresh />
           </div>
@@ -79,12 +82,46 @@ export default async function MarketsPage({
           <MarketScreener rows={rows} venue={venue} />
         ) : references.length ? (
           <ReferenceScreener rows={references} />
+        ) : overview?.crypto.length ? (
+          <section className="overflow-hidden rounded-lg border border-line bg-panel">
+            <div className="border-b border-line p-5">
+              <h2 className="font-semibold text-white">Today’s crypto leaders</h2>
+              <p className="mt-1 text-xs text-slate-400">
+                Explore the wider market while live spot quotes reconnect.
+              </p>
+            </div>
+            <div className="divide-y divide-line">
+              {overview.crypto.slice(0, 15).map((asset) => (
+                <Link
+                  key={asset.id}
+                  href={`/spot/${asset.symbol}USDT`}
+                  className="flex items-center justify-between gap-4 px-5 py-3 hover:bg-white/[.025]"
+                >
+                  <span>
+                    <span className="font-semibold text-white">{asset.symbol}</span>
+                    <span className="ml-3 text-xs text-slate-500">{asset.name}</span>
+                  </span>
+                  <span className="text-right font-mono text-xs text-white">
+                    {asset.priceUsd == null
+                      ? "Quote pending"
+                      : `$${asset.priceUsd.toLocaleString("en-US", { maximumFractionDigits: 4 })}`}
+                    <span
+                      className={`ml-4 ${asset.change24hPct == null ? "text-slate-500" : asset.change24hPct >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                    >
+                      {asset.change24hPct == null
+                        ? ""
+                        : `${asset.change24hPct > 0 ? "+" : ""}${asset.change24hPct.toFixed(2)}%`}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
         ) : (
           <EmptyState
             icon={ListFilter}
-            title="Market universe unavailable"
-            copy="Sisera could not reach the venue or the reference provider. No cached or synthetic prices are shown."
-            code="SCREENER / UNAVAILABLE"
+            title="Markets are reconnecting"
+            copy="Browse stocks or private markets while crypto quotes resume."
           />
         )}
       </div>

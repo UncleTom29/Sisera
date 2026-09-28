@@ -62,7 +62,9 @@ import { createAuthenticator, requirePermission } from "./auth.js";
 import { BinanceTradingClient } from "./binance-trading.js";
 import { BridgeQuoteInput, BridgeUnavailable, RelayBridgeClient } from "./bridge.js";
 import { ClawpumpClient, ClawpumpError } from "./clawpump.js";
+import { CoinMarketCapClient } from "./coinmarketcap.js";
 import type { ApiConfig } from "./config.js";
+import { PublicEquityReferenceClient } from "./equity-reference.js";
 import { parseHeliusWebhook, validWebhookSecret } from "./helius-webhook.js";
 import { HeliusClient } from "./helius.js";
 import { HyperEvmWalletClient } from "./hyperevm.js";
@@ -135,6 +137,32 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   const prestocks = new PreStocksProvider(config.PRESTOCKS_BASE_URL);
   const xstocks = new XStocksClient();
   const pyth = new PythCoreProvider(config.PYTH_API_KEY ?? "", config.PYTH_HERMES_URL);
+  const publicEquities = new PublicEquityReferenceClient();
+  let pythEquityBlockedUntil = 0;
+  async function getEquityReferences(symbols: string[]) {
+    let pythReferences: Awaited<ReturnType<typeof pyth.getLatestEquities>> = [];
+    if (config.PYTH_API_KEY && Date.now() >= pythEquityBlockedUntil) {
+      try {
+        pythReferences = await pyth.getLatestEquities(symbols);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("403"))
+          pythEquityBlockedUntil = Date.now() + 60 * 60_000;
+      }
+    }
+    const covered = new Set(pythReferences.map((item) => item.symbol.toUpperCase()));
+    const missing = symbols.filter((symbol) => {
+      const ticker = symbol
+        .toUpperCase()
+        .replace(/^EQUITY\.US\./, "")
+        .replace(/\/USD$/, "");
+      return !covered.has(`EQUITY.US.${ticker}/USD`);
+    });
+    const publicReferences = await publicEquities.getLatestEquities(missing);
+    return [...pythReferences, ...publicReferences];
+  }
+  const coinMarketCap = config.COINMARKETCAP_API_KEY
+    ? new CoinMarketCapClient(config.COINMARKETCAP_API_KEY)
+    : null;
   const solanaRpcUrl =
     config.SOLANA_RPC_URL ??
     (config.HELIUS_API_KEY
@@ -506,6 +534,68 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       data: await xstocks.list(),
     }),
   );
+  app.get(
+    "/v1/market-overview",
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async () => {
+      if (!coinMarketCap)
+        return { data: { global: null, sentiment: null, crypto: [], rwaStocks: [] } };
+      const [global, sentiment, crypto, rwaStocks] = await Promise.allSettled([
+        coinMarketCap.globalMetrics(),
+        coinMarketCap.sentiment(),
+        coinMarketCap.cryptoLeaders(50),
+        coinMarketCap.rwaStocks(50),
+      ]);
+      return {
+        data: {
+          global: global.status === "fulfilled" ? global.value : null,
+          sentiment: sentiment.status === "fulfilled" ? sentiment.value : null,
+          crypto: crypto.status === "fulfilled" ? crypto.value : [],
+          rwaStocks: rwaStocks.status === "fulfilled" ? rwaStocks.value : [],
+        },
+      };
+    },
+  );
+  app.get(
+    "/v1/rwa/stocks",
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async (_request, reply) => {
+      if (!coinMarketCap) return reply.code(503).send({ error: "market_data_unavailable" });
+      try {
+        return { data: await coinMarketCap.rwaStocks(100) };
+      } catch {
+        return reply.code(503).send({ error: "market_data_unavailable" });
+      }
+    },
+  );
+  app.get(
+    "/v1/crypto/:id/profile",
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { id } = z.object({ id: z.coerce.number().int().positive() }).parse(request.params);
+      if (!coinMarketCap) return reply.code(503).send({ error: "market_data_unavailable" });
+      try {
+        return { data: await coinMarketCap.cryptoProfile(id) };
+      } catch {
+        return reply.code(503).send({ error: "market_data_unavailable" });
+      }
+    },
+  );
+  app.get(
+    "/v1/rwa/:symbol",
+    { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { symbol } = z
+        .object({ symbol: z.string().regex(/^[A-Za-z0-9$@.-]{1,15}$/) })
+        .parse(request.params);
+      if (!coinMarketCap) return reply.code(503).send({ error: "market_data_unavailable" });
+      try {
+        return { data: await coinMarketCap.rwaDetail(symbol) };
+      } catch {
+        return reply.code(503).send({ error: "market_data_unavailable" });
+      }
+    },
+  );
   app.get("/v1/agents", { preHandler: requirePermission("agent:read") }, async (request) => {
     if (!config.DATABASE_URL || !request.principal)
       return { templates: agentTemplates, custom: [], persistence: "unavailable" };
@@ -846,8 +936,10 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         stockNews
           .search(company, publicStock?.underlyingSymbol)
           .catch(() => ({ data: [], providers: [] })),
-        publicStock && config.PYTH_API_KEY
-          ? pyth.getLatest(publicStock.underlyingSymbol).catch(() => null)
+        publicStock
+          ? getEquityReferences([publicStock.underlyingSymbol])
+              .then((rows) => rows[0] ?? null)
+              .catch(() => null)
           : Promise.resolve(null),
       ]);
       const inputArticles = news.data.slice(0, 5).map((item) => ({
@@ -869,7 +961,9 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const referenceKind = asset
         ? ("prestocks_mark" as const)
         : oracle
-          ? ("pyth_core_equity" as const)
+          ? oracle.source === "pyth-core"
+            ? ("pyth_core_equity" as const)
+            : ("public_equity" as const)
           : ("unavailable" as const);
       const referenceFreshness = asset
         ? ("unavailable" as const)
@@ -1221,14 +1315,12 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const { symbol } = z
         .object({ symbol: z.string().regex(/^[A-Za-z0-9./_-]{1,80}$/) })
         .parse(request.query);
-      if (!config.PYTH_API_KEY)
-        return reply
-          .code(503)
-          .send({ error: "provider_unavailable", message: "Pyth Core Hermes is not configured" });
       try {
-        return { data: await pyth.getLatest(symbol) };
+        const [reference] = await getEquityReferences([symbol]);
+        if (!reference) throw new Error("No public equity quote");
+        return { data: reference };
       } catch (error) {
-        request.log.warn({ error, symbol }, "Pyth Core reference unavailable");
+        request.log.warn({ error, symbol }, "Equity reference unavailable");
         return reply
           .code(503)
           .send({ error: "reference_unavailable", message: "Equity reference is unavailable." });
@@ -1243,14 +1335,10 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     },
     async (request, reply) => {
       const { symbols } = z.object({ symbols: z.string().max(520) }).parse(request.query);
-      if (!config.PYTH_API_KEY)
-        return reply
-          .code(503)
-          .send({ error: "provider_unavailable", message: "Pyth Core Hermes is not configured" });
       try {
-        return { data: await pyth.getLatestEquities(symbols.split(",")) };
+        return { data: await getEquityReferences(symbols.split(",")) };
       } catch (error) {
-        request.log.warn({ error }, "Pyth Core references unavailable");
+        request.log.warn({ error }, "Equity references unavailable");
         return reply
           .code(503)
           .send({ error: "reference_unavailable", message: "Equity references are unavailable." });

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { auth } from "../../../auth";
 import { PageHeader } from "../../../components/page-header";
 import {
+  getMarketOverview,
   getPrivateMarkets,
   getPublicStocks,
   getPythReferences,
@@ -25,10 +26,12 @@ export default async function IntelligencePage() {
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const [publicResult, privateResult] = await Promise.allSettled([
+  const [publicResult, privateResult, overviewResult] = await Promise.allSettled([
     getPublicStocks(identity),
     getPrivateMarkets(identity),
+    getMarketOverview(identity),
   ]);
+  const overview = overviewResult.status === "fulfilled" ? overviewResult.value : null;
   const stocks = publicResult.status === "fulfilled" ? publicResult.value : [];
   const privateMarkets = privateResult.status === "fulfilled" ? privateResult.value : [];
   const referenceSymbols = [
@@ -71,32 +74,60 @@ export default async function IntelligencePage() {
     .slice(0, 5);
   const focus =
     privateMarkets.find((asset) => asset.instrument.baseAsset === "OPENAI") ?? privateMarkets[0];
-  const news = focus
-    ? await getStockNews(focus.instrument.baseAsset, identity).catch(() => null)
+  const headlineSymbol = focus?.instrument.baseAsset ?? movers[0]?.symbol;
+  const news = headlineSymbol
+    ? await getStockNews(headlineSymbol, identity).catch(() => null)
     : null;
 
   return (
     <div>
       <PageHeader
-        eyebrow="Research / Evidence desk"
+        eyebrow="See what others miss"
         title="Market intelligence"
-        description="A research queue from observed Solana prices and provider marks. Movement and divergence are screening signals, not trading recommendations."
+        description="Connect the dots between price, market activity, company news, and the bigger picture before your next decision."
         actions={
           <Link href="/agents" className="inline-flex items-center gap-1 text-xs text-cyan-300">
-            Agent research <ArrowUpRight size={13} />
+            Explore strategies <ArrowUpRight size={13} />
           </Link>
         }
       />
+      <div className="grid gap-px border-b border-line bg-line sm:grid-cols-3">
+        {[
+          [
+            "Market mood",
+            overview?.sentiment
+              ? `${overview.sentiment.score} / 100 · ${overview.sentiment.label}`
+              : "Explore market signals",
+          ],
+          [
+            "Crypto market value",
+            overview?.global?.marketCapUsd == null
+              ? "See broader markets"
+              : `$${Intl.NumberFormat("en-US", { notation: "compact" }).format(overview.global.marketCapUsd)}`,
+          ],
+          [
+            "Tokenized stock activity",
+            overview?.rwaStocks.length
+              ? `${overview.rwaStocks.length} markets in view`
+              : "Browse tokenized stocks",
+          ],
+        ].map(([label, value]) => (
+          <div key={label} className="bg-panel p-5">
+            <p className="data-label">{label}</p>
+            <p className="mt-3 text-lg font-medium text-white">{value}</p>
+          </div>
+        ))}
+      </div>
       <div className="grid gap-4 p-4 md:p-6 xl:grid-cols-2">
         <section className="rounded-lg border border-line bg-panel xl:col-span-2">
           <div className="border-b border-line p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
               <Activity size={16} className="text-cyan-300" />
-              Live public equity dislocations
+              Where stock tokens differ
             </h2>
             <p className="mt-2 text-xs text-slate-400">
-              Token price versus a fresh Pyth Core equity reference. Large differences may reflect
-              market hours, token liquidity, or venue frictions; inspect both sources before acting.
+              Compare token prices with the underlying shares. Differences can reflect market hours,
+              liquidity, or trading costs.
             </p>
           </div>
           {publicDivergences.length ? (
@@ -116,19 +147,23 @@ export default async function IntelligencePage() {
                     {premiumPct.toFixed(2)}%
                   </p>
                   <p className="mt-2 font-mono text-[10px] text-slate-400">
-                    Token {formatUsd(stock.dexPriceUsd)} · reference {formatUsd(reference.price)}
+                    Token {formatUsd(stock.dexPriceUsd)} · share {formatUsd(reference.price)}
                   </p>
                   <p className="mt-2 font-mono text-[9px] text-slate-600">
-                    Oracle {utcTime(reference.feedUpdateTimestamp)}
+                    Share price updated {utcTime(reference.feedUpdateTimestamp)}
                   </p>
                 </Link>
               ))}
             </div>
           ) : (
-            <p className="p-5 text-xs text-slate-400">
-              No fresh, matched equity references are available. The screener still shows token
-              market observations.
-            </p>
+            <div className="p-5">
+              <p className="text-sm text-slate-300">
+                Explore the most active stocks while the underlying share market updates.
+              </p>
+              <Link href="/stocks" className="mt-3 inline-block text-xs text-cyan-300">
+                Browse stocks →
+              </Link>
+            </div>
           )}
         </section>
         <section className="rounded-lg border border-line bg-panel">
@@ -152,7 +187,7 @@ export default async function IntelligencePage() {
                   <div>
                     <p className="text-sm font-semibold text-white">{stock.name}</p>
                     <p className="mt-1 font-mono text-[10px] text-slate-500">
-                      {stock.symbol} · xStocks · {utcTime(stock.fetchedAt)}
+                      {stock.symbol} · updated {utcTime(stock.fetchedAt)}
                     </p>
                   </div>
                   <div className="text-right">
@@ -168,9 +203,14 @@ export default async function IntelligencePage() {
               ))}
             </div>
           ) : (
-            <p className="p-6 text-sm text-slate-400">
-              No priced public stock observations are available.
-            </p>
+            <div className="p-6">
+              <p className="text-sm text-slate-300">
+                Find the companies and token markets on your radar.
+              </p>
+              <Link href="/stocks" className="mt-3 inline-block text-xs text-cyan-300">
+                Explore public stocks →
+              </Link>
+            </div>
           )}
           <Link
             href="/stocks"
@@ -183,10 +223,10 @@ export default async function IntelligencePage() {
           <div className="border-b border-line p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
               <ScanSearch size={16} className="text-cyan-300" />
-              Private market divergence
+              Private companies in motion
             </h2>
             <p className="mt-2 text-xs text-slate-400">
-              Largest absolute differences between PreStocks token prices and provider marks.
+              Where private-market tokens sit relative to their current company marks.
             </p>
           </div>
           {divergences.length ? (
@@ -210,15 +250,20 @@ export default async function IntelligencePage() {
                       {Number(asset.premiumDiscountPct) > 0 ? "+" : ""}
                       {Number(asset.premiumDiscountPct).toFixed(2)}%
                     </p>
-                    <p className="mt-1 font-mono text-[10px] text-slate-500">PreStocks mark</p>
+                    <p className="mt-1 font-mono text-[10px] text-slate-500">Compared with mark</p>
                   </div>
                 </Link>
               ))}
             </div>
           ) : (
-            <p className="p-6 text-sm text-slate-400">
-              No private market observations are available.
-            </p>
+            <div className="p-6">
+              <p className="text-sm text-slate-300">
+                Discover private companies and see how their token prices compare.
+              </p>
+              <Link href="/private-markets" className="mt-3 inline-block text-xs text-cyan-300">
+                Explore private markets →
+              </Link>
+            </div>
           )}
           <Link
             href="/private-markets"
@@ -231,11 +276,11 @@ export default async function IntelligencePage() {
           <div className="border-b border-line p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-white">
               <Newspaper size={16} className="text-cyan-300" />
-              Source headlines
+              In the news
             </h2>
             <p className="mt-2 text-xs text-slate-400">
-              Recent headlines for {focus?.company ?? "the selected market"}. Open the source before
-              drawing a conclusion.
+              Recent headlines for {focus?.company ?? movers[0]?.name ?? "companies in focus"}. Read
+              the full story before drawing a conclusion.
             </p>
           </div>
           {news?.data.length ? (
@@ -252,20 +297,27 @@ export default async function IntelligencePage() {
                     {item.title} <ArrowUpRight size={12} className="inline text-cyan-300" />
                   </p>
                   <p className="mt-2 font-mono text-[10px] text-slate-500">
-                    {item.publisher} · {utcTime(item.publishedAt)} · {item.provider}
+                    {item.publisher} · {utcTime(item.publishedAt)}
                   </p>
                 </a>
               ))}
             </div>
           ) : (
-            <p className="p-6 text-sm text-slate-400">No recent company headlines were returned.</p>
+            <div className="p-6">
+              <p className="text-sm text-slate-300">
+                See what is moving prices even when company headlines are quiet.
+              </p>
+              <Link href="/macro" className="mt-3 inline-block text-xs text-cyan-300">
+                Explore the market climate →
+              </Link>
+            </div>
           )}
           {focus && (
             <Link
               href={`/private-markets/${encodeURIComponent(focus.instrument.baseAsset)}`}
               className="block border-t border-line px-5 py-3 text-xs text-cyan-300"
             >
-              Review {focus.company} and run AI assessment →
+              Explore {focus.company} more deeply →
             </Link>
           )}
         </section>
@@ -275,25 +327,24 @@ export default async function IntelligencePage() {
             From research to an agent
           </h2>
           <p className="mt-3 text-sm leading-6 text-slate-300">
-            Inspect the asset evidence, generate an on-demand assessment, then draft an agent with a
-            defined market universe, capital budget, and risk limits.
+            Take a closer look at an asset, ask Sisera for an assessment, then turn your thesis into
+            a strategy with clear limits.
           </p>
           <p className="mt-3 text-xs leading-5 text-slate-500">
-            Current agent templates and assessments are research tools. Autonomous order execution
-            requires the risk and reconciliation gates to be enabled.
+            Strategy agents begin with research and practice before any capital is involved.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/agents"
               className="rounded border border-cyan-400/30 bg-cyan-400/[.08] px-3 py-2 text-xs text-cyan-300"
             >
-              Open agent workspace
+              Explore agents
             </Link>
             <Link
               href="/risk"
               className="rounded border border-line px-3 py-2 text-xs text-slate-300"
             >
-              Review risk state
+              See your risk
             </Link>
           </div>
         </section>

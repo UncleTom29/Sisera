@@ -88,8 +88,8 @@ export default async function TerminalPage({
           <Link href="/markets?venue=binance" className="rounded px-3 py-2 text-slate-400">
             Crypto spot →
           </Link>
-          <span className="ml-auto font-mono text-[10px] uppercase text-slate-500">
-            Venues are separate · no synthetic cross-venue quotes
+          <span className="ml-auto text-[10px] text-slate-500">
+            Prices shown for the selected market
           </span>
         </div>
 
@@ -156,8 +156,7 @@ export default async function TerminalPage({
                   {market?.instrument.displaySymbol ?? `${symbol.replace("USDT", "")} / USD`}
                 </h2>
                 <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
-                  {market?.instrument.venue ?? "Reference market"} ·{" "}
-                  {market?.instrument.type ?? "USD"}
+                  {market ? "Perpetual market" : "Market price"}
                 </p>
               </div>
             </div>
@@ -173,15 +172,14 @@ export default async function TerminalPage({
             <MarketMetric label="Best bid" value={formatMoney(snapshot?.bid)} />
             <MarketMetric label="Best ask" value={formatMoney(snapshot?.ask)} />
             <MarketMetric
-              label="24h quote volume"
+              label="24h trading"
               value={formatCompact(snapshot?.volume24h ?? reference?.volume24hUsd?.toString())}
             />
             <div className="ml-auto">
               {snapshot ? (
                 <div className="text-right">
                   <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300">
-                    <span className="size-1.5 rounded-full bg-emerald-300" /> Live{" "}
-                    {venue === "hyperliquid" ? "perpetual" : "spot"} venue data
+                    <span className="size-1.5 rounded-full bg-emerald-300" /> Live market
                   </span>
                   <p className="mt-1 font-mono text-[10px] text-slate-500">
                     Updated {new Date(snapshot.quality.receivedAt).toLocaleTimeString()}
@@ -189,7 +187,7 @@ export default async function TerminalPage({
                 </div>
               ) : reference ? (
                 <div className="text-right">
-                  <span className="text-xs text-amber-200">Reference price · not executable</span>
+                  <span className="text-xs text-amber-200">Price for research only</span>
                   <p className="mt-1 font-mono text-[10px] text-slate-500">
                     Updated {new Date(reference.observedAt).toLocaleTimeString()}
                   </p>
@@ -330,7 +328,7 @@ function OrderBookPanel({ book, quoteAsset }: { book: OrderBook; quoteAsset: str
         <DepthRow key={`bid-${level.price}`} level={level} max={max} side="bid" />
       ))}
       <p className="border-t border-line px-4 py-3 text-[10px] text-slate-500">
-        {book.quality.source} · {new Date(book.quality.receivedAt).toLocaleTimeString()}
+        Updated {new Date(book.quality.receivedAt).toLocaleTimeString()}
       </p>
     </div>
   );

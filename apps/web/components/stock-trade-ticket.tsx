@@ -1,8 +1,10 @@
 "use client";
 
+import { usePrivy } from "@privy-io/react-auth";
 import { useSolanaStandardWallets } from "@privy-io/react-auth/solana";
 import { ArrowRightLeft, WalletCards } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { getPrivySolanaAddress } from "../lib/privy-identity";
 import { PortfolioConnect } from "./portfolio-connect";
 import { useLiveCapability } from "./use-live-capability";
 
@@ -39,16 +41,15 @@ type TicketProps = { mint: string; symbol: string; price: string | null; halted?
 type StandardWallets = ReturnType<typeof useSolanaStandardWallets>["wallets"];
 
 export function StockTradeTicket(props: TicketProps) {
-  return process.env.NEXT_PUBLIC_PRIVY_APP_ID ? (
-    <ConnectedStockTradeTicket {...props} />
-  ) : (
-    <TradeTicketView {...props} wallets={[]} />
-  );
+  return <ConnectedStockTradeTicket {...props} />;
 }
 
 function ConnectedStockTradeTicket(props: TicketProps) {
   const { wallets } = useSolanaStandardWallets();
-  return <TradeTicketView {...props} wallets={wallets} />;
+  const { user } = usePrivy();
+  return (
+    <TradeTicketView {...props} wallets={wallets} linkedAddress={getPrivySolanaAddress(user)} />
+  );
 }
 
 function TradeTicketView({
@@ -57,9 +58,13 @@ function TradeTicketView({
   price,
   halted = false,
   wallets,
-}: TicketProps & { wallets: StandardWallets }) {
-  const wallet = wallets.find((item) => item.accounts.length > 0);
-  const account = wallet?.accounts[0];
+  linkedAddress,
+}: TicketProps & { wallets: StandardWallets; linkedAddress?: string | null }) {
+  const wallet =
+    wallets.find((item) => item.accounts.some((account) => account.address === linkedAddress)) ??
+    wallets.find((item) => item.accounts.length > 0);
+  const account =
+    wallet?.accounts.find((item) => item.address === linkedAddress) ?? wallet?.accounts[0];
   const accountAddress = account?.address;
   const [mode, setMode] = useState<"paper" | "live">("paper");
   const [side, setSide] = useState<"buy" | "sell">("buy");
@@ -132,7 +137,10 @@ function TradeTicketView({
     setResult(null);
     try {
       if (halted) throw new Error("Trading is paused for this asset.");
-      if (mode === "live" && !liveAvailable) throw new Error("Solana live trading is paused.");
+      if (mode === "live" && !liveAvailable)
+        throw new Error(
+          "Live trading is currently unavailable. Try paper trading while the connection is restored.",
+        );
       if (mode === "live" && prepared) {
         if (Date.now() > Date.parse(prepared.expiresAt))
           throw new Error("This quote expired. Please get a new one.");
@@ -235,14 +243,25 @@ function TradeTicketView({
       </fieldset>
       {!liveAvailable && (
         <p className="mt-2 text-[11px] text-amber-300">
-          Live stock trading is paused while wallet ownership, risk, and reconciliation checks are
-          completed.
+          Live orders are currently unavailable. You can still practice a trade below.
         </p>
       )}
       {mode === "live" && (
         <div className="mt-5 flex items-center justify-between gap-3 border-b border-line pb-4">
           <span className="text-xs text-slate-400">Solana wallet</span>
-          <PortfolioConnect compact />
+          {linkedAddress || accountAddress ? (
+            <span className="font-mono text-xs text-cyan-300">
+              {(linkedAddress ?? accountAddress)?.slice(0, 4)}…
+              {(linkedAddress ?? accountAddress)?.slice(-4)}
+            </span>
+          ) : (
+            <PortfolioConnect compact />
+          )}
+          {linkedAddress && !account && (
+            <p className="text-[11px] text-amber-300">
+              Your wallet is linked. Open it to approve trades.
+            </p>
+          )}
         </div>
       )}
       <div className="mt-5 grid grid-cols-2 gap-2">
@@ -372,9 +391,9 @@ function TradeTicketView({
           )}
         </output>
       )}
-      {mode === "live" && !account && (
+      {mode === "live" && !account && !linkedAddress && (
         <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-          <WalletCards size={13} /> Connect a wallet to trade live.
+          <WalletCards size={13} /> Add a Solana wallet to trade live.
         </p>
       )}
     </section>

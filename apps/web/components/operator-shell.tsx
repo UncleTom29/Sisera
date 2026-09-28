@@ -30,6 +30,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { MarketAutoRefresh } from "./market-auto-refresh";
 import { OperatorProfile } from "./operator-profile";
 import { PortfolioConnect } from "./portfolio-connect";
 import { SiseraMark } from "./sisera-mark";
@@ -161,6 +162,7 @@ export function OperatorShell({
 
   return (
     <div className="min-h-screen bg-ink text-slate-100 lg:h-screen lg:overflow-hidden">
+      <MarketAutoRefresh />
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-50 hidden border-r border-line bg-[#101b23] transition-[width] duration-200 lg:flex lg:flex-col",

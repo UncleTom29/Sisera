@@ -246,7 +246,7 @@ export function BridgeUsdc() {
         </label>
       </div>
       <p className="mt-3 break-all font-mono text-[10px] text-slate-500">
-        Destination: {recipient ?? "Connect wallet to see address"}
+        Destination: {recipient ?? "Choose a destination wallet"}
       </p>
       {!wallet && authenticated && (
         <button

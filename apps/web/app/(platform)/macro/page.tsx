@@ -49,6 +49,23 @@ export default async function MacroPage() {
         : meanFunding < -0.00005
           ? "Crowded short"
           : "Balanced";
+  const quoted = (overview?.crypto ?? []).filter((asset) => asset.change24hPct != null);
+  const advancing = quoted.filter((asset) => (asset.change24hPct ?? 0) > 0).length;
+  const falling = quoted.filter((asset) => (asset.change24hPct ?? 0) < 0).length;
+  const strongest = [...quoted]
+    .sort((a, b) => (b.change24hPct ?? 0) - (a.change24hPct ?? 0))
+    .slice(0, 4);
+  const weakest = [...quoted]
+    .sort((a, b) => (a.change24hPct ?? 0) - (b.change24hPct ?? 0))
+    .slice(0, 4);
+  const tokenized = [...(overview?.rwaStocks ?? [])]
+    .filter((asset) => asset.tokenizedVolume24hUsd != null)
+    .sort((a, b) => (b.tokenizedVolume24hUsd ?? 0) - (a.tokenizedVolume24hUsd ?? 0))
+    .slice(0, 6);
+  const compact = (value: number | null | undefined) =>
+    value == null
+      ? "—"
+      : `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)}`;
   return (
     <div className="min-h-full">
       <PageHeader
@@ -93,6 +110,114 @@ export default async function MacroPage() {
             <p className="mt-3 font-mono text-xl text-white">{value}</p>
           </div>
         ))}
+      </div>
+      <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          [
+            "Outside Bitcoin",
+            compact(overview?.global?.altcoinMarketCapUsd),
+            "Combined value of other crypto assets",
+          ],
+          [
+            "Altcoin trading",
+            compact(overview?.global?.altcoinVolume24hUsd),
+            "24h trading outside Bitcoin",
+          ],
+          [
+            "Ethereum share",
+            overview?.global?.ethDominancePct == null
+              ? "—"
+              : `${overview.global.ethDominancePct.toFixed(1)}%`,
+            "Of total crypto value",
+          ],
+          [
+            "Assets tracked",
+            overview?.global?.activeAssets == null
+              ? "—"
+              : overview.global.activeAssets.toLocaleString(),
+            "Active crypto assets",
+          ],
+        ].map(([label, value, detail]) => (
+          <div key={label} className="bg-panel p-5">
+            <p className="data-label">{label}</p>
+            <p className="mt-3 font-mono text-xl text-white">{value}</p>
+            <p className="mt-2 text-[11px] text-slate-500">{detail}</p>
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-4 p-4 xl:grid-cols-2">
+        <section className="rounded-lg border border-line bg-panel p-5">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="eyebrow">Market breadth</p>
+              <h2 className="mt-1 text-base font-semibold text-white">
+                How widely is the market moving?
+              </h2>
+            </div>
+            <p className="font-mono text-sm text-white">
+              {advancing} up · {falling} down
+            </p>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate-400">
+            Among {quoted.length} leading assets with current 24h changes. A narrow rally can be
+            more fragile than a broad one.
+          </p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {(
+              [
+                ["Leading", strongest, "text-emerald-300"],
+                ["Lagging", weakest, "text-rose-300"],
+              ] as const
+            ).map(([heading, items, color]) => (
+              <div key={heading}>
+                <h3 className="text-xs font-semibold text-white">{heading}</h3>
+                <div className="mt-2 divide-y divide-line">
+                  {items.map((asset) => (
+                    <div key={asset.id} className="flex justify-between gap-3 py-2 text-xs">
+                      <span className="text-slate-300">{asset.symbol}</span>
+                      <span className={`font-mono ${color}`}>
+                        {(asset.change24hPct ?? 0) > 0 ? "+" : ""}
+                        {asset.change24hPct?.toFixed(1)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="rounded-lg border border-line bg-panel p-5">
+          <p className="eyebrow">Stock tokens</p>
+          <h2 className="mt-1 text-base font-semibold text-white">
+            Where tokenized-stock trading is concentrated
+          </h2>
+          <p className="mt-3 text-xs leading-5 text-slate-400">
+            Volume shows where traders are active. It does not guarantee an executable quote for
+            your wallet.
+          </p>
+          <div className="mt-5 divide-y divide-line">
+            {tokenized.map((asset) => (
+              <div
+                key={asset.symbol}
+                className="flex items-center justify-between gap-3 py-2 text-xs"
+              >
+                <div>
+                  <p className="font-semibold text-white">{asset.symbol}</p>
+                  <p className="text-[11px] text-slate-500">{asset.name}</p>
+                </div>
+                <div className="text-right font-mono">
+                  <p className="text-white">{compact(asset.tokenizedVolume24hUsd)}</p>
+                  <p className="text-[10px] text-slate-500">
+                    {compact(asset.tokenizedMarketCapUsd)} value
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+          {!tokenized.length && (
+            <p className="mt-5 text-xs text-slate-400">Stock-token activity is updating.</p>
+          )}
+        </section>
       </div>
       <div className="grid gap-4 p-4 xl:grid-cols-[1.25fr_.75fr]">
         <aside className="border border-line bg-[#091019]">

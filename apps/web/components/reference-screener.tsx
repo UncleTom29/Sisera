@@ -8,14 +8,13 @@ export function ReferenceScreener({ rows }: { rows: ReferenceMarket[] }) {
     <section className="overflow-hidden rounded-lg border border-line bg-panel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
         <div>
-          <h2 className="text-base font-semibold text-slate-100">Reference markets</h2>
+          <h2 className="text-base font-semibold text-slate-100">Crypto prices</h2>
           <p className="mt-1 text-xs text-slate-400">
-            CoinGecko USD reference prices. Binance venue quotes, depth, and execution are
-            unavailable.
+            Market prices for research while direct trading is unavailable.
           </p>
         </div>
         <span className="rounded-md border border-amber-400/20 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-amber-200">
-          Reference only
+          Research view
         </span>
       </div>
       <div className="overflow-x-auto">
@@ -26,7 +25,7 @@ export function ReferenceScreener({ rows }: { rows: ReferenceMarket[] }) {
               <th className="px-5 font-medium">Price · USD</th>
               <th className="px-5 font-medium">24h change</th>
               <th className="px-5 font-medium">24h volume · USD</th>
-              <th className="px-5 font-medium">Observed</th>
+              <th className="px-5 font-medium">Updated</th>
               <th className="px-5 font-medium" />
             </tr>
           </thead>

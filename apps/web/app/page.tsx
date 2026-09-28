@@ -1,13 +1,6 @@
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Bot,
-  ChartNoAxesCombined,
-  Layers3,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight, ChartNoAxesCombined, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { LandingRefresh } from "../components/landing-refresh";
 import { SiseraMark } from "../components/sisera-mark";
 import { getMarketOverview, getPrivateMarkets, getPublicStocks } from "../lib/api";
 
@@ -30,12 +23,16 @@ export default async function LandingPage() {
     getPrivateMarkets({}).catch(() => []),
     getMarketOverview({}).catch(() => null),
   ]);
-  const stock =
-    stocks.find((item) => item.symbol === "AAPLx" && item.dexPriceUsd) ??
-    stocks.find((item) => item.dexPriceUsd);
-  const privateAsset =
-    privateMarkets.find((item) => item.instrument.baseAsset === "OPENAI") ?? privateMarkets[0];
-  const crypto = (overview?.crypto ?? []).filter((item) => item.priceUsd != null).slice(0, 5);
+  const movers = stocks
+    .filter((item) => item.dexPriceUsd && item.change24hPct != null)
+    .sort((a, b) => Math.abs(b.change24hPct ?? 0) - Math.abs(a.change24hPct ?? 0))
+    .slice(0, 3);
+  const privateGaps = privateMarkets
+    .filter((item) => Number.isFinite(Number(item.premiumDiscountPct)))
+    .sort((a, b) => Math.abs(Number(b.premiumDiscountPct)) - Math.abs(Number(a.premiumDiscountPct)))
+    .slice(0, 3);
+  const stock = movers[0] ?? stocks.find((item) => item.dexPriceUsd);
+  const privateAsset = privateGaps[0] ?? privateMarkets[0];
   const rwa = (overview?.rwaStocks ?? [])
     .filter((item) => item.averageTokenPriceUsd != null)
     .sort((a, b) => (b.tokenizedVolume24hUsd ?? 0) - (a.tokenizedVolume24hUsd ?? 0))
@@ -43,6 +40,7 @@ export default async function LandingPage() {
 
   return (
     <main className="min-h-screen bg-[#080e14] text-slate-100">
+      <LandingRefresh />
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#080e14]/90 backdrop-blur-xl">
         <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-5 md:px-10">
           <Link href="/" className="flex items-center gap-3" aria-label="Sisera home">
@@ -75,17 +73,16 @@ export default async function LandingPage() {
         <div className="relative mx-auto grid max-w-[1440px] gap-12 px-5 py-20 md:px-10 md:py-28 xl:grid-cols-[1.15fr_.85fr] xl:items-center">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/[.06] px-3 py-1.5 text-[11px] font-medium tracking-wide text-cyan-200">
-              <Sparkles size={12} /> The stock market is moving onchain
+              <Sparkles size={12} /> Live stock and private market research
             </div>
             <h1 className="mt-7 text-[clamp(3.1rem,6.5vw,7rem)] font-medium leading-[.98] tracking-[-.065em] text-[#f5f4ef]">
-              Know more.
+              See the move.
               <br />
-              <span className="text-cyan-300">Move better.</span>
+              <span className="text-cyan-300">Know the reason.</span>
             </h1>
             <p className="mt-7 max-w-xl text-base leading-8 text-slate-300 md:text-lg">
-              Public stocks, private markets, and crypto now share a trading screen. Sisera brings
-              prices, context, research, and controls together so you can see the whole decision
-              before you make it.
+              The public share, the token, the private-company mark, the news, and your exposure
+              belong in one decision. Sisera puts them there.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link
@@ -109,9 +106,9 @@ export default async function LandingPage() {
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div>
                 <p className="text-[10px] uppercase tracking-[.18em] text-cyan-300">
-                  Today in the market
+                  Markets in focus
                 </p>
-                <h2 className="mt-1 text-lg font-semibold text-white">Your wider view</h2>
+                <h2 className="mt-1 text-lg font-semibold text-white">What stands out now</h2>
               </div>
               <ChartNoAxesCombined size={21} className="text-cyan-300" />
             </div>
@@ -133,41 +130,62 @@ export default async function LandingPage() {
                 </p>
               </div>
             </div>
-            {crypto.length ? (
-              <div className="divide-y divide-white/10 border-t border-white/10">
-                {crypto.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between gap-4 py-3 text-xs"
+            <div className="grid gap-4 border-t border-white/10 pt-4 sm:grid-cols-2">
+              <div>
+                <p className="mb-2 text-xs font-semibold text-white">Stock tokens moving most</p>
+                {movers.map((item) => (
+                  <Link
+                    key={item.mint}
+                    href={`/stocks/${encodeURIComponent(item.symbol)}`}
+                    className="flex items-center justify-between gap-3 border-b border-white/10 py-2.5 text-xs last:border-0 hover:text-cyan-300"
                   >
-                    <span className="font-medium text-slate-200">
-                      {item.name} <span className="ml-1 text-slate-500">{item.symbol}</span>
-                    </span>
-                    <div className="text-right font-mono">
-                      <span className="text-white">{money(item.priceUsd)}</span>
+                    <span>{item.symbol}</span>
+                    <span className="font-mono">
+                      {money(item.dexPriceUsd)}{" "}
                       <span
-                        className={`ml-3 ${item.change24hPct != null && item.change24hPct >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                        className={
+                          (item.change24hPct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"
+                        }
                       >
-                        {item.change24hPct == null
-                          ? ""
-                          : `${item.change24hPct > 0 ? "+" : ""}${item.change24hPct.toFixed(1)}%`}
+                        {(item.change24hPct ?? 0) > 0 ? "+" : ""}
+                        {item.change24hPct?.toFixed(1)}%
                       </span>
-                    </div>
-                  </div>
+                    </span>
+                  </Link>
                 ))}
+                {!movers.length && (
+                  <p className="py-3 text-xs text-slate-400">Stock prices are updating.</p>
+                )}
               </div>
-            ) : (
-              <div className="border-t border-white/10 py-5">
-                <p className="text-sm text-slate-300">
-                  Discover tokenized equities, private companies, and crypto in one place.
-                </p>
-                <Link
-                  href="/markets"
-                  className="mt-3 inline-flex items-center gap-1 text-xs text-cyan-300"
-                >
-                  Browse markets <ArrowRight size={12} />
-                </Link>
+              <div>
+                <p className="mb-2 text-xs font-semibold text-white">Private price gaps</p>
+                {privateGaps.map((item) => (
+                  <Link
+                    key={item.instrument.id}
+                    href={`/private-markets/${encodeURIComponent(item.instrument.baseAsset)}`}
+                    className="flex items-center justify-between gap-3 border-b border-white/10 py-2.5 text-xs last:border-0 hover:text-cyan-300"
+                  >
+                    <span>{item.company}</span>
+                    <span
+                      className={`font-mono ${Number(item.premiumDiscountPct) >= 0 ? "text-amber-300" : "text-emerald-300"}`}
+                    >
+                      {Number(item.premiumDiscountPct) > 0 ? "+" : ""}
+                      {Number(item.premiumDiscountPct).toFixed(1)}%
+                    </span>
+                  </Link>
+                ))}
+                {!privateGaps.length && (
+                  <p className="py-3 text-xs text-slate-400">
+                    Private-company prices are updating.
+                  </p>
+                )}
               </div>
+            </div>
+            {movers[0] && (
+              <p className="border-t border-white/10 pt-3 text-xs leading-5 text-slate-400">
+                {movers[0].symbol} has moved {movers[0].change24hPct?.toFixed(1)}% in 24 hours.
+                Check liquidity and the underlying share before trading.
+              </p>
             )}
           </div>
         </div>
@@ -180,7 +198,7 @@ export default async function LandingPage() {
               Across the market
             </p>
             <h2 className="mt-3 text-3xl font-medium tracking-tight text-white md:text-4xl">
-              Follow the assets shaping the next session.
+              Follow the numbers that change the decision.
             </h2>
           </div>
           <Link href="/stocks" className="inline-flex items-center gap-1 text-sm text-cyan-300">
@@ -194,13 +212,15 @@ export default async function LandingPage() {
           >
             <p className="text-xs text-cyan-300">Public stocks</p>
             <h3 className="mt-3 text-xl font-semibold text-white">
-              {stock?.name ?? "Find your next stock"}
+              {stock?.name ?? "Public stocks"}
             </h3>
             <p className="mt-5 font-mono text-3xl text-white">
               {money(stock?.dexPriceUsd) ?? "Explore the market"}
             </p>
             <p className="mt-3 text-xs leading-5 text-slate-400">
-              Compare token prices, liquidity, and the equity behind each asset.
+              {stock?.change24hPct == null
+                ? "Compare the token with its underlying share and the liquidity available to trade."
+                : `${stock.change24hPct > 0 ? "+" : ""}${stock.change24hPct.toFixed(2)}% in 24h · ${money(stock.volume24hUsd, true)} traded. Check the share price before following the move.`}
             </p>
             <ArrowUpRight
               size={16}
@@ -217,13 +237,15 @@ export default async function LandingPage() {
           >
             <p className="text-xs text-cyan-300">Private markets</p>
             <h3 className="mt-3 text-xl font-semibold text-white">
-              {privateAsset?.company ?? "Explore private companies"}
+              {privateAsset?.company ?? "Private companies"}
             </h3>
             <p className="mt-5 font-mono text-3xl text-white">
               {money(privateAsset?.tokenPrice) ?? "Discover opportunities"}
             </p>
             <p className="mt-3 text-xs leading-5 text-slate-400">
-              See token prices alongside company marks, news, and market context.
+              {privateAsset
+                ? `Issuer mark ${money(privateAsset.markPrice)} · token ${Number(privateAsset.premiumDiscountPct) > 0 ? "above" : "below"} mark by ${Math.abs(Number(privateAsset.premiumDiscountPct)).toFixed(1)}%. Review liquidity and rights before trading.`
+                : "Compare token prices with issuer marks and company news."}
             </p>
             <ArrowUpRight
               size={16}
@@ -235,10 +257,10 @@ export default async function LandingPage() {
             className="group rounded-xl border border-white/10 bg-[#111c25] p-6 hover:border-cyan-300/40 md:col-span-2 xl:col-span-1"
           >
             <p className="text-xs text-cyan-300">Market intelligence</p>
-            <h3 className="mt-3 text-xl font-semibold text-white">The story behind the move</h3>
+            <h3 className="mt-3 text-xl font-semibold text-white">Ask why the price moved</h3>
             <p className="mt-5 max-w-sm text-sm leading-7 text-slate-300">
-              See price gaps, liquidity, news, and broader market conditions together. Let Sisera
-              help you ask the better question.
+              Put the price move beside company coverage, the broader market, and your portfolio.
+              Start with the evidence, then decide whether the trade still makes sense.
             </p>
             <ArrowUpRight
               size={16}
@@ -257,7 +279,7 @@ export default async function LandingPage() {
                   Tokenized equities
                 </p>
                 <h2 className="mt-3 text-2xl font-medium text-white md:text-3xl">
-                  Where the onchain stock market is active.
+                  Where stock tokens are trading.
                 </h2>
               </div>
               <Link href="/stocks" className="text-xs text-cyan-300">
@@ -282,73 +304,36 @@ export default async function LandingPage() {
         </section>
       )}
 
-      <section className="mx-auto grid max-w-[1440px] gap-12 px-5 py-20 md:px-10 md:py-28 lg:grid-cols-[.8fr_1.2fr]">
-        <div>
-          <p className="text-[11px] uppercase tracking-[.18em] text-cyan-300">
-            Built for decisions
-          </p>
-          <h2 className="mt-4 text-3xl font-medium leading-tight tracking-tight text-white md:text-5xl">
-            One place to go from curiosity to conviction.
-          </h2>
-          <p className="mt-5 max-w-md text-sm leading-7 text-slate-400">
-            Keep the market, the company, your portfolio, and the trade in view. Sisera gives each
-            decision a clearer path from discovery to action.
-          </p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {[
-            {
-              icon: ChartNoAxesCombined,
-              title: "See the whole market",
-              body: "Screen tokenized stocks and private markets beside crypto and macro conditions.",
-            },
-            {
-              icon: Sparkles,
-              title: "Understand the move",
-              body: "Bring prices, news, market depth, and AI research into the same conversation.",
-            },
-            {
-              icon: Layers3,
-              title: "Know your exposure",
-              body: "See holdings and concentrations across connected wallets before adding a position.",
-            },
-            {
-              icon: ShieldCheck,
-              title: "Stay in control",
-              body: "Practice, review trade details, and keep clear limits around execution and agents.",
-            },
-          ].map(({ icon: Icon, title, body }) => (
-            <div key={title} className="rounded-xl border border-white/10 bg-[#111c25] p-6">
-              <Icon size={20} className="text-cyan-300" />
-              <h3 className="mt-5 text-base font-semibold text-white">{title}</h3>
-              <p className="mt-3 text-xs leading-6 text-slate-400">{body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y border-white/10 bg-[#101c25] px-5 py-14 md:px-10">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-6">
+      <section className="border-y border-white/10 bg-[#101c25] px-5 py-16 md:px-10">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-end justify-between gap-8">
           <div>
-            <Bot size={22} className="text-cyan-300" />
-            <h2 className="mt-3 text-2xl font-medium text-white">
-              Build a strategy worth trusting.
+            <p className="text-xs uppercase tracking-[.18em] text-cyan-300">Inside the terminal</p>
+            <h2 className="mt-3 max-w-2xl text-3xl font-medium tracking-tight text-white md:text-4xl">
+              Follow the evidence through to the order.
             </h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400">
-              Define your markets, capital, and risk limits. Explore ideas with AI, inspect the
-              evidence, and test before moving further.
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
+              Open a company to see its token chart, mark or share comparison, recent coverage, and
+              trade details. Connect your account to see what the decision means for your portfolio.
             </p>
           </div>
-          <Link
-            href="/agents"
-            className="inline-flex items-center gap-2 rounded-md border border-cyan-300/40 px-5 py-3 text-sm font-medium text-cyan-200 hover:bg-cyan-300/10"
-          >
-            Explore agents <ArrowRight size={15} />
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/intelligence"
+              className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-4 py-3 text-sm font-semibold text-[#07151e] hover:bg-cyan-200"
+            >
+              Open research <ArrowRight size={15} />
+            </Link>
+            <Link
+              href="/portfolio"
+              className="inline-flex items-center gap-2 rounded-md border border-white/20 px-4 py-3 text-sm text-white hover:border-white/40"
+            >
+              View portfolio <ArrowUpRight size={15} />
+            </Link>
+          </div>
         </div>
       </section>
       <footer className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-5 px-5 py-10 text-xs text-slate-500 md:px-10">
-        <span>Sisera · See further. Trade with intent.</span>
+        <span>Sisera · Markets, research, trading.</span>
         <div className="flex flex-wrap gap-5">
           <Link href="/stocks" className="hover:text-white">
             Stocks

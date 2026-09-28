@@ -132,8 +132,7 @@ export function MarketOrderTicket({
         </div>
         {!liveAvailable && (
           <p className="text-[11px] text-amber-300">
-            Live trading is paused for this venue while risk checks and reconciliation are
-            completed.
+            Live orders are unavailable here. You can still practice a trade.
           </p>
         )}
         <div className="grid grid-cols-2 gap-1 rounded border border-line p-1">
@@ -273,8 +272,8 @@ export function MarketOrderTicket({
         {message && <output className="block text-xs leading-5 text-slate-300">{message}</output>}
         <p className="text-[11px] leading-5 text-slate-500">
           {venue === "binance"
-            ? "Paper fills use a fresh venue bid or ask and a persistent simulated balance. Binance live orders, when enabled, use its signed Spot API."
-            : "Paper fills use a fresh venue bid or ask and a persistent simulated balance. Hyperliquid live orders remain paused until server risk and reconciliation are ready."}
+            ? "Practice trades use the latest available price. Live orders require your Binance trading key and a fresh quote."
+            : "Practice trades use the latest available price. Live perpetual orders are currently unavailable."}
         </p>
       </div>
     </div>

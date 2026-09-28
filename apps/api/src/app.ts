@@ -173,6 +173,22 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   const clawpump = config.CLAWPUMP_API_KEY ? new ClawpumpClient(config.CLAWPUMP_API_KEY) : null;
   const jupiter = config.JUPITER_API_KEY ? new JupiterQuoteClient(config.JUPITER_API_KEY) : null;
   const solanaTrading = new SolanaTradingService(config, xstocks, prestocks, helius, jupiter);
+  const solanaLiveReady = Boolean(
+    config.SISERA_LIVE_SOLANA_ENABLED &&
+      config.DATABASE_URL &&
+      config.PRIVY_APP_ID &&
+      config.PRIVY_APP_SECRET &&
+      config.JUPITER_API_KEY &&
+      config.HELIUS_API_KEY,
+  );
+  const predictionsLiveReady = Boolean(
+    config.SISERA_LIVE_PREDICTIONS_ENABLED &&
+      config.DATABASE_URL &&
+      config.PRIVY_APP_ID &&
+      config.PRIVY_APP_SECRET &&
+      config.JUPITER_API_KEY &&
+      config.HELIUS_API_KEY,
+  );
   const binanceTrading = new BinanceTradingClient();
   const bridge = new RelayBridgeClient(config.RELAY_API_KEY);
   const social = new SocialFeedClient({
@@ -276,8 +292,8 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   });
   app.get("/v1/capabilities", async () => ({
     live: {
-      solana: config.SISERA_LIVE_SOLANA_ENABLED,
-      predictions: config.SISERA_LIVE_PREDICTIONS_ENABLED,
+      solana: solanaLiveReady,
+      predictions: predictionsLiveReady,
       binance: config.SISERA_LIVE_BINANCE_ENABLED,
       hyperliquid: false,
     },
@@ -578,6 +594,63 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         return { data: await coinMarketCap.cryptoProfile(id) };
       } catch {
         return reply.code(503).send({ error: "market_data_unavailable" });
+      }
+    },
+  );
+  app.get(
+    "/v1/solana/tokens/:mint/history",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { mint } = z
+        .object({ mint: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) })
+        .parse(request.params);
+      const { interval } = z
+        .object({ interval: z.enum(["1h", "1d"]).default("1h") })
+        .parse(request.query);
+      if (!coinMarketCap) return reply.code(503).send({ error: "market_data_unavailable" });
+      const [publicStocks, privateStocks] = await Promise.allSettled([
+        xstocks.list(),
+        prestocks.list(),
+      ]);
+      const tracked =
+        (publicStocks.status === "fulfilled" &&
+          publicStocks.value.some((item) => item.mint === mint)) ||
+        (privateStocks.status === "fulfilled" &&
+          privateStocks.value.some((item) => item.instrument.mint === mint));
+      if (!tracked) return reply.code(404).send({ error: "token_not_found" });
+      try {
+        return { data: await coinMarketCap.solanaTokenCandles(mint, interval) };
+      } catch {
+        return reply.code(503).send({ error: "token_history_unavailable" });
+      }
+    },
+  );
+  app.get(
+    "/v1/rwa/:symbol/history",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { symbol } = z
+        .object({ symbol: z.string().regex(/^[A-Za-z0-9$@.-]{1,15}$/) })
+        .parse(request.params);
+      const { token, period } = z
+        .object({
+          token: z.string().regex(/^[A-Za-z0-9$@.-]{1,20}$/),
+          period: z.enum(["hourly", "daily"]).default("daily"),
+        })
+        .parse(request.query);
+      if (!coinMarketCap) return reply.code(503).send({ error: "market_data_unavailable" });
+      try {
+        const detail = await coinMarketCap.rwaDetail(symbol);
+        const asset = detail.market?.tokens.find(
+          (item) => item.symbol.toUpperCase() === token.toUpperCase(),
+        );
+        if (!asset?.cryptoId) return reply.code(404).send({ error: "token_history_unavailable" });
+        return {
+          data: await coinMarketCap.tokenHistory(asset.cryptoId, period),
+          token: asset.symbol,
+        };
+      } catch {
+        return reply.code(503).send({ error: "token_history_unavailable" });
       }
     },
   );

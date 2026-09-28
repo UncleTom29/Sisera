@@ -59,7 +59,7 @@ export function PredictionBrowser({ markets }: { markets: PredictionMarket[] }) 
             ))}
           </select>
           <p className="font-mono text-[10px] text-slate-500">
-            {visible.length} of {markets.length} snapshots
+            {visible.length} of {markets.length} markets
           </p>
         </div>
         <div className="max-h-[650px] overflow-y-auto">
@@ -86,13 +86,9 @@ export function PredictionBrowser({ markets }: { markets: PredictionMarket[] }) 
           <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] uppercase tracking-wider text-slate-500">
             <span className="flex items-center gap-2">
               <Radio size={12} className="text-emerald-300" />
-              {selected.provider} snapshot
+              Market pricing
             </span>
-            <span>
-              {selected.underlyingProvider
-                ? `${selected.underlyingProvider} liquidity`
-                : "Liquidity source unavailable"}
-            </span>
+            <span>Updated {observedAt(selected.quality.receivedAt)} UTC</span>
           </div>
           <h2 className="mt-4 text-xl font-semibold leading-7 text-white">{selected.title}</h2>
           <p className="mt-2 text-xs text-slate-400">
@@ -111,6 +107,7 @@ export function PredictionBrowser({ markets }: { markets: PredictionMarket[] }) 
               </div>
             ))}
           </div>
+          <PredictionAnalysis key={selected.id} market={selected} />
           <p className="mt-4 text-xs leading-5 text-slate-400">
             These observed prices are not independent outcome probabilities or firm execution
             quotes. Review spread, depth, and resolution terms before a paper order.
@@ -125,9 +122,6 @@ export function PredictionBrowser({ markets }: { markets: PredictionMarket[] }) 
           ) : (
             <p className="mt-4 text-xs text-amber-300">Resolution rules unavailable.</p>
           )}
-          <p className="mt-4 font-mono text-[10px] text-slate-500">
-            Fetched {observedAt(selected.quality.receivedAt)} UTC
-          </p>
           {selected.resolutionRules &&
             selected.closesAt &&
             Date.parse(selected.closesAt) > Date.now() && (
@@ -137,6 +131,151 @@ export function PredictionBrowser({ markets }: { markets: PredictionMarket[] }) 
             )}
         </article>
       )}
+    </section>
+  );
+}
+
+function PredictionAnalysis({ market }: { market: PredictionMarket }) {
+  const [view, setView] = useState("");
+  const [viewOutcome, setViewOutcome] = useState(market.outcomes[0]?.id ?? "");
+  const outcomes = market.outcomes
+    .map((item) => ({
+      ...item,
+      buy: Number(item.probability),
+      sell: item.sellPrice == null ? null : Number(item.sellPrice),
+    }))
+    .filter((item) => Number.isFinite(item.buy) && item.buy > 0 && item.buy < 1);
+  const favored = [...outcomes].sort((a, b) => b.buy - a.buy)[0];
+  const total = outcomes.reduce((sum, item) => sum + item.buy, 0);
+  const closes = market.closesAt ? Date.parse(market.closesAt) : null;
+  const daysLeft = closes ? Math.max(0, (closes - Date.now()) / 86_400_000) : null;
+  const rules = Boolean(market.resolutionRules?.trim());
+  const stale = Date.now() - Date.parse(market.quality.receivedAt) > 15 * 60_000;
+  const spreads = outcomes
+    .filter((item) => item.sell != null && item.sell >= 0 && item.sell <= item.buy)
+    .map((item) => ({ label: item.label, value: item.buy - (item.sell ?? 0) }));
+  const widest = [...spreads].sort((a, b) => b.value - a.value)[0];
+  const chosen = outcomes.find((item) => item.id === viewOutcome) ?? outcomes[0];
+  const estimated = view.trim() === "" ? null : Number(view);
+  const hasEstimate =
+    estimated != null && Number.isFinite(estimated) && estimated >= 0 && estimated <= 100;
+  const grossReturn = hasEstimate && chosen ? (estimated / 100 / chosen.buy - 1) * 100 : null;
+  const position =
+    !rules || stale || market.status !== "open" || daysLeft === 0
+      ? "Wait for clearer terms or a fresh market price before considering a trade."
+      : widest && widest.value > 0.1
+        ? "The buy and sell prices are far apart. A smaller size or waiting for a tighter market may matter more than the forecast."
+        : "Compare the market price with your own evidence-based probability. A trade only has an edge if your view covers fees and execution costs.";
+  return (
+    <section className="mt-5 rounded-lg border border-cyan-300/20 bg-cyan-300/[.035] p-4">
+      <p className="text-xs font-semibold text-cyan-200">Before you take a side</p>
+      <p className="mt-2 text-sm leading-6 text-slate-200">{position}</p>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <div className="rounded border border-line bg-ink p-3">
+          <p className="text-[11px] text-slate-500">Current market favorite</p>
+          <p className="mt-1 text-sm font-medium text-white">
+            {favored
+              ? `${favored.label} · ${(favored.buy * 100).toFixed(1)}¢ per $1 payout`
+              : "No clear favorite"}
+          </p>
+          <p className="mt-2 text-[11px] leading-5 text-slate-400">
+            The quoted price reflects what buyers pay. It is not Sisera&apos;s independent forecast.
+          </p>
+        </div>
+        <div className="rounded border border-line bg-ink p-3">
+          <p className="text-[11px] text-slate-500">Time to resolution</p>
+          <p className="mt-1 text-sm font-medium text-white">
+            {daysLeft == null
+              ? "Date not published"
+              : daysLeft < 1
+                ? "Less than a day"
+                : `${daysLeft.toFixed(1)} days`}
+          </p>
+          <p className="mt-2 text-[11px] leading-5 text-slate-400">
+            Check the exact event and timing in the resolution terms.
+          </p>
+        </div>
+        <div className="rounded border border-line bg-ink p-3">
+          <p className="text-[11px] text-slate-500">Combined outcome prices</p>
+          <p className="mt-1 font-mono text-sm text-white">
+            {outcomes.length ? `${(total * 100).toFixed(1)}¢` : "No prices"}
+          </p>
+          <p className="mt-2 text-[11px] leading-5 text-slate-400">
+            Above $1 can indicate trading costs, spread, or incomplete outcome coverage.
+          </p>
+        </div>
+        <div className="rounded border border-line bg-ink p-3">
+          <p className="text-[11px] text-slate-500">Trading friction</p>
+          <p className="mt-1 font-mono text-sm text-white">
+            {widest
+              ? `${widest.label}: ${(widest.value * 100).toFixed(1)}¢ buy/sell gap`
+              : "Sell prices unavailable"}
+          </p>
+          <p className="mt-2 text-[11px] leading-5 text-slate-400">
+            A wide gap raises the cost of changing your mind.
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 border-t border-line pt-3 text-xs leading-5 text-slate-400">
+        <p className="font-medium text-slate-200">Research checklist</p>
+        <p className="mt-1">
+          {rules
+            ? "Read the exact resolution rules."
+            : "Find the official resolution rules before trading."}{" "}
+          Check a primary source for the event, estimate your own probability, then compare it with
+          the price and spread.
+        </p>
+      </div>
+      <div className="mt-4 border-t border-line pt-4">
+        <p className="text-xs font-semibold text-white">Test your own view</p>
+        <p className="mt-1 text-xs text-slate-400">
+          Enter the probability you reached from independent evidence. Sisera compares it with the
+          market price.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <select
+            aria-label="Outcome to analyze"
+            value={viewOutcome}
+            onChange={(event) => setViewOutcome(event.target.value)}
+            className="h-9 rounded border border-line bg-ink px-2 text-xs text-white"
+          >
+            {outcomes.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <input
+            aria-label="Your estimated probability"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            value={view}
+            onChange={(event) => setView(event.target.value)}
+            placeholder="Your probability %"
+            className="h-9 w-44 rounded border border-line bg-ink px-3 text-xs text-white outline-none focus:border-cyan-300"
+          />
+        </div>
+        {chosen && (
+          <p className="mt-3 text-xs text-slate-300">
+            At a buy price of {(chosen.buy * 100).toFixed(1)}¢, your estimate must exceed{" "}
+            {(chosen.buy * 100).toFixed(1)}% just to break even before fees.
+          </p>
+        )}
+        {grossReturn != null && (
+          <p className={`mt-2 text-xs ${grossReturn > 0 ? "text-emerald-300" : "text-amber-300"}`}>
+            {grossReturn > 0
+              ? "Your estimate suggests a possible edge"
+              : "Your estimate does not clear the market price"}{" "}
+            · {grossReturn > 0 ? "+" : ""}
+            {grossReturn.toFixed(1)}% expected gross return on stake, before fees and slippage.
+          </p>
+        )}
+        {estimated != null && !hasEstimate && (
+          <p className="mt-2 text-xs text-amber-300">Enter a probability from 0 to 100%.</p>
+        )}
+      </div>
     </section>
   );
 }

@@ -3,6 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useSolanaStandardWallets } from "@privy-io/react-auth/solana";
 import { useRef, useState } from "react";
+import { getPrivySolanaAddress } from "../lib/privy-identity";
 import { useLiveCapability } from "./use-live-capability";
 
 type Prepared = {
@@ -16,10 +17,14 @@ type Prepared = {
 
 export function PredictionTradeTicket({ marketId }: { marketId: string }) {
   const liveAvailable = useLiveCapability("predictions");
-  const { authenticated } = usePrivy();
+  const { authenticated, user } = usePrivy();
   const { wallets } = useSolanaStandardWallets();
-  const wallet = wallets.find((item) => item.accounts.length > 0);
-  const account = wallet?.accounts[0];
+  const linkedAddress = getPrivySolanaAddress(user);
+  const wallet =
+    wallets.find((item) => item.accounts.some((account) => account.address === linkedAddress)) ??
+    wallets.find((item) => item.accounts.length > 0);
+  const account =
+    wallet?.accounts.find((item) => item.address === linkedAddress) ?? wallet?.accounts[0];
   const [outcome, setOutcome] = useState<"yes" | "no">("yes");
   const [mode, setMode] = useState<"paper" | "live">("paper");
   const [amount, setAmount] = useState("");
@@ -144,7 +149,7 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
       </div>
       {!liveAvailable && mode === "live" && (
         <p className="mt-2 text-amber-300">
-          Live trading is paused while account risk and order reconciliation are completed.
+          Live orders are currently unavailable. You can still practice a trade.
         </p>
       )}
       <div className="mt-2 grid grid-cols-2 gap-1">
@@ -200,7 +205,11 @@ export function PredictionTradeTicket({ marketId }: { marketId: string }) {
               : "Review live order"}
       </button>
       {mode === "live" && !account && (
-        <p className="mt-2 text-slate-500">Connect a Solana wallet to trade live.</p>
+        <p className="mt-2 text-slate-500">
+          {linkedAddress
+            ? "Your linked wallet needs to be ready to approve this order."
+            : "Add a Solana wallet to trade live."}
+        </p>
       )}
       {message && <output className="mt-2 block text-slate-300">{message}</output>}
     </div>

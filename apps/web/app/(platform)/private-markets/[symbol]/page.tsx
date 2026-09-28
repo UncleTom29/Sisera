@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "../../../../auth";
 import { StockAssessment } from "../../../../components/stock-assessment";
+import { PrivatePriceComparison, StockPriceChart } from "../../../../components/stock-price-chart";
 import { StockTradeTicket } from "../../../../components/stock-trade-ticket";
-import { getPrivateMarkets, getStockNews } from "../../../../lib/api";
+import { getPrivateMarkets, getSolanaTokenHistory, getStockNews } from "../../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,9 @@ export default async function PreStockDetail({ params }: { params: Promise<{ sym
   );
   if (!asset) notFound();
   const news = await getStockNews(asset.instrument.baseAsset, identity).catch(() => null);
+  const history = asset.instrument.mint
+    ? await getSolanaTokenHistory(asset.instrument.mint, "1h", identity).catch(() => [])
+    : [];
   const premium = Number(asset.premiumDiscountPct);
   return (
     <div className="min-h-full p-4 md:p-8">
@@ -31,7 +35,7 @@ export default async function PreStockDetail({ params }: { params: Promise<{ sym
         <ArrowLeft size={14} /> Private markets
       </Link>
       <div className="mt-8 border-b border-line pb-6">
-        <p className="eyebrow">PreStocks / Solana / {asset.instrument.baseAsset}</p>
+        <p className="eyebrow">Private markets / {asset.instrument.baseAsset}</p>
         <h1 className="mt-2 text-3xl font-semibold text-white">{asset.company}</h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">{asset.description}</p>
       </div>
@@ -63,9 +67,9 @@ export default async function PreStockDetail({ params }: { params: Promise<{ sym
               </dd>
             </div>
             <div>
-              <dt className="text-slate-500">Source</dt>
+              <dt className="text-slate-500">Last updated</dt>
               <dd className="mt-1 font-mono text-slate-200">
-                PreStocks · fetched {new Date(asset.fetchedAt).toLocaleString()}
+                {new Date(asset.fetchedAt).toLocaleString()}
               </dd>
             </div>
           </dl>
@@ -88,6 +92,23 @@ export default async function PreStockDetail({ params }: { params: Promise<{ sym
           />
         </div>
       </div>
+      <div className="mt-5">
+        {history.length > 1 && (
+          <div className="mb-4">
+            <StockPriceChart
+              token={asset.instrument.baseAsset}
+              history={history}
+              current={Number(asset.tokenPrice)}
+              currentAt={asset.fetchedAt}
+            />
+          </div>
+        )}
+        <PrivatePriceComparison
+          company={asset.company}
+          token={Number(asset.tokenPrice)}
+          mark={Number(asset.markPrice)}
+        />
+      </div>
       <StockAssessment symbol={asset.instrument.baseAsset} />
       <section className="mt-4 rounded-lg border border-line bg-panel">
         <div className="border-b border-line px-6 py-4">
@@ -109,7 +130,7 @@ export default async function PreStockDetail({ params }: { params: Promise<{ sym
                   <ArrowUpRight size={13} className="shrink-0 text-cyan-300" />
                 </div>
                 <p className="mt-2 font-mono text-[10px] text-slate-500">
-                  {item.publisher} · {new Date(item.publishedAt).toLocaleString()} · {item.provider}
+                  {item.publisher} · {new Date(item.publishedAt).toLocaleString()}
                 </p>
               </a>
             ))}

@@ -98,7 +98,7 @@ export default async function PortfolioPage({
       <PageHeader
         eyebrow="Your assets"
         title="Portfolio"
-        description="See wallet balances, open positions and practice trades in one place. Connect a wallet to make this view yours."
+        description="See wallet balances, open positions and practice trades in one place."
         actions={
           <div className="flex items-center gap-2">
             <PortfolioConnect />
@@ -111,7 +111,7 @@ export default async function PortfolioPage({
             <p className="data-label">{label}</p>
             <p className="data-value mt-4 text-2xl text-slate-100">{value}</p>
             <p className="mt-2 font-mono text-[8px] uppercase tracking-wider text-slate-700">
-              {value === "—" ? "Connect a wallet to view" : "Latest available balance"}
+              {value === "—" ? "No balance to show" : "Latest available balance"}
             </p>
           </div>
         ))}
@@ -120,7 +120,7 @@ export default async function PortfolioPage({
         <p className="eyebrow">Solana</p>
         <h2 className="mt-2 text-base font-semibold text-slate-100">Solana wallet</h2>
         <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">
-          Connect a Solana wallet to see its assets and an estimated value for supported tokens.
+          See your Solana assets and estimated value for supported tokens.
         </p>
         {solanaAddress && !validSolanaAddress && (
           <p className="mt-2 text-xs text-rose-300">Enter a valid base58 Solana address.</p>

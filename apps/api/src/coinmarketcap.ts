@@ -20,6 +20,7 @@ const rwaAsset = z.object({
       z.object({
         name: z.string(),
         symbol: z.string(),
+        crypto_id: z.number().int().positive().nullable().optional(),
         price: nullableNumber,
         market_cap: nullableNumber,
         volume_24h: nullableNumber,
@@ -83,6 +84,7 @@ export type RwaMarket = {
   tokens: Array<{
     name: string;
     symbol: string;
+    cryptoId: number | null;
     priceUsd: number | null;
     marketCapUsd: number | null;
     volume24hUsd: number | null;
@@ -140,6 +142,7 @@ function normalizeRwa(asset: z.infer<typeof rwaAsset>): RwaMarket {
     tokens: (asset.tokens ?? []).map((token) => ({
       name: token.name,
       symbol: token.symbol,
+      cryptoId: token.crypto_id ?? null,
       priceUsd: token.price ?? null,
       marketCapUsd: token.market_cap ?? null,
       volume24hUsd: token.volume_24h ?? null,
@@ -154,6 +157,10 @@ function normalizeRwa(asset: z.infer<typeof rwaAsset>): RwaMarket {
 export class CoinMarketCapClient {
   private cache = new Map<string, { until: number; data: unknown }>();
   private pending = new Map<string, Promise<unknown>>();
+  private dexCache = new Map<
+    string,
+    { until: number; data: ReturnType<CoinMarketCapClient["normalizeDexCandles"]> }
+  >();
 
   constructor(
     private readonly key: string,
@@ -256,18 +263,123 @@ export class CoinMarketCapClient {
         active_cryptocurrencies: z.number().optional(),
         last_updated: z.string(),
         quote: z.object({
-          USD: z.object({ total_market_cap: nullableNumber, total_volume_24h: nullableNumber }),
+          USD: z.object({
+            total_market_cap: nullableNumber,
+            total_volume_24h: nullableNumber,
+            altcoin_market_cap: nullableNumber,
+            altcoin_volume_24h: nullableNumber,
+          }),
         }),
       })
       .parse(await this.request("/v1/global-metrics/quotes/latest?convert=USD", 5 * 60_000));
     return {
       marketCapUsd: data.quote.USD.total_market_cap ?? null,
       volume24hUsd: data.quote.USD.total_volume_24h ?? null,
+      altcoinMarketCapUsd: data.quote.USD.altcoin_market_cap ?? null,
+      altcoinVolume24hUsd: data.quote.USD.altcoin_volume_24h ?? null,
       btcDominancePct: data.btc_dominance ?? null,
       ethDominancePct: data.eth_dominance ?? null,
       activeAssets: data.active_cryptocurrencies ?? null,
       updatedAt: data.last_updated,
     };
+  }
+
+  async tokenHistory(id: number, period: "hourly" | "daily" = "daily") {
+    if (!Number.isSafeInteger(id) || id < 1) throw new Error("Invalid token id");
+    const count = period === "hourly" ? 49 : 91;
+    const data = z
+      .object({
+        id: z.number(),
+        quotes: z.array(
+          z.object({
+            time_open: z.string(),
+            quote: z.object({
+              USD: z.object({
+                open: z.number().finite(),
+                high: z.number().finite(),
+                low: z.number().finite(),
+                close: z.number().finite(),
+                volume: nullableNumber,
+              }),
+            }),
+          }),
+        ),
+      })
+      .parse(
+        await this.request(
+          `/v2/cryptocurrency/ohlcv/historical?id=${id}&time_period=${period}&count=${count}&convert=USD`,
+          period === "hourly" ? 5 * 60_000 : 30 * 60_000,
+        ),
+      );
+    return data.quotes.map((row) => ({
+      time: row.time_open,
+      open: row.quote.USD.open,
+      high: row.quote.USD.high,
+      low: row.quote.USD.low,
+      close: row.quote.USD.close,
+      volumeUsd: row.quote.USD.volume ?? null,
+    }));
+  }
+
+  private normalizeDexCandles(input: unknown) {
+    const payload =
+      input && typeof input === "object" && "data" in input
+        ? (input as { data: unknown }).data
+        : input;
+    const rows = z.array(z.array(z.coerce.number()).min(6)).parse(payload);
+    return rows
+      .flatMap((row) => {
+        const [open, high, low, close, volume, timestamp] = row;
+        if (
+          open == null ||
+          high == null ||
+          low == null ||
+          close == null ||
+          timestamp == null ||
+          ![open, high, low, close, timestamp].every(Number.isFinite) ||
+          Math.min(open, high, low, close) <= 0 ||
+          timestamp <= 0
+        )
+          return [];
+        return [
+          {
+            time: new Date(timestamp > 1e12 ? timestamp : timestamp * 1000).toISOString(),
+            open,
+            high,
+            low,
+            close,
+            volumeUsd: volume != null && Number.isFinite(volume) ? volume : null,
+          },
+        ];
+      })
+      .sort((a, b) => a.time.localeCompare(b.time));
+  }
+
+  async solanaTokenCandles(mint: string, interval: "1h" | "1d" = "1h") {
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint))
+      throw new Error("Invalid Solana token address");
+    const key = `${mint}:${interval}`;
+    const cached = this.dexCache.get(key);
+    if (cached && cached.until > Date.now()) return cached.data;
+    const query = new URLSearchParams({
+      platform: "solana",
+      address: mint,
+      interval,
+      unit: "usd",
+      limit: "96",
+      pm: "p",
+    });
+    const response = await this.fetcher(
+      `https://pro-api.coinmarketcap.com/public-api/v1/k-line/candles?${query}`,
+      {
+        headers: { accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    if (!response.ok) throw new Error(`Token chart returned ${response.status}`);
+    const data = this.normalizeDexCandles(await response.json());
+    this.dexCache.set(key, { until: Date.now() + 5 * 60_000, data });
+    return data;
   }
 
   async sentiment() {

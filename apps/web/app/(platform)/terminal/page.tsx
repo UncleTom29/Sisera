@@ -88,8 +88,8 @@ export default async function TerminalPage({
           <Link href="/markets?venue=binance" className="rounded px-3 py-2 text-slate-400">
             Crypto spot →
           </Link>
-          <span className="ml-auto font-mono text-[10px] uppercase text-slate-500">
-            Venues are separate · no synthetic cross-venue quotes
+          <span className="ml-auto text-[10px] text-slate-500">
+            Prices shown for the selected market
           </span>
         </div>
 

@@ -1,6 +1,7 @@
 import { Activity, ArrowUpRight, Bot, Newspaper, ScanSearch } from "lucide-react";
 import Link from "next/link";
 import { auth } from "../../../auth";
+import { NewsBrowser } from "../../../components/news-browser";
 import { PageHeader } from "../../../components/page-header";
 import {
   getMarketOverview,
@@ -48,7 +49,7 @@ export default async function IntelligencePage() {
     : [];
   const referenceBySymbol = new Map(
     references
-      .filter((reference) => reference.referenceFreshness === "live")
+      .filter((reference) => reference.referenceFreshness !== "stale")
       .map((reference) => [reference.symbol.toUpperCase(), reference]),
   );
   const publicDivergences = stocks
@@ -74,10 +75,26 @@ export default async function IntelligencePage() {
     .slice(0, 5);
   const focus =
     privateMarkets.find((asset) => asset.instrument.baseAsset === "OPENAI") ?? privateMarkets[0];
-  const headlineSymbol = focus?.instrument.baseAsset ?? movers[0]?.symbol;
-  const news = headlineSymbol
-    ? await getStockNews(headlineSymbol, identity).catch(() => null)
-    : null;
+  const headlineSymbols = [
+    ...new Set([
+      ...movers.slice(0, 3).map((stock) => stock.symbol),
+      ...divergences.slice(0, 3).map((asset) => asset.instrument.baseAsset),
+    ]),
+  ];
+  const coverage = await Promise.allSettled(
+    headlineSymbols.map((symbol) => getStockNews(symbol, identity)),
+  );
+  const headlines = coverage
+    .flatMap((result, index) =>
+      result.status === "fulfilled"
+        ? result.value.data.map((item) => ({
+            ...item,
+            company: headlineSymbols[index] ?? "Market",
+          }))
+        : [],
+    )
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    .slice(0, 60);
 
   return (
     <div>
@@ -279,29 +296,12 @@ export default async function IntelligencePage() {
               In the news
             </h2>
             <p className="mt-2 text-xs text-slate-400">
-              Recent headlines for {focus?.company ?? movers[0]?.name ?? "companies in focus"}. Read
-              the full story before drawing a conclusion.
+              Filter recent coverage by company and time. Read the full story before drawing a
+              conclusion.
             </p>
           </div>
-          {news?.data.length ? (
-            <div className="divide-y divide-line">
-              {news.data.slice(0, 4).map((item) => (
-                <a
-                  key={item.url}
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block px-5 py-4 hover:bg-white/[.025]"
-                >
-                  <p className="text-sm font-medium text-white">
-                    {item.title} <ArrowUpRight size={12} className="inline text-cyan-300" />
-                  </p>
-                  <p className="mt-2 font-mono text-[10px] text-slate-500">
-                    {item.publisher} · {utcTime(item.publishedAt)}
-                  </p>
-                </a>
-              ))}
-            </div>
+          {headlines.length ? (
+            <NewsBrowser articles={headlines} />
           ) : (
             <div className="p-6">
               <p className="text-sm text-slate-300">

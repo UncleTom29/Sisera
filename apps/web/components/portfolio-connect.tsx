@@ -1,6 +1,7 @@
 "use client";
 
 import { usePrivy } from "@privy-io/react-auth";
+import { useSolanaStandardWallets } from "@privy-io/react-auth/solana";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Check, Copy, ExternalLink, KeyRound, LogOut, Wallet, WalletCards, X } from "lucide-react";
 import Link from "next/link";
@@ -35,9 +36,12 @@ const SAMPLE_WALLET = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU";
 export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const { ready, authenticated, user } = usePrivy();
+  const { wallets: standardWallets } = useSolanaStandardWallets();
   const [manualAddress, setManualAddress] = useState<string | null>(null);
   const privyAddress = authenticated ? getPrivySolanaAddress(user) : null;
-  const address = privyAddress || manualAddress;
+  const standardAddress = standardWallets.find((wallet) => wallet.accounts.length > 0)?.accounts[0]
+    ?.address;
+  const address = privyAddress || standardAddress || manualAddress;
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -49,7 +53,7 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
   // Stored manual addresses belong only to guest or direct-wallet sessions.
   useEffect(() => {
     if (!ready) return;
-    if (authenticated) {
+    if (authenticated && privyAddress) {
       setManualAddress(null);
       localStorage.removeItem(STORAGE_KEY);
       return;
@@ -73,7 +77,7 @@ export function PortfolioConnect({ compact = false }: { compact?: boolean }) {
     };
     window.addEventListener("sisera_wallet_changed", handleWalletChanged);
     return () => window.removeEventListener("sisera_wallet_changed", handleWalletChanged);
-  }, [ready, authenticated]);
+  }, [ready, authenticated, privyAddress]);
 
   // Close dropdown on click outside
   useEffect(() => {

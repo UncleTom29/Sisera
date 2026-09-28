@@ -95,6 +95,7 @@ export type RwaMarket = {
     marketCapUsd: number | null;
     volume24hUsd: number | null;
     issuer: string | null;
+    cryptoId: number | null;
   }>;
   markets: string[];
 };
@@ -112,6 +113,8 @@ export type MarketOverview = {
   global: {
     marketCapUsd: number | null;
     volume24hUsd: number | null;
+    altcoinMarketCapUsd: number | null;
+    altcoinVolume24hUsd: number | null;
     btcDominancePct: number | null;
     ethDominancePct: number | null;
     activeAssets: number | null;
@@ -391,6 +394,42 @@ export async function getRwaDetail(symbol: string, identity: ApiIdentity) {
     `/v1/rwa/${encodeURIComponent(symbol)}`,
     identity,
     10000,
+  );
+  return payload.data;
+}
+
+export type TokenHistoryPoint = {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volumeUsd: number | null;
+};
+
+export async function getRwaTokenHistory(
+  symbol: string,
+  token: string,
+  period: "hourly" | "daily",
+  identity: ApiIdentity,
+) {
+  const payload = await getJson<{ data: TokenHistoryPoint[] }>(
+    `/v1/rwa/${encodeURIComponent(symbol)}/history?token=${encodeURIComponent(token)}&period=${period}`,
+    identity,
+    12000,
+  );
+  return payload.data;
+}
+
+export async function getSolanaTokenHistory(
+  mint: string,
+  interval: "1h" | "1d",
+  identity: ApiIdentity,
+) {
+  const payload = await getJson<{ data: TokenHistoryPoint[] }>(
+    `/v1/solana/tokens/${encodeURIComponent(mint)}/history?interval=${interval}`,
+    identity,
+    12000,
   );
   return payload.data;
 }

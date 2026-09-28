@@ -16,12 +16,11 @@ import { valueSolanaWallet } from "../../../lib/wallet-observation";
 export const dynamic = "force-dynamic";
 
 const limits = [
-  "Order notional",
-  "Position concentration",
-  "Gross exposure",
-  "Net exposure",
-  "Daily loss",
-  "Portfolio leverage",
+  ["Stock trade size", "$500 per live order"],
+  ["Price impact", "2% maximum"],
+  ["Quote freshness", "15 seconds"],
+  ["Wallet", "Must belong to your account"],
+  ["Network fees", "At least 0.001 SOL"],
 ];
 const scenarios = [
   {
@@ -80,7 +79,7 @@ export default async function RiskPage({
   return (
     <div className="min-h-full">
       <Suspense fallback={null}>
-        <PortfolioPrivyWallet />
+        <PortfolioPrivyWallet mode="linked" />
       </Suspense>
       <PageHeader
         eyebrow="Protect your portfolio"
@@ -96,18 +95,28 @@ export default async function RiskPage({
         {[
           {
             label: "Risk state",
-            value: "Protected",
+            value: solana || observed ? "In view" : "Awaiting portfolio",
             tone: "text-amber-300",
             icon: CircleGauge,
           },
           {
             label: "Limit alerts",
-            value: "Connect account",
+            value: "Trade checks active",
             tone: "text-slate-400",
             icon: ShieldAlert,
           },
-          { label: "Orders stopped", value: "Connect account", tone: "text-slate-400", icon: Ban },
-          { label: "Quote freshness", value: "Live only", tone: "text-cyan-300", icon: Activity },
+          {
+            label: "Orders stopped",
+            value: "No account halt reported",
+            tone: "text-slate-400",
+            icon: Ban,
+          },
+          {
+            label: "Quote freshness",
+            value: "Checked at order",
+            tone: "text-cyan-300",
+            icon: Activity,
+          },
         ].map((item) => (
           <div key={item.label} className="bg-panel p-5">
             <div className="flex items-center justify-between">
@@ -121,8 +130,8 @@ export default async function RiskPage({
       <section className="m-4 rounded-lg border border-amber-400/20 bg-amber-400/[.05] p-5 text-xs leading-6 text-slate-300 md:m-6">
         <h2 className="text-sm font-semibold text-white">Your protection</h2>
         <p className="mt-2">
-          Connect your wallet to view exposure. Live orders need a verified account, current prices
-          and limits on trade size and losses.
+          Live stock orders require a wallet linked to your account, a current executable quote, and
+          checks on trade size and price impact. Exposure below reflects the wallets in view.
         </p>
       </section>
       <section className="mx-4 border border-line bg-panel p-5 md:mx-6">
@@ -253,10 +262,10 @@ export default async function RiskPage({
         <section className="border border-line bg-panel">
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <span className="text-xs font-semibold">Trading limits</span>
-            <span className="data-label">Connect your account</span>
+            <span className="data-label">Live stock orders</span>
           </div>
           <div className="divide-y divide-line">
-            {limits.map((limit) => (
+            {limits.map(([limit, value]) => (
               <div
                 key={limit}
                 className="grid grid-cols-[1fr_110px_90px] items-center gap-4 px-4 py-4"
@@ -265,12 +274,8 @@ export default async function RiskPage({
                   <p className="text-[11px] text-slate-300">{limit}</p>
                   <div className="mt-2 h-1 max-w-sm bg-slate-800" />
                 </div>
-                <span className="data-value text-right text-[10px] text-slate-600">
-                  Connect wallet
-                </span>
-                <span className="data-value text-right text-[10px] text-slate-700">
-                  Set a limit
-                </span>
+                <span className="data-value text-right text-[10px] text-slate-600">{value}</span>
+                <span className="data-value text-right text-[10px] text-slate-700">Checked</span>
               </div>
             ))}
           </div>
@@ -309,7 +314,9 @@ export default async function RiskPage({
                     >
                       {observed && covered.length
                         ? `${estimatedPnl < 0 ? "−" : "+"}$${Math.abs(estimatedPnl).toLocaleString("en-US", { maximumFractionDigits: 2 })}`
-                        : "Connect wallet"}
+                        : observed
+                          ? "No matching position"
+                          : "No perpetual account in view"}
                     </p>
                     <p className="mt-1 text-[9px] text-slate-600">
                       {covered.length}/{observed?.positions.length ?? 0} positions included

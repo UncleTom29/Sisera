@@ -2,6 +2,7 @@ import { ArrowUpRight, CircleAlert, RadioTower } from "lucide-react";
 import Link from "next/link";
 import { auth } from "../auth";
 import { getPrivateMarkets, getPublicStocks, getStockNews } from "../lib/api";
+import { NewsBrowser } from "./news-browser";
 import { PageHeader } from "./page-header";
 
 export async function StockIntelligence() {
@@ -18,16 +19,24 @@ export async function StockIntelligence() {
     (left, right) =>
       Math.abs(Number(right.premiumDiscountPct)) - Math.abs(Number(left.premiumDiscountPct)),
   );
+  const coveredSymbols = [
+    ...publicStocks.slice(0, 4).map((stock) => stock.symbol),
+    ...assets.slice(0, 3).map((asset) => asset.instrument.baseAsset),
+  ];
   const coverage = await Promise.allSettled(
-    [
-      ...publicStocks.slice(0, 4).map((stock) => stock.symbol),
-      ...assets.slice(0, 3).map((asset) => asset.instrument.baseAsset),
-    ].map((symbol) => getStockNews(symbol, identity)),
+    coveredSymbols.map((symbol) => getStockNews(symbol, identity)),
   );
   const articles = coverage
-    .flatMap((result) => (result.status === "fulfilled" ? result.value.data : []))
+    .flatMap((result, index) =>
+      result.status === "fulfilled"
+        ? result.value.data.map((article) => ({
+            ...article,
+            company: coveredSymbols[index] ?? "Market",
+          }))
+        : [],
+    )
     .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt))
-    .slice(0, 8);
+    .slice(0, 50);
 
   return (
     <div className="min-h-full bg-ink">
@@ -140,22 +149,7 @@ export async function StockIntelligence() {
             <h2 className="mt-1 text-base font-semibold text-white">Recent coverage</h2>
           </div>
           {articles.length ? (
-            <div className="divide-y divide-line">
-              {articles.map((article) => (
-                <a
-                  key={article.url}
-                  href={article.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block px-5 py-4 hover:bg-white/[.025]"
-                >
-                  <p className="text-xs font-medium leading-5 text-slate-100">{article.title}</p>
-                  <p className="mt-2 font-mono text-[10px] text-slate-500">
-                    {article.publisher} · {new Date(article.publishedAt).toLocaleString()}
-                  </p>
-                </a>
-              ))}
-            </div>
+            <NewsBrowser articles={articles} />
           ) : (
             <p className="p-5 text-sm text-slate-400">
               New company coverage will appear here. Explore the market and company pages in the

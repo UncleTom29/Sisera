@@ -87,10 +87,10 @@ export function MarketScreener({
         cell: ({ row }) => (
           <div>
             <p className="font-mono text-[11px] text-slate-200">
-              {row.original.instrument.venue} {row.original.instrument.type}
+              {row.original.instrument.venue === "hyperliquid" ? "Perpetual" : "Spot"}
             </p>
             <p className="mt-1 font-mono text-[10px] text-slate-500">
-              {row.original.snapshot.quality.status} ·{" "}
+              Updated{" "}
               {new Intl.DateTimeFormat("en-US", {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -142,7 +142,7 @@ export function MarketScreener({
             {venue === "hyperliquid" ? "Perpetual markets" : "Spot markets"}
           </h2>
           <p className="mt-1 text-xs text-slate-400">
-            Latest observed quotes and 24-hour activity from{" "}
+            Current prices and 24-hour activity on{" "}
             {venue === "hyperliquid" ? "Hyperliquid" : "Binance"}
           </p>
         </div>
@@ -208,7 +208,7 @@ export function MarketScreener({
       </div>
       <div className="flex h-12 items-center justify-between border-t border-line px-5 font-mono text-[10px] uppercase tracking-wider text-slate-500">
         <span>{table.getRowModel().rows.length} markets shown</span>
-        <span>Quote status and observed time shown per market</span>
+        <span>Prices update while this page is open</span>
       </div>
     </section>
   );

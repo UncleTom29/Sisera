@@ -28,7 +28,7 @@ export default async function PredictionsPage() {
         actions={
           <StatusBadge tone={markets.length ? "positive" : "negative"}>
             {markets.length
-              ? `${markets.length} snapshots`
+              ? `${markets.length} markets`
               : result.error
                 ? "Refreshing markets"
                 : "Explore outcomes"}

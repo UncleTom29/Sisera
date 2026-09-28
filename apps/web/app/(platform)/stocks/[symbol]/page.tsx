@@ -3,8 +3,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "../../../../auth";
 import { StockAssessment } from "../../../../components/stock-assessment";
+import { StockPriceChart } from "../../../../components/stock-price-chart";
 import { StockTradeTicket } from "../../../../components/stock-trade-ticket";
-import { getPublicStocks, getPythReference, getRwaDetail, getStockNews } from "../../../../lib/api";
+import {
+  getPublicStocks,
+  getPythReference,
+  getRwaDetail,
+  getRwaTokenHistory,
+  getSolanaTokenHistory,
+  getStockNews,
+} from "../../../../lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +32,21 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
     getRwaDetail(stock.underlyingSymbol, identity).catch(() => null),
   ]);
   const price = stock.dexPriceUsd ?? stock.priceUsd;
+  const cmcToken = broaderMarket?.market?.tokens.find(
+    (item) => item.symbol.toLowerCase() === stock.symbol.toLowerCase(),
+  );
+  const dexHistory = await getSolanaTokenHistory(stock.mint, "1h", identity).catch(() => []);
+  const history =
+    dexHistory.length > 1
+      ? dexHistory
+      : cmcToken?.cryptoId
+        ? await getRwaTokenHistory(
+            stock.underlyingSymbol,
+            cmcToken.symbol,
+            "daily",
+            identity,
+          ).catch(() => [])
+        : [];
   const referencePrice = reference ? Number(reference.price) : null;
   const tokenPrice = stock.dexPriceUsd ? Number(stock.dexPriceUsd) : null;
   const premium =
@@ -150,6 +173,27 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
             halted={stock.tradingHalted}
           />
         </div>
+      </div>
+      <div className="mt-5">
+        <StockPriceChart
+          token={stock.symbol}
+          scope={
+            dexHistory.length > 1 ? "Solana token trading" : "Token trading across tracked markets"
+          }
+          history={history}
+          current={
+            dexHistory.length > 1
+              ? stock.dexPriceUsd
+                ? Number(stock.dexPriceUsd)
+                : null
+              : (cmcToken?.priceUsd ?? (price ? Number(price) : null))
+          }
+          currentAt={
+            dexHistory.length > 1
+              ? stock.fetchedAt
+              : (broaderMarket?.market?.updatedAt ?? stock.fetchedAt)
+          }
+        />
       </div>
       {broaderMarket && (broaderMarket.market || broaderMarket.profile) && (
         <section className="mt-5 rounded-lg border border-line bg-panel p-6">

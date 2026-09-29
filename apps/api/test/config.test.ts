@@ -9,6 +9,6 @@ describe("local configuration", () => {
     expect(readConfig({ SISERA_LIVE_BINANCE_ENABLED: "false" }).SISERA_LIVE_BINANCE_ENABLED).toBe(
       false,
     );
-    expect(readConfig({}).SISERA_DELEGATED_SIGNING_ENABLED).toBe(false);
+    expect(readConfig({}).SISERA_DELEGATED_SIGNING_ENABLED).toBe(true);
   });
 });

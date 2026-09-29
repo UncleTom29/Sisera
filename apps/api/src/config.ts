@@ -29,7 +29,7 @@ const Environment = z.object({
     .transform((value) => value === "true"),
   SISERA_DELEGATED_SIGNING_ENABLED: z
     .enum(["true", "false"])
-    .default("false")
+    .default("true")
     .transform((value) => value === "true"),
   SISERA_SCHEDULER_ENABLED: z
     .enum(["true", "false"])

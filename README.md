@@ -181,4 +181,4 @@ Further reading: `AGENTS.md` (agent governance), `docs/architecture.md`, `docs/s
 ## Roadmap
 
 - **Sisera Mobile** for Solana Mobile (Seeker), Android and iOS: positions, agents, alerts, policy approvals and intelligence away from the desk. Coming soon.
-- **Pyth Pro** equity feeds for full session-aware fair-value coverage across every tokenized stock.
+

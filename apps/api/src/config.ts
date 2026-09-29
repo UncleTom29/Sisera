@@ -9,23 +9,23 @@ const Environment = z.object({
   DATABASE_URL: z.string().optional(),
   SISERA_LIVE_SOLANA_ENABLED: z
     .enum(["true", "false"])
-    .default("false")
+    .default("true")
     .transform((value) => value === "true"),
   SISERA_LIVE_PREDICTIONS_ENABLED: z
     .enum(["true", "false"])
-    .default("false")
+    .default("true")
     .transform((value) => value === "true"),
   SISERA_LIVE_BINANCE_ENABLED: z
     .enum(["true", "false"])
-    .default("false")
+    .default("true")
     .transform((value) => value === "true"),
   SISERA_LIVE_LAUNCHES_ENABLED: z
     .enum(["true", "false"])
-    .default("false")
+    .default("true")
     .transform((value) => value === "true"),
   SISERA_LIVE_AGENTS_ENABLED: z
     .enum(["true", "false"])
-    .default("false")
+    .default("true")
     .transform((value) => value === "true"),
   SISERA_DELEGATED_SIGNING_ENABLED: z
     .enum(["true", "false"])

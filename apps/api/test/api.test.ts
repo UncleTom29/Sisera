@@ -27,6 +27,9 @@ describe("control plane API", () => {
         DATABASE_URL: "postgres://example.test/sisera",
         PRIVY_APP_ID: "test",
         PRIVY_APP_SECRET: "test",
+        SISERA_LIVE_SOLANA_ENABLED: "false",
+        SISERA_LIVE_PREDICTIONS_ENABLED: "false",
+        SISERA_LIVE_BINANCE_ENABLED: "false",
       }),
       { readinessProbe: async () => false },
     );

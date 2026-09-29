@@ -98,7 +98,7 @@ Tokenized markets become far more useful when the stock, the liquidity, the wall
 - **Sisera never holds user keys.** Live swaps, policy executions, agent proposals and launches are built and risk-checked server-side and signed in the user's wallet. Signed bytes are verified against exactly what Sisera prepared before submission.
 - **Language models cannot trade.** They narrate evidence and rephrase requests; policies are compiled and evaluated deterministically.
 - **Fail closed.** A condition with missing data never passes, unpriced positions are excluded from NAV and labelled, and providers that fail return explicit unavailable states instead of invented values.
-- **Live capabilities are feature-flagged** server-side and default to off. Automatic live execution additionally requires the wallet owner to delegate a Privy session signer.
+- **Live capabilities are feature-flagged** server-side. Venue, launch and agent flags default to on and can be set to `false` to pause them; delegated signing defaults to off. Automatic live execution additionally requires the wallet owner to delegate a Privy session signer.
 - **Audit by construction:** manifests, evaluations, agent decisions, fills and account events are append-only; activated policies cannot be edited, and agent promotions are enforced by database triggers.
 
 ---

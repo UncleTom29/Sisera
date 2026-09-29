@@ -180,7 +180,9 @@ describe("Clawpump launches", () => {
 
 describe("platform routes", () => {
   it("publishes launch presets, gates launches and keeps Sisera AI behind a session", async () => {
-    const app = await buildApi(readConfig({ NODE_ENV: "test", LOG_LEVEL: "silent" }));
+    const app = await buildApi(
+      readConfig({ NODE_ENV: "test", LOG_LEVEL: "silent", SISERA_LIVE_LAUNCHES_ENABLED: "false" }),
+    );
     const presets = await app.inject({ method: "GET", url: "/v1/launches/dbc/presets" });
     expect(presets.statusCode).toBe(200);
     expect(presets.json().enabled).toBe(false);
@@ -200,7 +202,12 @@ describe("platform routes", () => {
 
   it("refuses launches when they are disabled, even for a signed-in trader", async () => {
     const app = await buildApi(
-      readConfig({ NODE_ENV: "test", LOG_LEVEL: "silent", SISERA_ALLOW_DEV_AUTH: "true" }),
+      readConfig({
+        NODE_ENV: "test",
+        LOG_LEVEL: "silent",
+        SISERA_ALLOW_DEV_AUTH: "true",
+        SISERA_LIVE_LAUNCHES_ENABLED: "false",
+      }),
     );
     const response = await app.inject({
       method: "POST",

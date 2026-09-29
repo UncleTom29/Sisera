@@ -262,6 +262,10 @@ jobs:
             # Build Next in a separate directory so the running process keeps its assets.
             echo "==> Building fresh Sisera web bundle..."
             rm -rf apps/web/.next-candidate
+            # The live bundle's generated route types describe the previous release's pages. Next's
+            # type check reads them too, so a moved or deleted page fails the new build. The running
+            # server never reads these type stubs, so removing them is safe.
+            rm -rf apps/web/.next/types
             if command -v pnpm >/dev/null 2>&1; then
               SISERA_NEXT_DIST_DIR=.next-candidate pnpm --filter @sisera/web build
             else

@@ -13,10 +13,18 @@ describe("Sisera AI routing", () => {
     expect(classifyIntent("Why is OpenAI trading 8% above its mark?")).toBe("why_moving");
     expect(classifyIntent("What changed in the last hour?")).toBe("what_changed");
     expect(classifyIntent("Which of my positions are exposed to this event?")).toBe("exposure");
-    expect(classifyIntent("Which tokenized stocks are trading furthest from fair value?")).toBe("fair_value");
-    expect(classifyIntent("What would adding this position do to my portfolio risk?")).toBe("portfolio_impact");
-    expect(classifyIntent("Show me the strongest argument for and against buying it.")).toBe("bull_bear");
-    expect(classifyIntent("Which Clawpump agents are outperforming their paired stock?")).toBe("agent_market");
+    expect(classifyIntent("Which tokenized stocks are trading furthest from fair value?")).toBe(
+      "fair_value",
+    );
+    expect(classifyIntent("What would adding this position do to my portfolio risk?")).toBe(
+      "portfolio_impact",
+    );
+    expect(classifyIntent("Show me the strongest argument for and against buying it.")).toBe(
+      "bull_bear",
+    );
+    expect(classifyIntent("Which Clawpump agents are outperforming their paired stock?")).toBe(
+      "agent_market",
+    );
     expect(classifyIntent("Buy $2,000 if the premium falls below 3%")).toBe("policy");
     expect(classifyIntent("Rank pre-IPO companies by liquidity")).toBe("private_ranking");
   });
@@ -43,7 +51,9 @@ describe("agent manifests", () => {
     expect(policy.rules?.entry[0]).toMatchObject({ type: "ema_trend", requireCross: false });
     expect(policy.execution.proposalOnly).toBe(true);
     expect(manifestHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(AgentDraftInput.safeParse({ ...input, rules: { entry: [{ type: "moon" }] } }).success).toBe(false);
+    expect(
+      AgentDraftInput.safeParse({ ...input, rules: { entry: [{ type: "moon" }] } }).success,
+    ).toBe(false);
   });
 });
 
@@ -66,7 +76,12 @@ describe("Meteora DBC presets", () => {
           quoteMint: "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
           initialMarketCap: cap,
         });
-        const config = service.buildConfig(input, { mint: input.quoteMint, decimals, tokenProgram: "token2022", badge: true });
+        const config = service.buildConfig(input, {
+          mint: input.quoteMint,
+          decimals,
+          tokenProgram: "token2022",
+          badge: true,
+        });
         expect(config.curve.length).toBeGreaterThan(0);
         expect(Number(config.migrationQuoteThreshold.toString())).toBeGreaterThan(0);
       }
@@ -110,27 +125,58 @@ describe("Clawpump launches", () => {
       ok: true,
       status: 200,
       json: async () => ({
-        payment: { method: "sol", amountLamports: 7_510_000, payTo: "49CfXAr58cCTGJnYsbm16fEsE5JRpdR8QQP8E1ZinGCq" },
+        payment: {
+          method: "sol",
+          amountLamports: 7_510_000,
+          payTo: "49CfXAr58cCTGJnYsbm16fEsE5JRpdR8QQP8E1ZinGCq",
+        },
         retryWith: { preflightToken: "token" },
       }),
     });
     const quote = await new ClawpumpClient(key, fetcher).selfFundedQuote(launch);
     const [url, init] = fetcher.mock.calls[0] ?? [];
     expect(String(url)).toBe("https://clawpump.tech/api/v1/launch/self-funded");
-    expect(JSON.parse(init.body)).toMatchObject({ preflight: true, pumpQuoteMint: launch.pumpQuoteMint, pumpCreatorFeeBps: 250, devBuySol: 0 });
+    expect(JSON.parse(init.body)).toMatchObject({
+      preflight: true,
+      pumpQuoteMint: launch.pumpQuoteMint,
+      pumpCreatorFeeBps: 250,
+      devBuySol: 0,
+    });
     expect(quote.payment.amountLamports).toBe(7_510_000);
   });
 
   it("treats 202 as still confirming and returns the minted token otherwise", async () => {
     const pending = vi.fn().mockResolvedValue({ ok: false, status: 202, json: async () => ({}) });
-    expect(await new ClawpumpClient(key, pending).completeSelfFundedLaunch({ ...launch, txSignature: "sig", preflightToken: "t" })).toEqual({
+    expect(
+      await new ClawpumpClient(key, pending).completeSelfFundedLaunch({
+        ...launch,
+        txSignature: "sig",
+        preflightToken: "t",
+      }),
+    ).toEqual({
       pending: true,
       result: null,
     });
-    const done = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ success: true, mintAddress: "Mint1111111111111111111111111111111111111" }) });
-    const result = await new ClawpumpClient(key, done).completeSelfFundedLaunch({ ...launch, txSignature: "sig", preflightToken: "t" });
+    const done = vi
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          mintAddress: "Mint1111111111111111111111111111111111111",
+        }),
+      });
+    const result = await new ClawpumpClient(key, done).completeSelfFundedLaunch({
+      ...launch,
+      txSignature: "sig",
+      preflightToken: "t",
+    });
     expect(result.result?.mintAddress).toBe("Mint1111111111111111111111111111111111111");
-    expect(JSON.parse(done.mock.calls[0]?.[1].body)).toMatchObject({ txSignature: "sig", preflightToken: "t" });
+    expect(JSON.parse(done.mock.calls[0]?.[1].body)).toMatchObject({
+      txSignature: "sig",
+      preflightToken: "t",
+    });
   });
 });
 
@@ -140,8 +186,14 @@ describe("platform routes", () => {
     const presets = await app.inject({ method: "GET", url: "/v1/launches/dbc/presets" });
     expect(presets.statusCode).toBe(200);
     expect(presets.json().enabled).toBe(false);
-    expect(presets.json().data.map((preset: { id: string }) => preset.id)).toEqual(Object.keys(DBC_PRESETS));
-    const chat = await app.inject({ method: "POST", url: "/v1/copilot/chat", payload: { message: "hi" } });
+    expect(presets.json().data.map((preset: { id: string }) => preset.id)).toEqual(
+      Object.keys(DBC_PRESETS),
+    );
+    const chat = await app.inject({
+      method: "POST",
+      url: "/v1/copilot/chat",
+      payload: { message: "hi" },
+    });
     expect(chat.statusCode).toBe(401);
     const portfolio = await app.inject({ method: "GET", url: "/v1/portfolio" });
     expect(portfolio.statusCode).toBe(401);
@@ -149,7 +201,9 @@ describe("platform routes", () => {
   });
 
   it("refuses launches when they are disabled, even for a signed-in trader", async () => {
-    const app = await buildApi(readConfig({ NODE_ENV: "test", LOG_LEVEL: "silent", SISERA_ALLOW_DEV_AUTH: "true" }));
+    const app = await buildApi(
+      readConfig({ NODE_ENV: "test", LOG_LEVEL: "silent", SISERA_ALLOW_DEV_AUTH: "true" }),
+    );
     const response = await app.inject({
       method: "POST",
       url: "/v1/launches/dbc/prepare",

@@ -10,7 +10,7 @@ type Asset = { width: number; height: number; render: (ribbon: string) => ReactE
 const wordmark = (size: number, color: string) => (
   <span
     style={{
-      fontFamily: "Schibsted Grotesk",
+      fontFamily: "Mona Sans",
       fontWeight: 600,
       fontSize: size,
       letterSpacing: size * 0.2,
@@ -117,13 +117,23 @@ const assets: Record<string, Asset> = {
             maxWidth: 1100,
           }}
         >
-          <span style={{ fontFamily: "Newsreader", fontSize: 58, lineHeight: 1.05, color: c.bone }}>
+          <span
+            style={{
+              fontFamily: "Mona Sans",
+              fontWeight: 600,
+              letterSpacing: -1.5,
+              fontSize: 58,
+              lineHeight: 1.05,
+              color: c.bone,
+            }}
+          >
             See the move.
           </span>
           <span
             style={{
-              fontFamily: "Newsreader",
-              fontStyle: "italic",
+              fontFamily: "Mona Sans",
+              fontWeight: 600,
+              letterSpacing: -1.5,
               fontSize: 58,
               lineHeight: 1.05,
               color: c.bronze,

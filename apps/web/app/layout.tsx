@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Toaster } from "sonner";
 import { site } from "../lib/site";
-import { displayFont, monoFont, sansFont } from "./fonts";
+import { monoFont, sansFont } from "./fonts";
 import "./globals.css";
 
 export const viewport: Viewport = {
@@ -56,10 +56,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`dark ${sansFont.variable} ${displayFont.variable} ${monoFont.variable}`}
-    >
+    <html lang="en" className={`dark ${sansFont.variable} ${monoFont.variable}`}>
       <body>
         {children}
         <Toaster theme="dark" position="bottom-right" />

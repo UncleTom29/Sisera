@@ -11,9 +11,9 @@ export function DeltaBadge({ value }: { value: string | number | null | undefine
   const Icon = delta > 0 ? ArrowUpRight : delta < 0 ? ArrowDownRight : Minus;
   const tone =
     delta > 0
-      ? "bg-emerald-400/10 text-emerald-300"
+      ? "bg-[rgba(79,209,139,0.1)] text-[var(--up)]"
       : delta < 0
-        ? "bg-rose-400/10 text-rose-300"
+        ? "bg-[rgba(240,116,116,0.1)] text-[var(--down)]"
         : "bg-slate-400/10 text-slate-300";
   return (
     <span className={`inline-flex items-center gap-1 rounded px-2 py-1 font-mono text-xs ${tone}`}>

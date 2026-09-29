@@ -3,15 +3,16 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { auth } from "../../../../auth";
 import { AssetTabs } from "../../../../components/asset-tabs";
-import { LiveNumber } from "../../../../components/live-number";
+import { SignInToTrade } from "../../../../components/sign-in-to-trade";
 import { StockAssessment } from "../../../../components/stock-assessment";
-import { StockPriceChart } from "../../../../components/stock-price-chart";
+import { StockLiveStats } from "../../../../components/stock-live-stats";
 import { StockTradeTicket } from "../../../../components/stock-trade-ticket";
+import { TradingChart } from "../../../../components/trading-chart";
+import { TradingViewChart } from "../../../../components/tradingview-chart";
 import {
   getPublicStocks,
   getPythReference,
   getRwaDetail,
-  getRwaTokenHistory,
   getSolanaTokenHistory,
   getStockNews,
 } from "../../../../lib/api";
@@ -36,6 +37,7 @@ const compact = (value: number | null | undefined) =>
 export default async function PublicStockPage({ params }: { params: Promise<{ symbol: string }> }) {
   const { symbol } = await params;
   const session = await auth();
+  const signedIn = Boolean(session) || process.env.SISERA_LOCAL_OPERATOR_MODE === "true";
   const identity = {
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
@@ -49,59 +51,16 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
     getRwaDetail(stock.underlyingSymbol, identity).catch(() => null),
   ]);
   const price = stock.dexPriceUsd ?? stock.priceUsd;
-  const cmcToken = broaderMarket?.market?.tokens.find(
-    (item) => item.symbol.toLowerCase() === stock.symbol.toLowerCase(),
-  );
   const dexHistory = await getSolanaTokenHistory(stock.mint, "1h", identity).catch(() => []);
-  const history =
-    dexHistory.length > 1
-      ? dexHistory
-      : cmcToken?.cryptoId
-        ? await getRwaTokenHistory(
-            stock.underlyingSymbol,
-            cmcToken.symbol,
-            "daily",
-            identity,
-          ).catch(() => [])
-        : [];
+  const initialBars = dexHistory.map((point) => ({
+    time: Math.floor(Date.parse(point.time) / 1000),
+    open: point.open,
+    high: point.high,
+    low: point.low,
+    close: point.close,
+    volume: point.volumeUsd ?? 0,
+  }));
   const referencePrice = reference ? Number(reference.price) : null;
-  const tokenPrice = stock.dexPriceUsd ? Number(stock.dexPriceUsd) : null;
-  const premium =
-    reference &&
-    reference.referenceFreshness !== "stale" &&
-    referencePrice &&
-    referencePrice > 0 &&
-    tokenPrice
-      ? (tokenPrice / referencePrice - 1) * 100
-      : null;
-  const change = stock.change24hPct;
-  const stats: Array<{ label: string; value: string; tone?: string }> = [
-    {
-      label: "24h change",
-      value: change == null ? "—" : `${change > 0 ? "+" : ""}${change.toFixed(2)}%`,
-      tone: change == null ? "" : change >= 0 ? "text-[var(--up)]" : "text-[var(--down)]",
-    },
-    { label: "24h volume", value: compact(stock.volume24hUsd) },
-    { label: "Liquidity", value: compact(stock.liquidityUsd) },
-    {
-      label: "Underlying share",
-      value: referencePrice ? `$${referencePrice.toFixed(2)}` : "Pending",
-    },
-    {
-      label: "Premium / discount",
-      value: premium == null ? "Pending" : `${premium > 0 ? "+" : ""}${premium.toFixed(2)}%`,
-      tone:
-        premium == null
-          ? "text-slate-400"
-          : premium >= 0
-            ? "text-bronze-300"
-            : "text-verdigris-300",
-    },
-    {
-      label: "Share price timing",
-      value: reference?.referenceFreshness === "live" ? "Live" : "Market closed",
-    },
-  ];
 
   const comparison = (
     <div className="p-6">
@@ -218,67 +177,54 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
 
   return (
     <div className="min-h-full bg-ink">
-      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line px-4 py-5 sm:px-6">
-        <div>
-          <p className="data-label text-bronze-300">
-            {stock.underlyingSymbol} · Tokenized stock · Solana
-          </p>
-          <h1 className="display mt-2 text-[32px] leading-tight text-bone">{stock.name}</h1>
-        </div>
-        <div className="text-right">
-          <p className="text-3xl text-bone">
-            <LiveNumber
-              value={price ? Number(price) : null}
-              display={price ? `$${Number(price).toFixed(2)}` : "—"}
-            />
-          </p>
-          <p className="mt-1 font-mono text-[11px] text-slate-400">
-            {stock.dexPriceUsd ? "Solana market" : "Issuer price"} · updated{" "}
-            {new Date(stock.fetchedAt).toLocaleTimeString()}
-          </p>
-        </div>
-      </header>
-      <dl className="grid grid-cols-2 gap-px border-b border-line bg-line sm:grid-cols-3 xl:grid-cols-6">
-        {stats.map((stat) => (
-          <div key={stat.label} className="bg-panel px-4 py-3.5 sm:px-6">
-            <dt className="data-label">{stat.label}</dt>
-            <dd className={`num mt-1.5 text-lg text-bone ${stat.tone ?? ""}`}>{stat.value}</dd>
-          </div>
-        ))}
-      </dl>
+      <StockLiveStats
+        mint={stock.mint}
+        name={stock.name}
+        symbol={stock.symbol}
+        underlyingSymbol={stock.underlyingSymbol}
+        price={price ? Number(price) : null}
+        change24hPct={stock.change24hPct}
+        volume24hUsd={stock.volume24hUsd}
+        liquidityUsd={stock.liquidityUsd}
+        referencePrice={referencePrice}
+        referenceLive={reference?.referenceFreshness === "live"}
+      />
       <div className="grid gap-4 p-4 md:p-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-4">
-          <StockPriceChart
-            token={stock.symbol}
-            scope={
-              dexHistory.length > 1
-                ? "Solana token trading"
-                : "Token trading across tracked markets"
-            }
-            history={history}
-            current={
-              dexHistory.length > 1 ? null : (cmcToken?.priceUsd ?? (price ? Number(price) : null))
-            }
-            currentAt={
-              dexHistory.length > 1 ? null : (broaderMarket?.market?.updatedAt ?? stock.fetchedAt)
-            }
+          <TradingChart
+            source={{ kind: "solana", id: stock.mint }}
+            title={`${stock.symbol} · Solana`}
+            initialBars={initialBars}
+            defaultInterval="1h"
           />
           <AssetTabs
             tabs={[
               { id: "compare", label: "Token vs share", panel: comparison },
+              {
+                id: "share",
+                label: `${stock.underlyingSymbol} share chart`,
+                panel: <TradingViewChart symbol={stock.underlyingSymbol} height={480} />,
+              },
               ...(company ? [{ id: "company", label: "Company", panel: company }] : []),
               { id: "news", label: "News", panel: newsPanel },
             ]}
           />
-          <StockAssessment symbol={stock.symbol} />
+          <StockAssessment symbol={stock.symbol} signedIn={signedIn} />
         </div>
         <div className="self-start lg:sticky lg:top-4">
-          <StockTradeTicket
-            mint={stock.mint}
-            symbol={stock.symbol}
-            price={price}
-            halted={stock.tradingHalted}
-          />
+          {signedIn ? (
+            <StockTradeTicket
+              mint={stock.mint}
+              symbol={stock.symbol}
+              price={price}
+              halted={stock.tradingHalted}
+            />
+          ) : (
+            <SignInToTrade
+              label={stock.symbol}
+              returnTo={`/stocks/${encodeURIComponent(stock.symbol)}`}
+            />
+          )}
         </div>
       </div>
     </div>

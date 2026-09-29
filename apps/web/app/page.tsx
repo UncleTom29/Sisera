@@ -11,7 +11,12 @@ import {
 } from "../components/structured-data";
 import { TickerTape } from "../components/ticker-tape";
 import { getMarketOverview, getPrivateMarkets, getPublicStocks } from "../lib/api";
+import { signTone } from "../lib/sign";
 import { faqs, site } from "../lib/site";
+import candlesImage from "../public/brand/bronze-candles.jpg";
+import coinsImage from "../public/brand/bronze-coins.jpg";
+import gatesImage from "../public/brand/bronze-gates.jpg";
+import vaultImage from "../public/brand/bronze-vault.jpg";
 import ribbon from "../public/brand/sisera-signal.png";
 import screenIntelligence from "../public/screens/intelligence.png";
 import screenPrivate from "../public/screens/private-markets.png";
@@ -90,6 +95,49 @@ function Screen({
   );
 }
 
+/** A full-bleed bronze image with its section's headline set in the image's empty space. */
+function Chapter({
+  image,
+  align,
+  eyebrow,
+  title,
+  body,
+}: {
+  image: typeof candlesImage;
+  align: "left" | "right" | "top";
+  eyebrow: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="relative overflow-hidden border-b border-line bg-[#0a0f18]">
+      <Image
+        src={image}
+        alt=""
+        sizes="100vw"
+        className={`w-full object-cover ${
+          align === "top" ? "h-[520px] object-bottom md:h-[680px]" : "h-[420px] md:h-[520px]"
+        }`}
+      />
+      <div
+        className={`absolute inset-0 mx-auto flex max-w-[1320px] px-4 md:px-8 ${
+          align === "top"
+            ? "items-start pt-12 md:pt-16"
+            : `items-center ${align === "right" ? "justify-end" : "justify-start"}`
+        }`}
+      >
+        <div className="max-w-xl">
+          <p className="eyebrow">{eyebrow}</p>
+          <h2 className="display mt-4 text-[clamp(2.25rem,4.5vw,3.5rem)] leading-[1.02] text-bone">
+            {title}
+          </h2>
+          <p className="mt-5 max-w-lg text-[15px] leading-7 text-slate-300">{body}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default async function LandingPage() {
   const identity = {};
   const [stocks, privateMarkets, overview] = await Promise.all([
@@ -105,18 +153,19 @@ export default async function LandingPage() {
     .filter((item) => Number.isFinite(Number(item.premiumDiscountPct)))
     .sort((a, b) => Math.abs(Number(b.premiumDiscountPct)) - Math.abs(Number(a.premiumDiscountPct)))
     .slice(0, 6);
-  const tokenizedVolume = (overview?.rwaStocks ?? []).reduce(
-    (total, item) => total + (item.tokenizedVolume24hUsd ?? 0),
-    0,
-  );
+  const tokenizedVolume = stocks.reduce((total, stock) => total + (stock.volume24hUsd ?? 0), 0);
+  const tradingStocks = stocks.filter((stock) => stock.dexPriceUsd != null).length;
 
   // Live figures when the market API answers; otherwise, coverage facts that are always true.
   const proof: Array<[string, string]> =
     stocks.length || privateMarkets.length
       ? [
-          [String(stocks.length), "Tokenized stocks tracked on Solana"],
+          [stocks.length.toLocaleString(), "Tokenized stocks listed on Solana"],
           [String(privateMarkets.length), "Private companies with issuer marks"],
-          [money(tokenizedVolume, true) ?? "—", "Tokenized stock volume, 24h"],
+          [
+            money(tokenizedVolume, true) ?? "—",
+            `24h volume across ${tradingStocks} traded stock tokens`,
+          ],
           [
             overview?.sentiment ? `${overview.sentiment.score}/100` : "24/7",
             overview?.sentiment ? `Market mood · ${overview.sentiment.label}` : "Token pricing",
@@ -149,7 +198,7 @@ export default async function LandingPage() {
             <p className="eyebrow">Tokenized stocks · Pre-IPO · Crypto</p>
             <h1 className="display mt-6 text-[clamp(2.75rem,6vw,5.5rem)] leading-[0.98] text-bone">
               The research terminal for tokenized stocks and{" "}
-              <em className="text-bronze-300">private markets.</em>
+              <span className="text-bronze-300">private markets.</span>
             </h1>
             <p className="mt-7 max-w-xl text-[17px] leading-8 text-slate-300">
               See the move, know the reason. The token, the underlying share, the private-company
@@ -160,7 +209,7 @@ export default async function LandingPage() {
                 href="/stocks"
                 className="inline-flex items-center gap-2 bg-bronze-300 px-5 py-3.5 text-sm font-semibold text-ink hover:bg-bronze-200"
               >
-                Open the terminal <ArrowRight size={16} />
+                Open the terminal free <ArrowRight size={16} />
               </Link>
               <Link
                 href="#markets"
@@ -169,6 +218,10 @@ export default async function LandingPage() {
                 How it works
               </Link>
             </div>
+            <p className="mt-6 flex items-center gap-2 text-[13px] text-slate-300">
+              <span className="size-1.5 bg-[var(--up)]" />
+              Free to use. No subscription, no card. Browse every market without signing in.
+            </p>
           </div>
           <Screen
             src={screenStock}
@@ -204,18 +257,16 @@ export default async function LandingPage() {
 
       {/* Markets */}
       <section id="markets" className="scroll-mt-16 border-b border-line">
-        <div className="mx-auto grid max-w-[1320px] gap-12 px-4 py-24 md:px-8 lg:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)] lg:items-center">
+        <Chapter
+          image={candlesImage}
+          align="left"
+          eyebrow="01 · Tokenized stocks"
+          title="Every stock token, measured against the share it tracks."
+          body="More than a thousand tokenized stocks are listed on Solana, and they trade when the shares do not. Sisera puts each token beside its underlying share price, second by second, and flags when the US market is closed and the gap is likely to be wide."
+        />
+        <div className="mx-auto grid max-w-[1320px] gap-12 px-4 py-20 md:px-8 lg:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)] lg:items-center">
           <div>
-            <p className="eyebrow">01 · Tokenized stocks</p>
-            <h2 className="display mt-4 text-5xl leading-[1.02] text-bone">
-              Every stock token, measured against the share it tracks.
-            </h2>
-            <p className="mt-6 max-w-lg text-[15px] leading-7 text-slate-300">
-              Stock tokens trade around the clock; the shares do not. Sisera puts the Solana price
-              beside the Pyth reference for the underlying share, shows the premium or discount, and
-              tells you when the US market is closed and the gap is likely to be wide.
-            </p>
-            <ul className="mt-8 space-y-3 text-[14px] text-slate-300">
+            <ul className="space-y-3 text-[14px] text-slate-300">
               {[
                 "Premium or discount to the underlying share",
                 "Liquidity and 24h volume before you size a trade",
@@ -239,9 +290,7 @@ export default async function LandingPage() {
                     <span className="text-bone">{item.symbol}</span>
                     <span className="flex gap-5">
                       <span className="text-slate-300">{money(item.dexPriceUsd)}</span>
-                      <span
-                        className={`w-16 text-right ${(item.change24hPct ?? 0) >= 0 ? "text-[var(--up)]" : "text-[var(--down)]"}`}
-                      >
+                      <span className={`w-16 text-right ${signTone(item.change24hPct ?? 0)}`}>
                         {signedPct(item.change24hPct ?? 0)}
                       </span>
                     </span>
@@ -259,23 +308,21 @@ export default async function LandingPage() {
 
       {/* Private markets */}
       <section id="private" className="scroll-mt-16 border-b border-line bg-ink">
-        <div className="mx-auto grid max-w-[1320px] gap-12 px-4 py-24 md:px-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)] lg:items-center">
+        <Chapter
+          image={coinsImage}
+          align="left"
+          eyebrow="02 · Private markets"
+          title="Pre-IPO tokens, priced against the issuer's own mark."
+          body="For private-company tokens, the number that matters is the gap between what the token trades at and what the issuer says the company is worth. Sisera shows both, the implied valuation, and the price history behind them."
+        />
+        <div className="mx-auto grid max-w-[1320px] gap-12 px-4 py-20 md:px-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)] lg:items-center">
           <Screen
             src={screenPrivate}
             alt="Sisera private markets view comparing pre-IPO token prices with issuer marks"
           />
           <div className="lg:order-first xl:order-none">
-            <p className="eyebrow">02 · Private markets</p>
-            <h2 className="display mt-4 text-5xl leading-[1.02] text-bone">
-              Pre-IPO tokens, priced against the issuer's own mark.
-            </h2>
-            <p className="mt-6 max-w-lg text-[15px] leading-7 text-slate-300">
-              For private-company tokens, the number that matters is the gap between what the token
-              trades at and what the issuer says the company is worth. Sisera shows both, the
-              implied valuation, and the history behind them.
-            </p>
             {privateGaps.length > 0 && (
-              <div className="mt-10 border border-line bg-ink-deep">
+              <div className="border border-line bg-ink-deep">
                 <p className="border-b border-line px-4 py-3 data-label">Widest gaps to mark</p>
                 {privateGaps.map((item) => (
                   <Link
@@ -284,9 +331,7 @@ export default async function LandingPage() {
                     className="flex items-center justify-between border-b border-line px-4 py-2.5 text-[13px] last:border-0 hover:bg-white/[.03]"
                   >
                     <span className="text-bone">{item.company}</span>
-                    <span
-                      className={`font-mono ${Number(item.premiumDiscountPct) >= 0 ? "text-bronze-300" : "text-verdigris-300"}`}
-                    >
+                    <span className={`font-mono ${signTone(Number(item.premiumDiscountPct))}`}>
                       {signedPct(Number(item.premiumDiscountPct))}
                     </span>
                   </Link>
@@ -323,21 +368,15 @@ export default async function LandingPage() {
 
       {/* Agents */}
       <section id="agents" className="scroll-mt-16 border-b border-line bg-ink">
-        <div className="mx-auto max-w-[1320px] px-4 py-24 md:px-8">
-          <div className="grid gap-8 lg:grid-cols-2 lg:items-end">
-            <div>
-              <p className="eyebrow">04 · Agents</p>
-              <h2 className="display mt-4 text-5xl leading-[1.02] text-bone">
-                Seven gates between an idea and your capital.
-              </h2>
-            </div>
-            <p className="max-w-lg text-[15px] leading-7 text-slate-300 lg:justify-self-end">
-              Research agents are written as policies, not scripts. Each one starts as a hashed
-              draft with its limits declared up front, and the lifecycle sets out what it must pass
-              before it touches capital. Today, agents research and propose; you decide.
-            </p>
-          </div>
-          <ol className="mt-14 grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-7">
+        <Chapter
+          image={gatesImage}
+          align="top"
+          eyebrow="04 · Agents"
+          title="Seven gates between an idea and your capital."
+          body="Start from a template, change the markets, rules, and limits, and save your own agent. Each one is a hashed policy with its limits declared up front; agents research and propose, and you decide."
+        />
+        <div className="mx-auto max-w-[1320px] px-4 py-20 md:px-8">
+          <ol className="grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-7">
             {lifecycle.map(([stage, detail], index) => (
               <li key={stage} className="flex flex-col bg-ink-deep p-5">
                 <span className="font-mono text-[11px] text-bronze-300">
@@ -348,7 +387,16 @@ export default async function LandingPage() {
               </li>
             ))}
           </ol>
-          <div className="mt-16 grid gap-px border border-line bg-line md:grid-cols-2 xl:grid-cols-4">
+        </div>
+        <Chapter
+          image={vaultImage}
+          align="right"
+          eyebrow="05 · Safeguards"
+          title="Limits you set, enforced before anything moves."
+          body="Capital caps, drawdown limits, and a kill switch travel with every agent, and paper accounts let you rehearse a thesis before it costs anything."
+        />
+        <div className="mx-auto max-w-[1320px] px-4 py-20 md:px-8">
+          <div className="grid gap-px border border-line bg-line md:grid-cols-2 xl:grid-cols-4">
             {safeguards.map(([title, detail]) => (
               <div key={title} className="bg-ink p-6">
                 <p className="text-[15px] font-semibold text-bone">{title}</p>

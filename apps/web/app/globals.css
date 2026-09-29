@@ -166,9 +166,9 @@ input {
 }
 
 .display {
-  font-family: var(--font-display), ui-serif, Georgia, serif;
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.035em;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -183,8 +183,10 @@ input {
 
 /* Long-form public pages (about, legal, brand). */
 :where(.prose-sisera) h2 {
-  font-family: var(--font-display), ui-serif, Georgia, serif;
-  font-size: 30px;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-size: 28px;
   line-height: 1.15;
   color: var(--text);
   margin: 56px 0 16px;

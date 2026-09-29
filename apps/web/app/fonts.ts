@@ -1,23 +1,15 @@
 import localFont from "next/font/local";
 
-export const displayFont = localFont({
-  variable: "--font-display",
-  display: "swap",
-  src: [
-    { path: "../public/fonts/newsreader-latin-400-normal.woff2", weight: "400", style: "normal" },
-    { path: "../public/fonts/newsreader-latin-400-italic.woff2", weight: "400", style: "italic" },
-    { path: "../public/fonts/newsreader-latin-500-normal.woff2", weight: "500", style: "normal" },
-  ],
-});
-
+// Mona Sans (GitHub's open-source typeface) carries headlines and interface text.
 export const sansFont = localFont({
   variable: "--font-sans",
   display: "swap",
   src: [
-    { path: "../public/fonts/schibsted-grotesk-latin-400-normal.woff2", weight: "400" },
-    { path: "../public/fonts/schibsted-grotesk-latin-500-normal.woff2", weight: "500" },
-    { path: "../public/fonts/schibsted-grotesk-latin-600-normal.woff2", weight: "600" },
-    { path: "../public/fonts/schibsted-grotesk-latin-700-normal.woff2", weight: "700" },
+    { path: "../public/fonts/mona-sans-latin-400-normal.woff2", weight: "400" },
+    { path: "../public/fonts/mona-sans-latin-500-normal.woff2", weight: "500" },
+    { path: "../public/fonts/mona-sans-latin-600-normal.woff2", weight: "600" },
+    { path: "../public/fonts/mona-sans-latin-700-normal.woff2", weight: "700" },
+    { path: "../public/fonts/mona-sans-latin-800-normal.woff2", weight: "800" },
   ],
 });
 

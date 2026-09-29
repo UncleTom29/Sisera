@@ -1,8 +1,9 @@
 "use client";
 
-import { useConnectWallet, usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useState } from "react";
 import { getPrivySolanaAddress } from "../lib/privy-identity";
+import { useSiseraWallets } from "../lib/use-sisera-wallets";
 
 const chains = [
   { id: 8453, label: "Base" },
@@ -25,10 +26,8 @@ type Quote = {
 
 export function BridgeUsdc() {
   const { authenticated, user } = usePrivy();
-  const { wallets } = useWallets();
-  const { connectWallet } = useConnectWallet();
-  const wallet = wallets[0];
-  const solana = getPrivySolanaAddress(user);
+  const { evm: wallet, solanaAddress } = useSiseraWallets();
+  const solana = solanaAddress ?? getPrivySolanaAddress(user);
   const [origin, setOrigin] = useState(8453);
   const [destination, setDestination] = useState<999 | 792703809>(999);
   const [amount, setAmount] = useState("");
@@ -249,13 +248,7 @@ export function BridgeUsdc() {
         Destination: {recipient ?? "Choose a destination wallet"}
       </p>
       {!wallet && authenticated && (
-        <button
-          type="button"
-          onClick={() => connectWallet()}
-          className="mt-4 rounded border border-bronze-400/30 px-3 py-2 text-xs text-bronze-300"
-        >
-          Connect EVM wallet
-        </button>
+        <p className="mt-4 text-xs text-slate-400">Setting up your EVM wallet…</p>
       )}
       {wallet && (
         <button

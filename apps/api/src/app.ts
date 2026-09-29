@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-import { OpenRouterResearchClient, compileIntent } from "@sisera/copilot";
+import { OpenRouterResearchClient, assessFromEvidence, compileIntent } from "@sisera/copilot";
 import {
   acknowledgeAccountAlert,
   applyMarketPaperOrder,
@@ -65,13 +65,16 @@ import { ClawpumpClient, ClawpumpError } from "./clawpump.js";
 import { CoinMarketCapClient } from "./coinmarketcap.js";
 import type { ApiConfig } from "./config.js";
 import { PublicEquityReferenceClient } from "./equity-reference.js";
+import { GeckoTerminalCandles } from "./geckoterminal.js";
 import { parseHeliusWebhook, validWebhookSecret } from "./helius-webhook.js";
 import { HeliusClient } from "./helius.js";
 import { HyperEvmWalletClient } from "./hyperevm.js";
 import { JupiterPredictionTradingClient } from "./jupiter-prediction.js";
 import { JupiterQuoteClient } from "./jupiter.js";
+import { LivePriceHub } from "./live-prices.js";
 import { PaperOrderRejection, settleMarketPaperOrder } from "./market-paper.js";
 import { PredictionPaperRejection, settlePredictionPaperOrder } from "./prediction-paper.js";
+import { researchPredictionMarket } from "./prediction-research.js";
 import { PredictionTradingService } from "./prediction-trading.js";
 import { SocialFeedClient } from "./social-feed.js";
 import { SolanaTradingService, TradeRejection } from "./solana-trading.js";
@@ -94,7 +97,11 @@ export type ApiDependencies = {
     getCandles?(symbol: string, interval?: string, limit?: number): Promise<Candle[]>;
     getOrderBook?(symbol: string, limit?: number): Promise<OrderBook>;
   };
-  predictions?: { listOpenMarkets(limit?: number): Promise<unknown[]> };
+  predictions?: {
+    listOpenMarkets(limit?: number): Promise<unknown[]>;
+    getMarket?(id: string): Promise<PredictionMarket | null>;
+    listEventMarkets?(eventId: string): Promise<PredictionMarket[]>;
+  };
   loadRiskContext?: (portfolioId: string) => Promise<RiskContext | null>;
   readinessProbe?: (connectionString: string) => Promise<boolean>;
   ownsWallet?: (subject: string, address: string, chain: WalletChain) => Promise<boolean>;
@@ -247,7 +254,18 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
 
   await app.register(helmet);
   await app.register(cors, { origin: false });
-  await app.register(rateLimit, { max: 300, timeWindow: "1 minute" });
+  // Every browser request reaches the API through the Next server, so keying limits by IP would
+  // make all users share one bucket. Limits run after authentication and key on the signed-in
+  // user; anonymous traffic shares one bucket, which the web tier absorbs with its own caching.
+  await app.register(rateLimit, {
+    max: 300,
+    timeWindow: "1 minute",
+    hook: "preHandler",
+    keyGenerator: (request) =>
+      request.principal && request.principal.subject !== "public"
+        ? `user:${request.principal.subject}`
+        : `ip:${request.ip}`,
+  });
   app.decorateRequest("principal", null);
   app.addHook("onRequest", createAuthenticator(config));
   app.addHook("onRequest", async (request) => {
@@ -550,6 +568,203 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       data: await xstocks.list(),
     }),
   );
+  const geckoCandles = new GeckoTerminalCandles();
+  // One shared per-second price snapshot for every open terminal (see LivePriceHub).
+  const livePrices = new LivePriceHub(async () => {
+    const [stocks, privateMarkets] = await Promise.all([
+      xstocks.list().catch(() => []),
+      prestocks.list().catch(() => []),
+    ]);
+    const traded = stocks
+      .filter((stock) => (stock.liquidityUsd ?? 0) > 1_000)
+      .sort((a, b) => (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0));
+    const tradedMints = new Set(traded.map((stock) => stock.mint));
+    return {
+      priority: [
+        ...privateMarkets.map((market) => market.instrument.venueSymbol),
+        ...traded.slice(0, 92).map((stock) => stock.mint),
+      ],
+      tail: [
+        ...traded.slice(92).map((stock) => stock.mint),
+        ...stocks.filter((stock) => !tradedMints.has(stock.mint)).map((stock) => stock.mint),
+      ],
+    };
+  }, config.JUPITER_API_KEY);
+  app.addHook("onClose", async () => livePrices.stop());
+  app.get(
+    "/v1/live/prices",
+    { config: { rateLimit: { max: 1200, timeWindow: "1 minute" } } },
+    async (request) => {
+      const { mints } = z.object({ mints: z.string().max(20_000).optional() }).parse(request.query);
+      const requested = mints
+        ?.split(",")
+        .filter((mint) => /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint))
+        .slice(0, 500);
+      return { data: livePrices.snapshot(requested), at: Date.now() };
+    },
+  );
+
+  // Binance USDT spot pairs with 24h activity. The full ticker is large and can be slow, so it is
+  // refreshed in the background every ten seconds and requests are always answered from memory.
+  let spotUniverse: { at: number; value: unknown[] } | null = null;
+  let spotRefresh: Promise<void> | null = null;
+  const refreshSpotUniverse = () => {
+    spotRefresh ??= (async () => {
+      const response = await fetch(`${config.BINANCE_SPOT_BASE_URL}/api/v3/ticker/24hr?type=MINI`, {
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) throw new Error(`Binance returned ${response.status}`);
+      const rows = z
+        .array(
+          z.object({
+            symbol: z.string(),
+            openPrice: z.string(),
+            highPrice: z.string(),
+            lowPrice: z.string(),
+            lastPrice: z.string(),
+            volume: z.string(),
+            quoteVolume: z.string(),
+          }),
+        )
+        .parse(await response.json());
+      const value = rows
+        .filter(
+          (row) =>
+            row.symbol.endsWith("USDT") &&
+            !/(UP|DOWN|BULL|BEAR)USDT$/.test(row.symbol) &&
+            Number(row.quoteVolume) >= 50_000,
+        )
+        .map((row) => {
+          const open = Number(row.openPrice);
+          const last = Number(row.lastPrice);
+          return {
+            symbol: row.symbol,
+            base: row.symbol.slice(0, -4),
+            quote: "USDT",
+            last,
+            change24hPct: open > 0 ? (last / open - 1) * 100 : 0,
+            high24h: Number(row.highPrice),
+            low24h: Number(row.lowPrice),
+            volume24hBase: Number(row.volume),
+            volume24hUsd: Number(row.quoteVolume),
+          };
+        })
+        .sort((a, b) => b.volume24hUsd - a.volume24hUsd);
+      spotUniverse = { at: Date.now(), value };
+    })()
+      .catch((error) => app.log.warn({ error }, "spot universe refresh failed"))
+      .finally(() => {
+        spotRefresh = null;
+      });
+    return spotRefresh;
+  };
+  app.get(
+    "/v1/spot-universe",
+    { preHandler: requirePermission("market:read") },
+    async (_request, reply) => {
+      if (!spotUniverse) await refreshSpotUniverse();
+      else if (Date.now() - spotUniverse.at > 10_000) void refreshSpotUniverse();
+      if (!spotUniverse)
+        return reply
+          .code(503)
+          .send({ error: "provider_unavailable", message: "Binance is unavailable" });
+      return { data: spotUniverse.value };
+    },
+  );
+
+  // Clawpump agent tokens from its public listing, cached briefly per query.
+  const agentTokenCache = new Map<string, { until: number; value: unknown }>();
+  app.get(
+    "/v1/agent-tokens",
+    { preHandler: requirePermission("market:read") },
+    async (request, reply) => {
+      const query = z
+        .object({
+          sort: z.enum(["volume", "new", "mcap"]).default("volume"),
+          period: z.enum(["24h", "7d"]).default("24h"),
+          limit: z.coerce.number().int().min(1).max(100).default(60),
+          offset: z.coerce.number().int().min(0).max(50_000).default(0),
+          q: z.string().trim().max(80).optional(),
+        })
+        .parse(request.query);
+      const key = JSON.stringify(query);
+      const cached = agentTokenCache.get(key);
+      if (cached && cached.until > Date.now()) return cached.value;
+      const url = new URL("https://clawpump.tech/api/tokens");
+      url.searchParams.set("sort", query.sort);
+      url.searchParams.set("period", query.period);
+      url.searchParams.set("limit", String(query.limit));
+      url.searchParams.set("offset", String(query.offset));
+      if (query.q) url.searchParams.set("q", query.q);
+      const response = await fetch(url, { signal: AbortSignal.timeout(10_000) }).catch(() => null);
+      if (!response?.ok)
+        return reply
+          .code(503)
+          .send({ error: "provider_unavailable", message: "Clawpump listings are unavailable" });
+      const payload = z
+        .object({
+          tokens: z.array(
+            z
+              .object({
+                mintAddress: z.string(),
+                name: z.string(),
+                symbol: z.string(),
+                description: z.string().nullable().optional(),
+                imageUrl: z.string().nullable().optional(),
+                marketCap: z.number().nullable().optional(),
+                price: z.number().nullable().optional(),
+                volume24h: z.number().nullable().optional(),
+                liquidity: z.number().nullable().optional(),
+                agentName: z.string().nullable().optional(),
+                verified: z.boolean().optional(),
+                isGraduated: z.boolean().optional(),
+                tags: z.array(z.string()).optional(),
+                website: z.string().nullable().optional(),
+                twitter: z.string().nullable().optional(),
+                createdAt: z.string().nullable().optional(),
+                launchPlatform: z.string().nullable().optional(),
+              })
+              .passthrough(),
+          ),
+          total: z.number(),
+          hasMore: z.boolean(),
+        })
+        .parse(await response.json());
+      const value = {
+        data: payload.tokens.map((token) => ({
+          mint: token.mintAddress,
+          name: token.name,
+          symbol: token.symbol,
+          description: token.description ?? null,
+          imageUrl: token.imageUrl
+            ? token.imageUrl.startsWith("/")
+              ? `https://clawpump.tech${token.imageUrl}`
+              : token.imageUrl
+            : null,
+          priceUsd: token.price ?? null,
+          marketCapUsd: token.marketCap ?? null,
+          volume24hUsd: token.volume24h ?? null,
+          liquidityUsd: token.liquidity ?? null,
+          agentName: token.agentName ?? null,
+          verified: token.verified ?? false,
+          graduated: token.isGraduated ?? false,
+          tags: token.tags ?? [],
+          website: token.website ?? null,
+          twitter: token.twitter ?? null,
+          createdAt: token.createdAt ?? null,
+          launchPlatform: token.launchPlatform ?? null,
+        })),
+        total: payload.total,
+        hasMore: payload.hasMore,
+        source: "clawpump",
+      };
+      agentTokenCache.set(key, { until: Date.now() + 30_000, value });
+      if (agentTokenCache.size > 200)
+        agentTokenCache.delete(agentTokenCache.keys().next().value ?? "");
+      return value;
+    },
+  );
+
   app.get(
     "/v1/market-overview",
     { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
@@ -605,24 +820,16 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         .object({ mint: z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/) })
         .parse(request.params);
       const { interval } = z
-        .object({ interval: z.enum(["1h", "1d"]).default("1h") })
+        .object({ interval: z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]).default("1h") })
         .parse(request.query);
-      if (!coinMarketCap) return reply.code(503).send({ error: "market_data_unavailable" });
-      const [publicStocks, privateStocks] = await Promise.allSettled([
-        xstocks.list(),
-        prestocks.list(),
-      ]);
-      const tracked =
-        (publicStocks.status === "fulfilled" &&
-          publicStocks.value.some((item) => item.mint === mint)) ||
-        (privateStocks.status === "fulfilled" &&
-          privateStocks.value.some((item) => item.instrument.mint === mint));
-      if (!tracked) return reply.code(404).send({ error: "token_not_found" });
-      try {
-        return { data: await coinMarketCap.solanaTokenCandles(mint, interval) };
-      } catch {
-        return reply.code(503).send({ error: "token_history_unavailable" });
+      // GeckoTerminal covers every timeframe; CoinMarketCap backs up hourly and daily candles.
+      const candles = await geckoCandles.history(mint, interval).catch(() => []);
+      if (candles.length > 1) return { data: candles, source: "geckoterminal" };
+      if (coinMarketCap && (interval === "1h" || interval === "1d")) {
+        const history = await coinMarketCap.solanaTokenCandles(mint, interval).catch(() => null);
+        if (history) return { data: history, source: "coinmarketcap" };
       }
+      return reply.code(503).send({ error: "token_history_unavailable" });
     },
   );
   app.get(
@@ -984,11 +1191,6 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
     },
     async (request, reply) => {
-      if (!research)
-        return reply.code(503).send({
-          error: "provider_unavailable",
-          message: "Sisera research model is not configured",
-        });
       const { symbol } = z
         .object({ symbol: z.string().regex(/^[A-Za-z0-9-]{1,20}$/) })
         .parse(request.params);
@@ -1044,7 +1246,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       const marketSource = asset?.source ?? publicStock?.source ?? "unknown";
       const marketObservedAt =
         asset?.fetchedAt ?? publicStock?.fetchedAt ?? new Date().toISOString();
-      const assessment = await research.assess({
+      const context = {
         company,
         symbol: asset?.instrument.baseAsset ?? publicStock?.symbol ?? symbol,
         tokenPrice,
@@ -1059,7 +1261,16 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         tradingHalted: publicStock?.tradingHalted ?? false,
         fetchedAt: marketObservedAt,
         articles: inputArticles,
-      });
+      };
+      // Prefer the language model; fall back to evidence-only research so it is always available.
+      let modelUsed = research ? config.SISERA_INTELLIGENCE_MODEL : "sisera-evidence";
+      const assessment = research
+        ? await research.assess(context).catch((error) => {
+            request.log.warn({ error }, "research model failed; using evidence-only assessment");
+            modelUsed = "sisera-evidence";
+            return assessFromEvidence(context);
+          })
+        : assessFromEvidence(context);
       const evidenceSources =
         Number(tokenPrice !== null) +
         Number((asset && referencePrice !== null) || oracle?.referenceFreshness === "live") +
@@ -1087,7 +1298,7 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
         provenance: {
           market: marketSource,
           news: news.providers,
-          model: config.SISERA_INTELLIGENCE_MODEL,
+          model: modelUsed,
         },
         executable: false,
       };
@@ -1608,11 +1819,49 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     "/v1/prediction-markets",
     { preHandler: requirePermission("market:read") },
     async (request, reply) => {
-      const { limit } = z
-        .object({ limit: z.coerce.number().int().min(1).max(100).default(20) })
+      const query = z
+        .object({
+          limit: z.coerce.number().int().min(1).max(500).default(50),
+          offset: z.coerce.number().int().min(0).default(0),
+          category: z.string().trim().max(40).optional(),
+          q: z.string().trim().max(80).optional(),
+          sort: z.enum(["volume", "closing", "contested"]).default("volume"),
+        })
         .parse(request.query);
       try {
-        return { data: await predictions.listOpenMarkets(limit) };
+        // Filter, sort, and page here so clients receive one page instead of every market.
+        const all = (await predictions.listOpenMarkets(100_000)) as PredictionMarket[];
+        const counts = new Map<string, number>();
+        for (const market of all)
+          counts.set(market.category ?? "other", (counts.get(market.category ?? "other") ?? 0) + 1);
+        const needle = query.q?.toLowerCase();
+        const yes = (market: PredictionMarket) => Number(market.outcomes[0]?.probability ?? 0);
+        const filtered = all
+          .filter(
+            (market) =>
+              !query.category ||
+              query.category === "all" ||
+              (market.category ?? "other") === query.category,
+          )
+          .filter((market) => !needle || market.title.toLowerCase().includes(needle))
+          .sort((a, b) =>
+            query.sort === "closing"
+              ? Date.parse(a.closesAt ?? "") - Date.parse(b.closesAt ?? "")
+              : query.sort === "contested"
+                ? Math.abs(yes(a) - 0.5) - Math.abs(yes(b) - 0.5)
+                : (b.volumeUsd ?? 0) - (a.volumeUsd ?? 0),
+          );
+        return {
+          // List views omit resolution rules; the market detail route returns them in full.
+          data: filtered
+            .slice(query.offset, query.offset + query.limit)
+            .map(({ resolutionRules: _rules, ...market }) => market),
+          total: filtered.length,
+          all: all.length,
+          categories: [...counts.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, count]) => ({ name, count })),
+        };
       } catch (error) {
         return reply.code(503).send({
           error: "jupiter_prediction_unavailable",
@@ -1622,6 +1871,46 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
               : "Jupiter prediction market data is unavailable",
         });
       }
+    },
+  );
+
+  app.get(
+    "/v1/prediction-markets/:id",
+    { preHandler: requirePermission("market:read") },
+    async (request, reply) => {
+      const { id } = z
+        .object({ id: z.string().regex(/^[A-Za-z0-9:_-]{3,128}$/) })
+        .parse(request.params);
+      const market = await predictions.getMarket?.(id).catch(() => null);
+      if (!market) return reply.code(404).send({ error: "not_found", message: "Unknown market" });
+      const siblings =
+        market.eventId && predictions.listEventMarkets
+          ? await predictions.listEventMarkets(market.eventId).catch(() => [])
+          : [];
+      return { data: market, related: siblings.filter((item) => item.id !== market.id) };
+    },
+  );
+  const predictionResearchCache = new Map<string, { until: number; value: unknown }>();
+  app.get(
+    "/v1/prediction-markets/:id/research",
+    { preHandler: requirePermission("market:read") },
+    async (request, reply) => {
+      const { id } = z
+        .object({ id: z.string().regex(/^[A-Za-z0-9:_-]{3,128}$/) })
+        .parse(request.params);
+      const cached = predictionResearchCache.get(id);
+      if (cached && cached.until > Date.now()) return { data: cached.value };
+      const market = await predictions.getMarket?.(id).catch(() => null);
+      if (!market) return reply.code(404).send({ error: "not_found", message: "Unknown market" });
+      const siblings =
+        market.eventId && predictions.listEventMarkets
+          ? await predictions.listEventMarkets(market.eventId).catch(() => [])
+          : [];
+      const value = await researchPredictionMarket(market, siblings);
+      predictionResearchCache.set(id, { until: Date.now() + 60_000, value });
+      if (predictionResearchCache.size > 500)
+        predictionResearchCache.delete(predictionResearchCache.keys().next().value ?? "");
+      return { data: value };
     },
   );
 
@@ -2044,5 +2333,12 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     });
   });
 
+  // Warm the slow catalogues once the server starts so the first visitor never waits on them.
+  if (config.NODE_ENV !== "test")
+    app.addHook("onReady", async () => {
+      void xstocks.list().catch(() => undefined);
+      void predictions.listOpenMarkets(1).catch(() => undefined);
+      void refreshSpotUniverse();
+    });
   return app;
 }

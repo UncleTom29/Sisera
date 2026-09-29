@@ -74,15 +74,9 @@ export default function BrandPage() {
       <h2>Typography</h2>
       <div className="mt-6 grid gap-px border border-line bg-line">
         <div className="bg-ink p-6">
-          <p className="display text-5xl text-bone">Newsreader</p>
+          <p className="display text-5xl text-bone">Mona Sans</p>
           <p className="mt-2 font-mono text-[12px] text-slate-400">
-            Display · headlines and figures
-          </p>
-        </div>
-        <div className="bg-ink p-6">
-          <p className="text-4xl font-medium text-bone">Schibsted Grotesk</p>
-          <p className="mt-2 font-mono text-[12px] text-slate-400">
-            Interface · body and navigation
+            Headlines and interface · GitHub's open-source typeface
           </p>
         </div>
         <div className="bg-ink p-6">

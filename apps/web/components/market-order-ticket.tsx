@@ -1,8 +1,9 @@
 "use client";
 
-import { useConnectWallet, useCreateWallet, usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useSiseraWallets } from "../lib/use-sisera-wallets";
 import { useLiveCapability } from "./use-live-capability";
 
 export function MarketOrderTicket({
@@ -23,10 +24,7 @@ export function MarketOrderTicket({
   quoteStatus: "live" | "delayed" | "stale" | "degraded" | "unavailable" | undefined;
 }) {
   const { authenticated } = usePrivy();
-  const { wallets } = useWallets();
-  const { connectWallet } = useConnectWallet();
-  const { createWallet } = useCreateWallet();
-  const wallet = wallets[0];
+  const { evm: wallet } = useSiseraWallets();
   const [mode, setMode] = useState<"paper" | "live">("paper");
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [quantity, setQuantity] = useState("");
@@ -191,21 +189,8 @@ export function MarketOrderTicket({
                 {wallet?.address ?? "Not connected"}
               </span>
             </p>
-            {!wallet && (
-              <div className="flex gap-3">
-                <button type="button" onClick={() => connectWallet()} className="text-bronze-300">
-                  Connect EVM wallet
-                </button>
-                {authenticated && (
-                  <button
-                    type="button"
-                    onClick={() => void createWallet()}
-                    className="text-bronze-300"
-                  >
-                    Create Privy wallet
-                  </button>
-                )}
-              </div>
+            {!wallet && authenticated && (
+              <p className="text-slate-400">Setting up your EVM wallet…</p>
             )}
             <p>
               USDC must be deposited into the HyperCore trading balance. A HyperEVM token balance

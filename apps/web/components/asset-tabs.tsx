@@ -2,7 +2,7 @@
 
 import { type ReactNode, useState } from "react";
 
-/** Underline tabs for the lower half of an asset page. Every panel is server-rendered up front. */
+/** Underline tabs for the lower half of an asset page. Only the active panel is mounted. */
 export function AssetTabs({
   tabs,
 }: { tabs: Array<{ id: string; label: string; panel: ReactNode }> }) {
@@ -29,17 +29,18 @@ export function AssetTabs({
           </button>
         ))}
       </div>
-      {tabs.map((tab) => (
-        <div
-          key={tab.id}
-          role="tabpanel"
-          id={`panel-${tab.id}`}
-          aria-labelledby={`tab-${tab.id}`}
-          hidden={active !== tab.id}
-        >
-          {tab.panel}
-        </div>
-      ))}
+      {tabs
+        .filter((tab) => tab.id === active)
+        .map((tab) => (
+          <div
+            key={tab.id}
+            role="tabpanel"
+            id={`panel-${tab.id}`}
+            aria-labelledby={`tab-${tab.id}`}
+          >
+            {tab.panel}
+          </div>
+        ))}
     </section>
   );
 }

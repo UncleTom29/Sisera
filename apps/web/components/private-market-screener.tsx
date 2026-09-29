@@ -1,9 +1,13 @@
 "use client";
 
-import { ArrowUpRight, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { PreStock } from "../lib/api";
+import { useLivePrices } from "../lib/live-prices";
+import { formatSignedPct, signTone } from "../lib/sign";
+import { LiveNumber } from "./live-number";
 
 type SortKey = "company" | "premium" | "token" | "valuation";
 const dollars = (value: string, compact = false) =>
@@ -21,33 +25,45 @@ const observedAt = (value: string) =>
   }).format(new Date(value));
 
 export function PrivateMarketScreener({ markets }: { markets: PreStock[] }) {
+  const router = useRouter();
+  const live = useLivePrices();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("premium");
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return markets
-      .filter((market) =>
+      .map((market) => {
+        const token = live[market.instrument.venueSymbol]?.usd ?? Number(market.tokenPrice);
+        const mark = Number(market.markPrice);
+        const premium = mark > 0 ? (token / mark - 1) * 100 : Number(market.premiumDiscountPct);
+        // The issuer's implied valuation, moved in proportion to the live token price.
+        const quoted = Number(market.tokenPrice);
+        const implied =
+          quoted > 0
+            ? Number(market.impliedValuation) * (token / quoted)
+            : Number(market.impliedValuation);
+        return { market, token, premium, implied };
+      })
+      .filter(({ market }) =>
         `${market.company} ${market.instrument.baseAsset}`.toLowerCase().includes(needle),
       )
       .sort((a, b) => {
-        if (sort === "company") return a.company.localeCompare(b.company);
-        const field =
-          sort === "premium"
-            ? "premiumDiscountPct"
-            : sort === "token"
-              ? "tokenPrice"
-              : "impliedValuation";
-        return Number(b[field]) - Number(a[field]);
+        if (sort === "company") return a.market.company.localeCompare(b.market.company);
+        if (sort === "premium") return Math.abs(b.premium) - Math.abs(a.premium);
+        if (sort === "token") return b.token - a.token;
+        return b.implied - a.implied;
       });
-  }, [markets, query, sort]);
+  }, [markets, live, query, sort]);
+  const observed = markets[0]?.fetchedAt;
 
   return (
-    <section className="overflow-hidden rounded-lg border border-line bg-panel">
+    <section className="border border-line bg-panel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-4">
         <div>
           <h2 className="text-sm font-semibold text-white">Private company screener</h2>
           <p className="mt-1 text-xs text-slate-400">
-            {rows.length} of {markets.length} assets · provider marks are indicative
+            {rows.length} of {markets.length} companies · token prices update every second
+            {observed ? ` · issuer marks as of ${observedAt(observed)} UTC` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -85,52 +101,44 @@ export function PrivateMarketScreener({ markets }: { markets: PreStock[] }) {
                 <th className="px-4 py-3 text-right font-medium">Premium / discount</th>
                 <th className="px-4 py-3 text-right font-medium">Implied valuation</th>
                 <th className="px-4 py-3 text-right font-medium">Mark valuation</th>
-                <th className="px-4 py-3 font-medium">Mark observed</th>
-                <th className="px-4 py-3 font-medium">Details</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((market) => {
-                const premium = Number(market.premiumDiscountPct);
+              {rows.map(({ market, token, premium, implied }) => {
+                const href = `/private-markets/${encodeURIComponent(market.instrument.baseAsset)}`;
                 return (
                   <tr
                     key={market.instrument.id}
-                    className="border-b border-line/70 last:border-0 hover:bg-white/[.025]"
+                    onClick={() => router.push(href)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") router.push(href);
+                    }}
+                    className="cursor-pointer border-b border-line/70 last:border-0 hover:bg-white/[.03]"
                   >
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-100">{market.company}</div>
-                      <div className="mt-1 font-mono text-[10px] text-slate-500">
-                        {market.instrument.baseAsset}
-                      </div>
+                      <Link href={href} onClick={(event) => event.stopPropagation()}>
+                        <span className="font-semibold text-bone">
+                          {market.company.replace(/ PreStocks$/, "")}
+                        </span>
+                        <span className="ml-2 font-mono text-[11px] text-slate-400">
+                          {market.instrument.baseAsset}
+                        </span>
+                      </Link>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-100">
-                      {dollars(market.tokenPrice)}
+                    <td className="px-4 py-3 text-right text-bone">
+                      <LiveNumber value={token} display={dollars(String(token))} />
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-300">
+                    <td className="num px-4 py-3 text-right text-slate-300">
                       {dollars(market.markPrice)}
                     </td>
-                    <td
-                      className={`px-4 py-3 text-right font-mono ${premium >= 0 ? "text-amber-300" : "text-emerald-300"}`}
-                    >
-                      {premium >= 0 ? "+" : ""}
-                      {premium.toFixed(2)}%
+                    <td className={`num px-4 py-3 text-right ${signTone(premium)}`}>
+                      {formatSignedPct(premium)}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-300">
-                      {dollars(market.impliedValuation, true)}
+                    <td className="num px-4 py-3 text-right text-slate-300">
+                      {dollars(String(implied), true)}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-slate-300">
+                    <td className="num px-4 py-3 text-right text-slate-300">
                       {dollars(market.markValuation, true)}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-[10px] text-slate-400">
-                      {observedAt(market.fetchedAt)} UTC
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/private-markets/${encodeURIComponent(market.instrument.baseAsset)}`}
-                        className="inline-flex items-center gap-1 text-bronze-300 hover:text-bronze-100"
-                      >
-                        Inspect <ArrowUpRight size={12} />
-                      </Link>
                     </td>
                   </tr>
                 );

@@ -55,5 +55,11 @@ const Environment = z.object({
 export type ApiConfig = z.infer<typeof Environment>;
 
 export function readConfig(environment: NodeJS.ProcessEnv = process.env): ApiConfig {
-  return Environment.parse(environment);
+  // The research model was first configured under SISERA_OPENROUTER_* names; accept either.
+  return Environment.parse({
+    ...environment,
+    OPENROUTER_API_KEY: environment.OPENROUTER_API_KEY || environment.SISERA_OPENROUTER_API_KEY,
+    SISERA_INTELLIGENCE_MODEL:
+      environment.SISERA_INTELLIGENCE_MODEL || environment.SISERA_OPENROUTER_MODEL,
+  });
 }

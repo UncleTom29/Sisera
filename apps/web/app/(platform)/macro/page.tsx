@@ -9,6 +9,7 @@ import {
   getMarketOverview,
   getPerpetualMetrics,
 } from "../../../lib/api";
+import { signTone } from "../../../lib/sign";
 
 export const metadata: Metadata = {
   title: "Macro & chains",
@@ -285,9 +286,7 @@ export default async function MacroPage() {
                         ? "Market view"
                         : `$${asset.priceUsd.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
                     </p>
-                    <p
-                      className={`mt-1 text-[10px] ${asset.change24hPct != null && asset.change24hPct >= 0 ? "text-emerald-300" : "text-rose-300"}`}
-                    >
+                    <p className={`mt-1 text-[10px] ${signTone(asset.change24hPct)}`}>
                       {asset.change24hPct == null
                         ? "See trend"
                         : `${asset.change24hPct > 0 ? "+" : ""}${asset.change24hPct.toFixed(2)}% today`}
@@ -372,11 +371,7 @@ export default async function MacroPage() {
                       <td className="px-4 py-3 font-semibold text-white">{item.symbol}</td>
                       <td>{Number(item.markPrice).toLocaleString()}</td>
                       <td>{item.oraclePrice ? Number(item.oraclePrice).toLocaleString() : "—"}</td>
-                      <td
-                        className={
-                          Number(item.fundingRate) >= 0 ? "text-emerald-300" : "text-rose-300"
-                        }
-                      >
+                      <td className={signTone(Number(item.fundingRate))}>
                         {item.fundingRate ? `${(Number(item.fundingRate) * 100).toFixed(4)}%` : "—"}
                       </td>
                       <td>

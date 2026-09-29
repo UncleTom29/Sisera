@@ -19,6 +19,22 @@ const Environment = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  SISERA_LIVE_LAUNCHES_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  SISERA_LIVE_AGENTS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  SISERA_DELEGATED_SIGNING_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  SISERA_SCHEDULER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
   SISERA_ALLOW_DEV_AUTH: z
     .enum(["true", "false"])
     .default("false")
@@ -49,6 +65,17 @@ const Environment = z.object({
   FINNHUB_API_KEY: z.string().optional(),
   MARKETAUX_API_KEY: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),
+  PRIVY_AUTHORIZATION_PRIVATE_KEY: z.string().optional(),
+  SEC_EDGAR_USER_AGENT: z.string().default("Sisera market intelligence https://sisera.xyz"),
+  SISERA_PUBLIC_URL: z.string().url().default("https://sisera.xyz"),
+  /** Optional partner wallet that receives Meteora DBC partner fees for launches made in Sisera. */
+  SISERA_DBC_PARTNER_WALLET: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z
+      .string()
+      .regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)
+      .optional(),
+  ),
   SISERA_INTELLIGENCE_MODEL: z.string().optional(),
 });
 

@@ -23,5 +23,7 @@ export const config = {
     "/settings/:path*",
     "/leaderboard/:path*",
     "/social/:path*",
+    "/copilot/:path*",
+    "/launch/:path*",
   ],
 };

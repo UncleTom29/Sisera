@@ -190,6 +190,10 @@ export type AgentTemplate = {
   timeframe: string;
   factors: readonly string[];
   risk: string;
+  rules?: {
+    entry: ReadonlyArray<{ type: string } & Record<string, unknown>>;
+    exit: ReadonlyArray<{ type: string } & Record<string, unknown>>;
+  } | null;
 };
 export type CustomAgent = {
   id: string;
@@ -197,6 +201,7 @@ export type CustomAgent = {
   version: string;
   stage: string;
   autonomy: string;
+  hasRules?: boolean;
   manifestHash: string | null;
   createdAt: string;
   policy: {
@@ -817,6 +822,64 @@ export async function getPredictionResearch(id: string, identity: ApiIdentity) {
     `/v1/prediction-markets/${encodeURIComponent(id)}/research`,
     identity,
     20000,
+  );
+  return payload.data;
+}
+
+export type AgentTokenDetail = {
+  asset: {
+    key: string;
+    symbol: string;
+    name: string;
+    mint: string;
+    priceUsd: number | null;
+    change24hPct: number | null;
+    liquidityUsd: number | null;
+    volume24hUsd: number | null;
+    marketCapUsd: number | null;
+    imageUrl: string | null;
+    pairedStock: { symbol: string; mint: string } | null;
+  };
+  token: {
+    description: string | null;
+    agentName: string | null;
+    verified: boolean;
+    xVerified: boolean;
+    graduated: boolean;
+    website: string | null;
+    twitter: string | null;
+    createdAt: string | null;
+    quoteSymbol: string | null;
+    creatorAllocationBps: number | null;
+    vesting: { cliffDays: number | null; durationDays: number | null } | null;
+    tags: string[];
+  } | null;
+  concentration: {
+    top10WalletPct: number;
+    top1WalletPct: number;
+    programHeldPct: number;
+    walletsSampled: number;
+    method: string;
+  } | null;
+  risk: {
+    score: number;
+    level: string;
+    components: Array<{ name: string; points: number; detail: string }>;
+  };
+  pairedStock: {
+    symbol: string;
+    name: string;
+    priceUsd: number | null;
+    change24hPct: number | null;
+    relativePerformancePct: number | null;
+  } | null;
+};
+
+export async function getAgentTokenDetail(mint: string, identity: ApiIdentity) {
+  const payload = await getJson<{ data: AgentTokenDetail }>(
+    `/v1/agent-market/tokens/${encodeURIComponent(mint)}`,
+    identity,
+    15000,
   );
   return payload.data;
 }

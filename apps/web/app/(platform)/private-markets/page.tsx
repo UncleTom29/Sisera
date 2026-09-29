@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { auth } from "../../../auth";
 import { LiveRefresh } from "../../../components/live-refresh";
 import { PageHeader } from "../../../components/page-header";
+import { PrivateRankings } from "../../../components/platform/private-rankings";
 import { PrivateMarketScreener } from "../../../components/private-market-screener";
 import { getPrivateMarkets } from "../../../lib/api";
 
@@ -44,6 +45,7 @@ export default async function PrivateMarketsPage() {
             {fetchedAt ? new Date(fetchedAt).toLocaleTimeString() : "soon"}
           </div>
         </div>
+        <PrivateRankings />
         {markets.length ? (
           <PrivateMarketScreener markets={markets} />
         ) : (

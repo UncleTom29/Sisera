@@ -19,6 +19,13 @@ import type { XStocksClient } from "./xstocks.js";
 
 const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const MAX_USD = "500";
+/** A paper trade may use the whole simulated account. */
+const MAX_PAPER_USD = 10_000;
+
+/** Resolves Solana tokens outside the xStocks and PreStocks catalogues, such as agent tokens. */
+export type TokenResolver = (
+  mint: string,
+) => Promise<{ symbol: string; priceUsd: number | null; kind: "agent_token" } | null>;
 
 export class TradeRejection extends Error {
   constructor(
@@ -66,6 +73,7 @@ export class SolanaTradingService {
     private readonly prestocks: PreStocksProvider,
     private readonly helius: HeliusClient | null,
     private readonly jupiter: JupiterQuoteClient | null,
+    private readonly resolveToken: TokenResolver = async () => null,
   ) {
     this.privy =
       config.PRIVY_APP_ID && config.PRIVY_APP_SECRET
@@ -79,6 +87,9 @@ export class SolanaTradingService {
     mint: string;
     side: "buy" | "sell";
     amount: string;
+    book?: string;
+    /** A fresher executable price supplied by the caller, e.g. a live Jupiter price. */
+    priceUsd?: string | null;
   }) {
     const [publicStocks, privateStocks] = await Promise.all([
       this.xstocks.list(),
@@ -86,26 +97,40 @@ export class SolanaTradingService {
     ]);
     const publicStock = publicStocks.find((asset) => asset.mint === input.mint);
     const privateStock = privateStocks.find((asset) => asset.instrument.mint === input.mint);
-    const priceText = publicStock?.priceUsd ?? privateStock?.tokenPrice;
-    if (!priceText || publicStock?.tradingHalted)
+    const agentToken =
+      publicStock || privateStock ? null : await this.resolveToken(input.mint).catch(() => null);
+    const priceText =
+      input.priceUsd ??
+      publicStock?.priceUsd ??
+      publicStock?.dexPriceUsd ??
+      privateStock?.tokenPrice ??
+      (agentToken?.priceUsd != null ? String(agentToken.priceUsd) : null);
+    if (!priceText || !(Number(priceText) > 0) || publicStock?.tradingHalted)
       throw new TradeRejection("A price is not available for this asset.");
     const price = new Decimal(priceText);
     const amount = new Decimal(input.amount);
     const quantity = input.side === "buy" ? amount.div(price) : amount;
     const cost = quantity.mul(price);
-    if (amount.lte(0) || cost.gt(1000))
-      throw new TradeRejection("Paper trades are limited to $1,000 each.");
+    if (amount.lte(0) || cost.gt(MAX_PAPER_USD))
+      throw new TradeRejection("Paper trades are limited to $10,000 each.");
     const instrumentId = publicStock
       ? `xstocks-solana:${input.mint}:tokenized_equity`
-      : `prestocks-solana:${input.mint}:pre_ipo_equity`;
+      : privateStock
+        ? `prestocks-solana:${input.mint}:pre_ipo_equity`
+        : `clawpump-solana:${input.mint}:agent_token`;
     const instrument: Instrument = {
       id: instrumentId,
-      venue: publicStock ? "xstocks-solana" : "prestocks-solana",
+      venue: publicStock ? "xstocks-solana" : privateStock ? "prestocks-solana" : "clawpump-solana",
       venueSymbol: input.mint,
-      displaySymbol: publicStock?.symbol ?? privateStock?.instrument.displaySymbol ?? "Stock",
-      assetClass: "equity",
-      type: publicStock ? "tokenized_equity" : "pre_ipo_equity",
-      baseAsset: publicStock?.symbol ?? privateStock?.instrument.baseAsset ?? "STOCK",
+      displaySymbol:
+        publicStock?.symbol ??
+        privateStock?.instrument.displaySymbol ??
+        agentToken?.symbol ??
+        "Token",
+      assetClass: agentToken ? "crypto" : "equity",
+      type: publicStock ? "tokenized_equity" : privateStock ? "pre_ipo_equity" : "agent_token",
+      baseAsset:
+        publicStock?.symbol ?? privateStock?.instrument.baseAsset ?? agentToken?.symbol ?? "TOKEN",
       quoteAsset: "USD",
       priceIncrement: "0.000001",
       quantityIncrement: "0.000001",
@@ -136,7 +161,13 @@ export class SolanaTradingService {
       last: price.toFixed(),
       quality: {
         status: "delayed",
-        source: publicStock ? "xstocks-indicative" : "prestocks-indicative",
+        source: input.priceUsd
+          ? "live-price"
+          : publicStock
+            ? "xstocks-indicative"
+            : privateStock
+              ? "prestocks-indicative"
+              : "clawpump-indicative",
         observedAt: now,
         receivedAt: now,
         latencyMs: 0,
@@ -154,14 +185,14 @@ export class SolanaTradingService {
         existingInstrumentExposure: "0",
       },
       limits: {
-        maxOrderNotional: "1000",
+        maxOrderNotional: String(MAX_PAPER_USD),
         maxGrossExposure: "10000",
         maxNetExposure: "10000",
         maxPositionNotional: "10000",
         maxDailyLoss: "10000",
         maxLeverage: "1",
         maxQuoteAgeMs: 15000,
-        allowedAssetClasses: ["equity"],
+        allowedAssetClasses: ["equity", "crypto"],
       },
     });
     if (decision.outcome !== "approved")
@@ -192,6 +223,8 @@ export class SolanaTradingService {
       riskDecision: decision,
       mode: "paper",
       status: "paper_filled",
+      book: input.book ?? "manual",
+      arrivalPriceUsd: price.toFixed(),
     } as const;
     const account = this.config.DATABASE_URL
       ? await applySolanaPaperTrade(this.config.DATABASE_URL, input.subject, record, update)
@@ -222,6 +255,10 @@ export class SolanaTradingService {
     mint: string;
     side: "buy" | "sell";
     amount: string;
+    book?: string;
+    slippageBps?: number;
+    arrivalPriceUsd?: number | null;
+    maxNotionalUsd?: number;
   }) {
     if (!this.config.DATABASE_URL || !this.helius || !this.jupiter || !this.privy)
       throw new TradeRejection("Live trading is not available right now.", 503);
@@ -234,7 +271,9 @@ export class SolanaTradingService {
     ]);
     const publicStock = publicStocks.find((asset) => asset.mint === input.mint);
     const privateStock = privateStocks.find((asset) => asset.instrument.mint === input.mint);
-    if ((!publicStock && !privateStock) || publicStock?.tradingHalted)
+    const agentToken =
+      publicStock || privateStock ? null : await this.resolveToken(input.mint).catch(() => null);
+    if ((!publicStock && !privateStock && !agentToken) || publicStock?.tradingHalted)
       throw new TradeRejection("This asset is not available to trade.");
     const inputMint = input.side === "buy" ? USDC : input.mint;
     const outputMint = input.side === "buy" ? input.mint : USDC;
@@ -248,7 +287,13 @@ export class SolanaTradingService {
       throw new TradeRejection("Your wallet does not have enough balance for this trade.");
     if (BigInt(solLamports) < 1_000_000n)
       throw new TradeRejection("Add a little SOL to your wallet for network fees.");
-    const quote = await this.jupiter.order(inputMint, outputMint, input.amount, input.wallet);
+    const quote = await this.jupiter.order(
+      inputMint,
+      outputMint,
+      input.amount,
+      input.wallet,
+      input.slippageBps ?? 100,
+    );
     if (
       quote.inputMint !== inputMint ||
       quote.outputMint !== outputMint ||
@@ -259,8 +304,11 @@ export class SolanaTradingService {
       input.side === "buy"
         ? new Decimal(quote.inAmount).div(1_000_000)
         : new Decimal(quote.outAmount).div(1_000_000);
-    if (notional.lte(0) || notional.gt(MAX_USD))
-      throw new TradeRejection("Trades are currently limited to $500 each.");
+    const maxNotional = new Decimal(
+      Math.min(Number(MAX_USD), input.maxNotionalUsd ?? Number(MAX_USD)),
+    );
+    if (notional.lte(0) || notional.gt(maxNotional))
+      throw new TradeRejection(`Trades are currently limited to $${maxNotional.toFixed(0)} each.`);
     if (quote.priceImpactPct && new Decimal(quote.priceImpactPct).abs().gt("0.02"))
       throw new TradeRejection("The price impact is too high. Try a smaller trade.");
     const quantity =
@@ -272,13 +320,20 @@ export class SolanaTradingService {
     const instrument: Instrument = {
       id: publicStock
         ? `xstocks-solana:${input.mint}:tokenized_equity`
-        : `prestocks-solana:${input.mint}:pre_ipo_equity`,
-      venue: publicStock ? "xstocks-solana" : "prestocks-solana",
+        : privateStock
+          ? `prestocks-solana:${input.mint}:pre_ipo_equity`
+          : `clawpump-solana:${input.mint}:agent_token`,
+      venue: publicStock ? "xstocks-solana" : privateStock ? "prestocks-solana" : "clawpump-solana",
       venueSymbol: input.mint,
-      displaySymbol: publicStock?.symbol ?? privateStock?.instrument.displaySymbol ?? "Stock",
-      assetClass: "equity",
-      type: publicStock ? "tokenized_equity" : "pre_ipo_equity",
-      baseAsset: publicStock?.symbol ?? privateStock?.instrument.baseAsset ?? "STOCK",
+      displaySymbol:
+        publicStock?.symbol ??
+        privateStock?.instrument.displaySymbol ??
+        agentToken?.symbol ??
+        "Token",
+      assetClass: agentToken ? "crypto" : "equity",
+      type: publicStock ? "tokenized_equity" : privateStock ? "pre_ipo_equity" : "agent_token",
+      baseAsset:
+        publicStock?.symbol ?? privateStock?.instrument.baseAsset ?? agentToken?.symbol ?? "TOKEN",
       quoteAsset: "USDC",
       priceIncrement: "0.000001",
       quantityIncrement: "0.000001",
@@ -339,7 +394,7 @@ export class SolanaTradingService {
         maxDailyLoss: MAX_USD,
         maxLeverage: "1",
         maxQuoteAgeMs: 15_000,
-        allowedAssetClasses: ["equity"],
+        allowedAssetClasses: ["equity", "crypto"],
       },
     });
     const record = applyOrderEvent(createOrderRecord(crypto.randomUUID(), intent), {
@@ -364,6 +419,10 @@ export class SolanaTradingService {
       mode: "live",
       status: "prepared",
       expiresAt: new Date(Date.now() + 45_000),
+      tokenDecimals: input.side === "buy" ? outputHolding.decimals : inputHolding.decimals,
+      book: input.book ?? "manual",
+      arrivalPriceUsd:
+        input.arrivalPriceUsd != null ? String(input.arrivalPriceUsd) : unitPrice.toFixed(),
     });
     return {
       orderId: record.orderId,
@@ -403,6 +462,42 @@ export class SolanaTradingService {
         status: result.status === "Success" ? "confirmed" : "failed",
         signature: result.signature ?? null,
       };
+    } catch {
+      await finishSolanaSwapOrder(this.config.DATABASE_URL, id, "unknown");
+      return { status: "unknown", signature: null };
+    }
+  }
+
+  /**
+   * Executes a prepared order with a server-side signer that the wallet owner delegated to Sisera.
+   * The signer is only ever given the exact transaction that passed risk checks, and the signed
+   * bytes are verified against it before submission.
+   */
+  async executeWithSigner(
+    id: string,
+    subject: string,
+    sign: (unsignedTransaction: string, wallet: string) => Promise<string>,
+  ) {
+    if (!this.config.DATABASE_URL || !this.jupiter)
+      throw new TradeRejection("Live trading is not available right now.", 503);
+    const order = await claimSolanaSwapOrder(this.config.DATABASE_URL, id, subject);
+    if (!order || !order.unsignedTransaction || !order.requestId)
+      throw new TradeRejection("This trade has expired. Review a new quote.");
+    let signedTransaction: string;
+    try {
+      signedTransaction = await sign(order.unsignedTransaction, order.wallet);
+      verifySignedSwap(order.unsignedTransaction, signedTransaction, order.wallet);
+    } catch (error) {
+      await finishSolanaSwapOrder(this.config.DATABASE_URL, id, "failed");
+      throw error instanceof TradeRejection
+        ? error
+        : new TradeRejection("The delegated signer did not sign this trade.", 503);
+    }
+    try {
+      const result = await this.jupiter.execute(signedTransaction, order.requestId);
+      const status = result.status === "Success" ? "confirmed" : "failed";
+      await finishSolanaSwapOrder(this.config.DATABASE_URL, id, status, result.signature);
+      return { status, signature: result.signature ?? null };
     } catch {
       await finishSolanaSwapOrder(this.config.DATABASE_URL, id, "unknown");
       return { status: "unknown", signature: null };

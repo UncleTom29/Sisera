@@ -45,6 +45,21 @@ export const publicMarketRoutes: ReadonlySet<string> = new Set([
   "/v1/prediction-markets/:id/research",
   "/v1/agent-tokens",
   "/v1/live/prices",
+  "/v1/catalog/assets",
+  "/v1/catalog/assets/:key",
+  "/v1/intelligence/assets/:key/events",
+  "/v1/intelligence/assets/:key/explain",
+  "/v1/intelligence/changes",
+  "/v1/intelligence/macro",
+  "/v1/intelligence/events",
+  "/v1/rankings/fair-value",
+  "/v1/rankings/private",
+  "/v1/agent-market/stock-paired",
+  "/v1/agent-market/rank",
+  "/v1/agent-market/today",
+  "/v1/agent-market/tokens/:mint",
+  "/v1/launches/dbc/presets",
+  "/v1/launches/:id/metadata",
 ]);
 
 /** The read-only identity given to anonymous requests on public market routes. */

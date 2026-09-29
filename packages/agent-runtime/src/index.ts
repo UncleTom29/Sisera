@@ -45,3 +45,4 @@ export function createAgentProposal(
     status: "proposed",
   };
 }
+export * from "./strategy.js";

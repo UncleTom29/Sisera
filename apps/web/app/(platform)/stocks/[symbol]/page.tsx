@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { auth } from "../../../../auth";
 import { AssetTabs } from "../../../../components/asset-tabs";
+import { AssetEventFeed } from "../../../../components/platform/event-feed";
+import { ImpactWidget } from "../../../../components/platform/impact-widget";
 import { SignInToTrade } from "../../../../components/sign-in-to-trade";
 import { StockAssessment } from "../../../../components/stock-assessment";
 import { StockLiveStats } from "../../../../components/stock-live-stats";
@@ -210,15 +212,19 @@ export default async function PublicStockPage({ params }: { params: Promise<{ sy
             ]}
           />
           <StockAssessment symbol={stock.symbol} signedIn={signedIn} />
+          <AssetEventFeed assetKey={stock.symbol} symbol={stock.symbol} />
         </div>
-        <div className="self-start lg:sticky lg:top-4">
+        <div className="space-y-4 self-start lg:sticky lg:top-4">
           {signedIn ? (
-            <StockTradeTicket
-              mint={stock.mint}
-              symbol={stock.symbol}
-              price={price}
-              halted={stock.tradingHalted}
-            />
+            <>
+              <StockTradeTicket
+                mint={stock.mint}
+                symbol={stock.symbol}
+                price={price}
+                halted={stock.tradingHalted}
+              />
+              <ImpactWidget assetKey={stock.symbol} symbol={stock.symbol} />
+            </>
           ) : (
             <SignInToTrade
               label={stock.symbol}

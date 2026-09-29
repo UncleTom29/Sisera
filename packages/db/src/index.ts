@@ -16,7 +16,7 @@ export async function checkDatabaseReadiness(connectionString: string): Promise<
   try {
     const rows = await connection`
       SELECT EXISTS (
-        SELECT 1 FROM _sisera_migrations WHERE name = '0012_account_alerts.sql'
+        SELECT 1 FROM _sisera_migrations WHERE name = '0014_repair_json_encoding.sql'
       ) AS migrated
     `;
     return rows[0]?.migrated === true;
@@ -272,10 +272,14 @@ export async function listAccountAlerts(connectionString: string, subject: strin
       ), eligible AS (
         SELECT id, source, source_id, status, detail, occurred_at
         FROM latest
-        WHERE status IN ('failed', 'unknown', 'rejected')
-          AND source IN ('solana_swap_orders', 'market_live_orders', 'prediction_orders')
-          AND COALESCE((SELECT failed_order_alerts FROM account_preferences
-                        WHERE subject = ${subject}), true)
+        WHERE ((status IN ('failed', 'unknown', 'rejected')
+                AND source IN ('solana_swap_orders', 'market_live_orders', 'prediction_orders')
+                AND COALESCE((SELECT failed_order_alerts FROM account_preferences
+                              WHERE subject = ${subject}), true))
+            OR (source = 'trading_policies' AND status IN ('awaiting_approval', 'failed', 'invalidated'))
+            OR (source = 'agent_orders' AND status IN ('awaiting_approval', 'failed'))
+            OR (source = 'token_launches' AND status = 'failed')
+            OR (source = 'agent_state_events' AND status = 'paused'))
         UNION ALL
         SELECT id, 'bridge_transfers', id, 'delayed',
                jsonb_build_object('requestId', request_id), source_submitted_at
@@ -317,7 +321,10 @@ export async function acknowledgeAccountAlert(
     const [row] = await connection`
       SELECT id FROM account_events
       WHERE id = ${alertId}::uuid AND subject = ${subject}
-        AND status IN ('failed', 'unknown', 'rejected')
+        AND (status IN ('failed', 'unknown', 'rejected')
+          OR (source = 'trading_policies' AND status IN ('awaiting_approval', 'invalidated'))
+          OR (source = 'agent_orders' AND status = 'awaiting_approval')
+          OR (source = 'agent_state_events' AND status = 'paused'))
       UNION ALL
       SELECT id FROM bridge_transfers
       WHERE id = ${alertId}::uuid AND subject = ${subject}
@@ -400,8 +407,8 @@ export async function applySolanaPaperTrade(
         cashUsd: String(account.cash_usd),
         holdings: account.holdings as Record<string, string>,
       });
-      await transaction`UPDATE solana_paper_accounts SET cash_usd = ${next.cashUsd}, holdings = ${JSON.stringify(next.holdings)}::jsonb, updated_at = now() WHERE subject = ${subject}`;
-      await transaction`INSERT INTO solana_swap_orders (id, tenant_id, subject, wallet, input_mint, output_mint, in_amount, out_amount, risk_decision, mode, status) VALUES (${order.id}, ${order.tenantId}, ${subject}, ${order.wallet}, ${order.inputMint}, ${order.outputMint}, ${order.inAmount}, ${order.outAmount}, ${JSON.stringify(order.riskDecision)}::jsonb, 'paper', 'paper_filled')`;
+      await transaction`UPDATE solana_paper_accounts SET cash_usd = ${next.cashUsd}, holdings = ${JSON.stringify(next.holdings)}::text::jsonb, updated_at = now() WHERE subject = ${subject}`;
+      await transaction`INSERT INTO solana_swap_orders (id, tenant_id, subject, wallet, input_mint, output_mint, in_amount, out_amount, risk_decision, mode, status, book, arrival_price_usd) VALUES (${order.id}, ${order.tenantId}, ${subject}, ${order.wallet}, ${order.inputMint}, ${order.outputMint}, ${order.inAmount}, ${order.outAmount}, ${JSON.stringify(order.riskDecision)}::text::jsonb, 'paper', 'paper_filled', ${order.book ?? "manual"}, ${order.arrivalPriceUsd ?? null})`;
       return next;
     });
   } finally {
@@ -526,7 +533,7 @@ export async function applyMarketPaperOrder(
           { size: string; entryPrice: string }
         >,
       });
-      await transaction`UPDATE market_paper_accounts SET cash_usd = ${next.cashUsd}, spot_holdings = ${JSON.stringify(next.spotHoldings)}::jsonb, perp_positions = ${JSON.stringify(next.perpPositions)}::jsonb, updated_at = now() WHERE subject = ${order.subject}`;
+      await transaction`UPDATE market_paper_accounts SET cash_usd = ${next.cashUsd}, spot_holdings = ${JSON.stringify(next.spotHoldings)}::text::jsonb, perp_positions = ${JSON.stringify(next.perpPositions)}::text::jsonb, updated_at = now() WHERE subject = ${order.subject}`;
       await transaction`INSERT INTO market_paper_orders (id, tenant_id, subject, venue, symbol, side, quantity, fill_price, fee_usd) VALUES (${order.id}, ${order.tenantId}, ${order.subject}, ${order.venue}, ${order.symbol}, ${order.side}, ${order.quantity}, ${order.fillPrice}, ${order.feeUsd})`;
       return next;
     });
@@ -570,10 +577,11 @@ export async function updateMarketLiveOrder(
   id: string,
   status: "filled" | "rejected" | "unknown",
   venueOrderId?: string,
+  fill?: { priceUsd: string; feeUsd: string },
 ) {
   const connection = postgres(connectionString, { max: 2, connect_timeout: 10 });
   try {
-    await connection`UPDATE market_live_orders SET status = ${status}, venue_order_id = ${venueOrderId ?? null}, updated_at = now() WHERE id = ${id}`;
+    await connection`UPDATE market_live_orders SET status = ${status}, venue_order_id = ${venueOrderId ?? null}, fill_price = ${fill?.priceUsd ?? null}, fee_usd = ${fill?.feeUsd ?? null}, updated_at = now() WHERE id = ${id}`;
   } finally {
     await connection.end();
   }
@@ -641,7 +649,7 @@ export async function applyPredictionPaperOrder(
       await transaction`
         UPDATE prediction_paper_accounts
         SET cash_usd = ${settled.state.cashUsd},
-            positions = ${JSON.stringify(settled.state.positions)}::jsonb,
+            positions = ${JSON.stringify(settled.state.positions)}::text::jsonb,
             updated_at = now()
         WHERE subject = ${order.subject}
       `;
@@ -808,3 +816,4 @@ export async function resolvePrivyMembership(connectionString: string, privyUser
     await connection.close();
   }
 }
+export * from "./platform.js";

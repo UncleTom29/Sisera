@@ -5,6 +5,7 @@ import { auth } from "../../../auth";
 import { EmptyState } from "../../../components/empty-state";
 import { LiveTokenPrice } from "../../../components/live-price";
 import { PageHeader } from "../../../components/page-header";
+import { AgentMarketPanels } from "../../../components/platform/agent-market-panels";
 import { getAgentTokens } from "../../../lib/api";
 
 export const metadata: Metadata = {
@@ -56,9 +57,20 @@ export default async function AgentMarkets({
       <PageHeader
         eyebrow="Markets / Agent tokens"
         title="Agent markets"
-        description="Tokens launched by AI agents on Clawpump, ranked live. Each links to its agent, socials, and a Solana chart."
+        description="Tokens launched by AI agents on Clawpump: tradable in Sisera with liquidity, holder concentration, risk scores and performance against their paired stock."
+        actions={
+          <Link
+            href="/launch"
+            className="border border-bronze-300 bg-bronze-300 px-3 py-2 text-xs font-semibold text-ink hover:bg-bronze-200"
+          >
+            Launch an agent token
+          </Link>
+        }
       />
       <div className="p-4 md:p-6">
+        <div className="mb-4">
+          <AgentMarketPanels />
+        </div>
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <form
             action="/clawpump"
@@ -128,7 +140,10 @@ export default async function AgentMarkets({
                             </span>
                           )}
                           <div className="min-w-0">
-                            <p className="flex items-center gap-1.5 font-semibold text-bone">
+                            <Link
+                              href={`/clawpump/${token.mint}`}
+                              className="flex items-center gap-1.5 font-semibold text-bone hover:text-bronze-200"
+                            >
                               {token.symbol}
                               {token.verified && (
                                 <BadgeCheck size={13} className="text-bronze-300" />
@@ -138,7 +153,7 @@ export default async function AgentMarkets({
                                   Graduated
                                 </span>
                               )}
-                            </p>
+                            </Link>
                             <p className="max-w-xs truncate text-[11px] text-slate-400">
                               {token.agentName ?? token.name}
                             </p>

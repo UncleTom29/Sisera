@@ -2,7 +2,13 @@ import { createHash } from "node:crypto";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-import { OpenRouterResearchClient, assessFromEvidence, compileIntent } from "@sisera/copilot";
+import {
+  OpenRouterChat,
+  OpenRouterResearchClient,
+  POLICY_GRAMMAR_PROMPT,
+  assessFromEvidence,
+  compileIntent,
+} from "@sisera/copilot";
 import {
   acknowledgeAccountAlert,
   applyMarketPaperOrder,
@@ -61,7 +67,7 @@ import { agentTemplates } from "./agent-templates.js";
 import { createAuthenticator, requirePermission } from "./auth.js";
 import { BinanceTradingClient } from "./binance-trading.js";
 import { BridgeQuoteInput, BridgeUnavailable, RelayBridgeClient } from "./bridge.js";
-import { ClawpumpClient, ClawpumpError } from "./clawpump.js";
+import { ClawpumpClient, ClawpumpDirectory, ClawpumpError } from "./clawpump.js";
 import { CoinMarketCapClient } from "./coinmarketcap.js";
 import type { ApiConfig } from "./config.js";
 import { PublicEquityReferenceClient } from "./equity-reference.js";
@@ -73,6 +79,23 @@ import { JupiterPredictionTradingClient } from "./jupiter-prediction.js";
 import { JupiterQuoteClient } from "./jupiter.js";
 import { LivePriceHub } from "./live-prices.js";
 import { PaperOrderRejection, settleMarketPaperOrder } from "./market-paper.js";
+import { AgentMarketService } from "./platform/agent-market.js";
+import { AgentError, AgentService } from "./platform/agent-service.js";
+import { AssetCatalog } from "./platform/catalog.js";
+import { CopilotService } from "./platform/copilot-service.js";
+import { DbcError, DbcService } from "./platform/dbc.js";
+import { DelegatedSigner } from "./platform/delegated-signer.js";
+import { DexScreenerClient } from "./platform/dexscreener.js";
+import { HistoryService } from "./platform/history.js";
+import { IntelligenceService } from "./platform/intelligence-service.js";
+import { LaunchError, LaunchService } from "./platform/launch-service.js";
+import { MarketStateBuilder } from "./platform/market-state.js";
+import { PolicyError, PolicyService } from "./platform/policy-service.js";
+import { PortfolioService } from "./platform/portfolio-service.js";
+import { RankingService } from "./platform/rankings.js";
+import { registerPlatformRoutes } from "./platform/routes.js";
+import { PlatformScheduler } from "./platform/scheduler.js";
+import { SecEdgarClient } from "./platform/sec-edgar.js";
 import { PredictionPaperRejection, settlePredictionPaperOrder } from "./prediction-paper.js";
 import { researchPredictionMarket } from "./prediction-research.js";
 import { PredictionTradingService } from "./prediction-trading.js";
@@ -179,7 +202,21 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
   const hyperEvmWallet = new HyperEvmWalletClient();
   const clawpump = config.CLAWPUMP_API_KEY ? new ClawpumpClient(config.CLAWPUMP_API_KEY) : null;
   const jupiter = config.JUPITER_API_KEY ? new JupiterQuoteClient(config.JUPITER_API_KEY) : null;
-  const solanaTrading = new SolanaTradingService(config, xstocks, prestocks, helius, jupiter);
+  // Agent tokens are resolved through the catalog, which is constructed once live prices exist.
+  let catalogRef: AssetCatalog | null = null;
+  const solanaTrading = new SolanaTradingService(
+    config,
+    xstocks,
+    prestocks,
+    helius,
+    jupiter,
+    async (mint) => {
+      const asset = await catalogRef?.byMint(mint);
+      return asset?.kind === "agent_token"
+        ? { symbol: asset.symbol, priceUsd: asset.priceUsd, kind: "agent_token" }
+        : null;
+    },
+  );
   const solanaLiveReady = Boolean(
     config.SISERA_LIVE_SOLANA_ENABLED &&
       config.DATABASE_URL &&
@@ -314,7 +351,11 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
       predictions: predictionsLiveReady,
       binance: config.SISERA_LIVE_BINANCE_ENABLED,
       hyperliquid: false,
+      launches: Boolean(config.SISERA_LIVE_LAUNCHES_ENABLED && config.DATABASE_URL),
+      agents: Boolean(config.SISERA_LIVE_AGENTS_ENABLED && solanaLiveReady),
+      delegatedSigning: delegatedSigner.available,
     },
+    intelligence: { model: Boolean(research), clawpumpPartner: Boolean(clawpump) },
   }));
   app.get(
     "/v1/preferences",
@@ -591,6 +632,148 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     };
   }, config.JUPITER_API_KEY);
   app.addHook("onClose", async () => livePrices.stop());
+
+  // ------------------------------------------------------------------ platform services
+  const dexScreener = new DexScreenerClient();
+  const clawpumpDirectory = new ClawpumpDirectory();
+  const catalog = new AssetCatalog(
+    xstocks,
+    prestocks,
+    clawpumpDirectory,
+    dexScreener,
+    livePrices,
+    (tickers) => getEquityReferences(tickers),
+  );
+  catalogRef = catalog;
+  const history = new HistoryService(config.BINANCE_SPOT_BASE_URL, geckoCandles);
+  const intelligence = new IntelligenceService(
+    catalog,
+    stockNews,
+    new SecEdgarClient(config.SEC_EDGAR_USER_AGENT),
+    social,
+    config.DATABASE_URL,
+  );
+  const marketStates = new MarketStateBuilder(intelligence, history);
+  const delegatedSigner = new DelegatedSigner(
+    config.PRIVY_APP_ID,
+    config.PRIVY_APP_SECRET,
+    config.PRIVY_AUTHORIZATION_PRIVATE_KEY,
+    config.SISERA_DELEGATED_SIGNING_ENABLED,
+  );
+  const chat =
+    config.OPENROUTER_API_KEY && config.SISERA_INTELLIGENCE_MODEL
+      ? new OpenRouterChat(config.OPENROUTER_API_KEY, config.SISERA_INTELLIGENCE_MODEL)
+      : null;
+  const portfolioService = config.DATABASE_URL
+    ? new PortfolioService(config.DATABASE_URL, catalog, helius, {
+        cryptoSpot: async (symbol) => {
+          const snapshot = await marketData.getSnapshot(symbol);
+          return snapshot.quality.status === "live"
+            ? { price: Number(snapshot.bid), observedAt: snapshot.quality.observedAt }
+            : null;
+        },
+        perpetual: async (symbol) => {
+          const snapshot = await hyperliquid.getSnapshot(symbol);
+          return { price: Number(snapshot.last), observedAt: snapshot.quality.observedAt };
+        },
+        prediction: async (marketId, outcome) => {
+          const market = await predictions.getMarket?.(marketId);
+          const probability = market?.outcomes[outcome === "yes" ? 0 : 1]?.probability;
+          return market && probability
+            ? { price: Number(probability), observedAt: market.quality.observedAt }
+            : null;
+        },
+      })
+    : null;
+  const policyService =
+    config.DATABASE_URL && portfolioService
+      ? new PolicyService({
+          databaseUrl: config.DATABASE_URL,
+          catalog,
+          states: marketStates,
+          portfolio: portfolioService,
+          trading: solanaTrading,
+          helius,
+          signer: delegatedSigner,
+          liveAvailable: solanaLiveReady,
+          log: app.log,
+          ...(chat
+            ? {
+                rewrite: async (text: string, assetHint: string | null) => {
+                  const line = await chat.complete(
+                    [
+                      { role: "system", content: POLICY_GRAMMAR_PROMPT },
+                      {
+                        role: "user",
+                        content: `${assetHint ? `Asset in context: ${assetHint}\n` : ""}Instruction: ${text}`,
+                      },
+                    ],
+                    { maxTokens: 160 },
+                  );
+                  return !line || /^NONE\b/i.test(line) ? null : (line.split("\n")[0] ?? null);
+                },
+              }
+            : {}),
+        })
+      : null;
+  const agentService = config.DATABASE_URL
+    ? new AgentService({
+        databaseUrl: config.DATABASE_URL,
+        catalog,
+        history,
+        states: marketStates,
+        spot: marketData,
+        trading: solanaTrading,
+        helius,
+        signer: delegatedSigner,
+        liveAgentsEnabled: Boolean(config.SISERA_LIVE_AGENTS_ENABLED && solanaLiveReady),
+        log: app.log,
+      })
+    : null;
+  const launchService = config.DATABASE_URL
+    ? new LaunchService(
+        config.DATABASE_URL,
+        solanaRpcUrl,
+        clawpump,
+        new DbcService(solanaRpcUrl, config.SISERA_DBC_PARTNER_WALLET),
+        catalog,
+        config.SISERA_PUBLIC_URL,
+      )
+    : null;
+  const rankings = new RankingService(catalog, intelligence, portfolioService);
+  const agentMarket = new AgentMarketService(catalog, clawpumpDirectory, solanaRpcUrl);
+  const copilot = new CopilotService({
+    databaseUrl: config.DATABASE_URL,
+    catalog,
+    intelligence,
+    portfolio: portfolioService,
+    policies: policyService,
+    rankings,
+    agentMarket,
+    chat,
+    model: config.SISERA_INTELLIGENCE_MODEL ?? null,
+  });
+  registerPlatformRoutes(app, config, {
+    catalog,
+    intelligence,
+    rankings,
+    agentMarket,
+    copilot,
+    portfolio: portfolioService,
+    policies: policyService,
+    agents: agentService,
+    launches: launchService,
+    requireOwnedWallet,
+  });
+  if (config.DATABASE_URL && config.SISERA_SCHEDULER_ENABLED && config.NODE_ENV !== "test") {
+    const scheduler = new PlatformScheduler(
+      config.DATABASE_URL,
+      { policies: policyService, agents: agentService, intelligence, catalog },
+      app.log,
+    );
+    app.addHook("onReady", async () => scheduler.start());
+    app.addHook("onClose", async () => scheduler.stop());
+  }
   app.get(
     "/v1/live/prices",
     { config: { rateLimit: { max: 1200, timeWindow: "1 minute" } } },
@@ -877,16 +1060,12 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     },
   );
   app.get("/v1/agents", { preHandler: requirePermission("agent:read") }, async (request) => {
-    if (!config.DATABASE_URL || !request.principal)
+    if (!config.DATABASE_URL || !request.principal || !agentService)
       return { templates: agentTemplates, custom: [], persistence: "unavailable" };
     try {
       return {
         templates: agentTemplates,
-        custom: await listAgentManifests(
-          config.DATABASE_URL,
-          request.principal.tenantId,
-          request.principal.subject,
-        ),
+        custom: await agentService.list(request.principal),
         persistence: "postgres",
       };
     } catch {
@@ -1138,24 +1317,13 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     async (request, reply) => {
       if (!request.principal?.subject.startsWith("privy:"))
         return reply.code(403).send({ error: "account_required" });
-      if (!config.DATABASE_URL)
+      if (!config.DATABASE_URL || !agentService)
         return reply
           .code(503)
           .send({ error: "persistence_unavailable", message: "Agent database is not configured" });
-      const input = AgentDraftInput.parse(request.body);
-      const { policy, manifestHash } = compileAgentDraft(input);
-      const manifest = await createAgentManifest(config.DATABASE_URL, {
-        id: `custom:${crypto.randomUUID()}`,
-        version: "1.0.0",
-        tenantId: request.principal.tenantId,
-        name: input.name,
-        stage: "draft",
-        autonomy: "research",
-        ownerSubject: request.principal.subject,
-        manifestHash,
-        policy,
-      });
-      return reply.code(201).send({ data: manifest });
+      return reply
+        .code(201)
+        .send({ data: await agentService.create(request.principal, request.body) });
     },
   );
   app.get(
@@ -2290,6 +2458,15 @@ export async function buildApi(config: ApiConfig, dependencies: ApiDependencies 
     }
     if (error instanceof PaperOrderRejection)
       return reply.code(422).send({ error: "paper_order_rejected", message: error.message });
+    if (
+      error instanceof PolicyError ||
+      error instanceof AgentError ||
+      error instanceof LaunchError ||
+      error instanceof DbcError
+    )
+      return reply
+        .code(error.statusCode)
+        .send({ error: "request_rejected", message: error.message, requestId: request.id });
     if (error instanceof MarketDataUnavailableError) {
       return reply
         .code(503)

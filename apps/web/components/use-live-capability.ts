@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-type Venue = "solana" | "predictions" | "binance" | "hyperliquid";
+type Venue =
+  | "solana"
+  | "predictions"
+  | "binance"
+  | "hyperliquid"
+  | "launches"
+  | "agents"
+  | "delegatedSigning";
 type Capabilities = { live?: Partial<Record<Venue, boolean>> };
 
 function loadCapabilities(): Promise<Capabilities> {

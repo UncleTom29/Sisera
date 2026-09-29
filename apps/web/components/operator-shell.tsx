@@ -19,10 +19,12 @@ import {
   Menu,
   MoreHorizontal,
   Network,
+  Rocket,
   Rss,
   Search,
   Settings,
   ShieldCheck,
+  Sparkles,
   Target,
   Trophy,
   X,
@@ -61,6 +63,7 @@ const navigation = [
     label: "Research",
     items: [
       { href: "/intelligence", label: "Intelligence", hint: "⌥4", icon: BrainCircuit },
+      { href: "/copilot", label: "Sisera AI", hint: "⌥8", icon: Sparkles },
       { href: "/macro", label: "Macro & chains", hint: "⌥5", icon: Globe2 },
       { href: "/social", label: "Social feeds", hint: "", icon: Rss },
     ],
@@ -76,7 +79,10 @@ const navigation = [
   },
   {
     label: "Automation",
-    items: [{ href: "/agents", label: "Agents", hint: "⌥7", icon: Bot }],
+    items: [
+      { href: "/agents", label: "Agents", hint: "⌥7", icon: Bot },
+      { href: "/launch", label: "Launch", hint: "", icon: Rocket },
+    ],
   },
 ];
 
@@ -88,7 +94,9 @@ const mobileTabs = [
 ];
 
 const quickActions = [
-  { href: "/agents", label: "Draft a research agent", icon: Bot },
+  { href: "/copilot", label: "Ask Sisera AI why a market is moving", icon: Sparkles },
+  { href: "/agents", label: "Build and backtest an agent", icon: Bot },
+  { href: "/launch", label: "Launch an agent token or DBC market", icon: Rocket },
   { href: "/alerts", label: "Review order and bridge alerts", icon: Bell },
   { href: "/portfolio", label: "Connect a wallet", icon: BriefcaseBusiness },
   { href: "/private-markets", label: "Find private-company price gaps", icon: Landmark },

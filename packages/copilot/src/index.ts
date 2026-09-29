@@ -236,3 +236,50 @@ export class OpenRouterResearchClient {
     return MarketAssessment.parse(JSON.parse(result.choices[0]?.message.content ?? "{}"));
   }
 }
+
+export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+
+/** Plain text completion through OpenRouter, used for rewriting and narrating evidence. */
+export class OpenRouterChat {
+  constructor(
+    private readonly apiKey: string,
+    private readonly model: string,
+    private readonly fetcher: typeof fetch = globalThis.fetch,
+  ) {}
+
+  async complete(
+    messages: readonly ChatMessage[],
+    options: { maxTokens?: number; timeoutMs?: number } = {},
+  ) {
+    const response = await this.fetcher("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        model: this.model,
+        temperature: 0,
+        max_tokens: options.maxTokens ?? 700,
+        messages,
+      }),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 25_000),
+    });
+    if (!response.ok) throw new Error(`OpenRouter returned ${response.status}`);
+    const result = z
+      .object({ choices: z.array(z.object({ message: z.object({ content: z.string() }) })).min(1) })
+      .parse(await response.json());
+    return (result.choices[0]?.message.content ?? "").trim();
+  }
+}
+
+export const POLICY_GRAMMAR_PROMPT = `Rewrite the user's trading instruction into Sisera's policy grammar. Output one line only, or NONE if the request is not a conditional trade.
+Grammar: "<Buy|Sell> $<amount> of <asset> [in paper mode|live] [automatically] if <condition>, <condition>, and <condition> [within <N> days] [. Cancel if <condition>]"
+Allowed conditions, verbatim forms:
+- premium below <X>% / premium above <X>% (premium of token price to its reference or mark)
+- discount widens beyond <X>%
+- price below $<X> / price above $<X>
+- liquidity above $<X> / liquidity above my threshold
+- volume above $<X>
+- down <X>% / up <X>% (24h change)
+- no <high|critical|medium> severity negative event in the last <N> hours
+- RSI(<N>) below <X> / RSI(<N>) above <X>
+- slippage under <N> bps / position under <X>%
+Never invent amounts, assets or thresholds that the user did not state. If something cannot be expressed, output NONE.`;

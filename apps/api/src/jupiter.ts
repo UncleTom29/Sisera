@@ -39,14 +39,20 @@ export class JupiterQuoteClient {
     };
   }
 
-  async order(inputMint: string, outputMint: string, amount: string, taker: string) {
+  async order(
+    inputMint: string,
+    outputMint: string,
+    amount: string,
+    taker: string,
+    slippageBps = 100,
+  ) {
     const url = new URL("https://api.jup.ag/swap/v2/order");
     url.search = new URLSearchParams({
       inputMint,
       outputMint,
       amount,
       taker,
-      slippageBps: "100",
+      slippageBps: String(Math.max(1, Math.min(500, Math.round(slippageBps)))),
     }).toString();
     const response = await fetch(url, {
       headers: { "x-api-key": this.apiKey },

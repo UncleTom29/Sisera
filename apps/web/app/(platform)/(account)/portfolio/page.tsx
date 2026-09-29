@@ -7,6 +7,7 @@ import { auth } from "../../../../auth";
 import { BridgeUsdc } from "../../../../components/bridge-usdc";
 import { EmptyState } from "../../../../components/empty-state";
 import { PageHeader } from "../../../../components/page-header";
+import { UnifiedPortfolio } from "../../../../components/platform/unified-portfolio";
 import { PortfolioConnect } from "../../../../components/portfolio-connect";
 import { PortfolioExport } from "../../../../components/portfolio-export";
 import { PortfolioPrivyWallet } from "../../../../components/portfolio-privy-wallet";
@@ -105,14 +106,15 @@ export default async function PortfolioPage({
       <PageHeader
         eyebrow="Your assets"
         title="Portfolio"
-        description="See wallet balances, open positions and practice trades in one place."
+        description="One book across tokenized stocks, pre-IPO tokens, agent tokens, crypto, predictions and your agents — rebuilt from the trade ledger and reconciled against your wallets."
         actions={
           <div className="flex items-center gap-2">
             <PortfolioConnect />
           </div>
         }
       />
-      <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2 xl:grid-cols-4">
+      <UnifiedPortfolio />
+      <div className="grid gap-px border-y border-line bg-line sm:grid-cols-2 xl:grid-cols-4">
         {summary.map(([label, value]) => (
           <div key={label} className="bg-panel p-5">
             <p className="data-label">{label}</p>

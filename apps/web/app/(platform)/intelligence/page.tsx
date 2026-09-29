@@ -4,6 +4,7 @@ import Link from "next/link";
 import { auth } from "../../../auth";
 import { NewsBrowser } from "../../../components/news-browser";
 import { PageHeader } from "../../../components/page-header";
+import { ChangesFeed } from "../../../components/platform/event-feed";
 import {
   getMarketOverview,
   getPrivateMarkets,
@@ -111,11 +112,22 @@ export default async function IntelligencePage() {
         title="Market intelligence"
         description="Connect the dots between price, market activity, company news, and the bigger picture before your next decision."
         actions={
-          <Link href="/agents" className="inline-flex items-center gap-1 text-xs text-bronze-300">
-            Explore strategies <ArrowUpRight size={13} />
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/copilot"
+              className="border border-bronze-300 bg-bronze-300 px-3 py-2 text-xs font-semibold text-ink hover:bg-bronze-200"
+            >
+              Ask Sisera AI
+            </Link>
+            <Link href="/agents" className="inline-flex items-center gap-1 text-xs text-bronze-300">
+              Explore strategies <ArrowUpRight size={13} />
+            </Link>
+          </div>
         }
       />
+      <div className="p-4 md:px-6">
+        <ChangesFeed />
+      </div>
       <div className="grid gap-px border-b border-line bg-line sm:grid-cols-3">
         {[
           [

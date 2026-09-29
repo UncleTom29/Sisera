@@ -176,3 +176,4 @@ export function positionNotional(position: PortfolioPosition): string {
     .mul(position.markPrice)
     .toFixed();
 }
+export * from "./book.js";

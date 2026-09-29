@@ -93,3 +93,118 @@ function checkLimit(
     });
   }
 }
+
+export type MandateLimits = {
+  maxGrossExposureUsd: number;
+  maxPositionWeightPct: number;
+  maxUnderlyingWeightPct: number;
+  maxDailyLossUsd: number;
+  maxAgentTokenWeightPct: number;
+  maxIlliquidExitPct: number;
+};
+
+export const DEFAULT_MANDATE: MandateLimits = {
+  maxGrossExposureUsd: 250_000,
+  maxPositionWeightPct: 25,
+  maxUnderlyingWeightPct: 35,
+  maxDailyLossUsd: 2_500,
+  maxAgentTokenWeightPct: 15,
+  maxIlliquidExitPct: 5,
+};
+
+export type MandateInput = {
+  grossExposureUsd: number;
+  largestWeightPct: number;
+  largestSymbol: string | null;
+  largestUnderlyingWeightPct: number;
+  largestUnderlying: string | null;
+  dailyPnlUsd: number;
+  agentTokenWeightPct: number;
+  worstExitLiquidityPct: number | null;
+  worstExitSymbol: string | null;
+};
+
+export type MandateUtilization = {
+  id: string;
+  label: string;
+  used: number;
+  limit: number;
+  utilizationPct: number;
+  status: "ok" | "warning" | "breach";
+  detail: string;
+};
+
+/** Measures how much of each mandate limit the current book consumes. */
+export function evaluateMandate(
+  input: MandateInput,
+  limits: MandateLimits = DEFAULT_MANDATE,
+): MandateUtilization[] {
+  const row = (
+    id: string,
+    label: string,
+    used: number,
+    limit: number,
+    detail: string,
+  ): MandateUtilization => {
+    const utilizationPct = limit > 0 ? (used / limit) * 100 : 0;
+    return {
+      id,
+      label,
+      used,
+      limit,
+      utilizationPct,
+      status: utilizationPct > 100 ? "breach" : utilizationPct >= 80 ? "warning" : "ok",
+      detail,
+    };
+  };
+  return [
+    row(
+      "gross",
+      "Gross exposure",
+      input.grossExposureUsd,
+      limits.maxGrossExposureUsd,
+      `$${input.grossExposureUsd.toFixed(0)} of $${limits.maxGrossExposureUsd.toFixed(0)}`,
+    ),
+    row(
+      "position",
+      "Largest position",
+      input.largestWeightPct,
+      limits.maxPositionWeightPct,
+      `${input.largestSymbol ?? "—"} at ${input.largestWeightPct.toFixed(1)}% of NAV`,
+    ),
+    row(
+      "underlying",
+      "Largest economic exposure",
+      input.largestUnderlyingWeightPct,
+      limits.maxUnderlyingWeightPct,
+      `${input.largestUnderlying ?? "—"} across all instruments`,
+    ),
+    row(
+      "daily_loss",
+      "Daily loss",
+      Math.max(0, -input.dailyPnlUsd),
+      limits.maxDailyLossUsd,
+      `P&L today $${input.dailyPnlUsd.toFixed(2)}`,
+    ),
+    row(
+      "agent_tokens",
+      "Agent-token allocation",
+      input.agentTokenWeightPct,
+      limits.maxAgentTokenWeightPct,
+      `${input.agentTokenWeightPct.toFixed(1)}% of NAV in agent tokens`,
+    ),
+    row(
+      "liquidity",
+      "Exit liquidity",
+      input.worstExitLiquidityPct ?? 0,
+      limits.maxIlliquidExitPct,
+      input.worstExitSymbol
+        ? `${input.worstExitSymbol} is ${input.worstExitLiquidityPct?.toFixed(2)}% of its pool`
+        : "No position has measured liquidity",
+    ),
+  ];
+}
+
+export function mandateBreaches(rows: readonly MandateUtilization[]): string[] {
+  return rows.filter((row) => row.status === "breach").map((row) => `${row.label}: ${row.detail}`);
+}

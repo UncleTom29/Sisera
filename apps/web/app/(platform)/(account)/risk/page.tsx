@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { auth } from "../../../../auth";
 import { PageHeader } from "../../../../components/page-header";
+import { MandatePanel } from "../../../../components/platform/mandate-panel";
 import { PortfolioPrivyWallet } from "../../../../components/portfolio-privy-wallet";
 import {
   accountErrorMessage,
@@ -98,6 +99,7 @@ export default async function RiskPage({
           </div>
         }
       />
+      <MandatePanel />
       <div className="grid gap-px border-b border-line bg-line sm:grid-cols-2 xl:grid-cols-4">
         {[
           {

@@ -6,6 +6,7 @@ import { AgentCreateForm } from "../../../../components/agent-create-form";
 import { AgentReadiness } from "../../../../components/agent-readiness";
 import { AgentResearch } from "../../../../components/agent-research";
 import { PageHeader } from "../../../../components/page-header";
+import { StageTrack } from "../../../../components/platform/ui";
 import { accountErrorMessage, getAgents } from "../../../../lib/api";
 
 export const metadata: Metadata = {
@@ -45,15 +46,16 @@ export default async function AgentsPage({
       <PageHeader
         eyebrow="Trading strategies"
         title="Agents"
-        description="Explore strategies, test ideas and build a plan with clear capital and risk limits."
+        description="Turn strategies into governed agents: executable rules, a 5-year backtest, stress tests, paper and shadow trading, then limited live capital — every step recorded as evidence."
         actions={
           <StatusBadge tone="neutral">{agents?.custom.length ?? 0} saved strategies</StatusBadge>
         }
       />
       <div className="overflow-x-auto border-b border-line bg-panel px-4 py-5">
         <p className="mb-4 text-xs text-amber-200">
-          Strategies begin in research mode. Live trading becomes available after a strategy has
-          proven itself through testing and review.
+          Strategies begin as research drafts. Each promotion needs a passed evaluation for the
+          exact manifest version; live stages need an independent risk manager, and circuit breakers
+          pause or demote agents automatically.
         </p>
         <div className="flex min-w-[760px] items-center">
           {stages.map((stage, index) => (
@@ -134,14 +136,36 @@ export default async function AgentsPage({
               <div className="divide-y divide-line">
                 {agents.custom.map((agent) => (
                   <article key={agent.id} className="px-4 py-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-semibold text-white">{agent.name}</h3>
-                      <StatusBadge tone="warning">{agent.stage}</StatusBadge>
+                    <div className="flex items-center justify-between gap-3">
+                      <Link
+                        href={`/agents/${encodeURIComponent(agent.id)}`}
+                        className="text-xs font-semibold text-white hover:text-bronze-200"
+                      >
+                        {agent.name}{" "}
+                        <span className="font-mono text-[10px] text-slate-500">
+                          v{agent.version}
+                        </span>
+                      </Link>
+                      <div className="flex items-center gap-2">
+                        <StageTrack stage={agent.stage} />
+                        <StatusBadge
+                          tone={
+                            agent.stage === "paused"
+                              ? "negative"
+                              : agent.stage === "live" || agent.stage === "limited_live"
+                                ? "positive"
+                                : "warning"
+                          }
+                        >
+                          {agent.stage.replace("_", " ")}
+                        </StatusBadge>
+                      </div>
                     </div>
                     <p className="mt-1 text-xs text-slate-400">{agent.policy.description}</p>
                     <p className="mt-2 font-mono text-[10px] text-slate-500">
-                      {agent.policy.universe?.join(" · ")} · {agent.policy.timeframe} · research
-                      only
+                      {agent.policy.universe?.join(" · ")} · {agent.policy.timeframe} · autonomy{" "}
+                      {agent.autonomy.replace("_", " ")}
+                      {agent.hasRules ? " · executable rules" : " · no rules yet"}
                     </p>
                     {agent.policy.capitalAllocation && (
                       <p className="mt-1 text-[10px] text-slate-400">
@@ -152,6 +176,14 @@ export default async function AgentsPage({
                           ` · Daily drawdown ${agent.policy.riskGuardrails.maxDailyDrawdownPct}%`}
                       </p>
                     )}
+                    <div className="mt-2 flex items-center gap-3">
+                      <Link
+                        href={`/agents/${encodeURIComponent(agent.id)}`}
+                        className="text-[11px] font-semibold text-bronze-200 hover:underline"
+                      >
+                        Open pipeline →
+                      </Link>
+                    </div>
                     <AgentReadiness id={agent.id} />
                   </article>
                 ))}

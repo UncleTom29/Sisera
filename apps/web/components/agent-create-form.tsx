@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { AgentTemplate } from "../lib/api";
+import { type RuleCondition, RuleList } from "./platform/rule-builder";
 
 /** Builds a custom agent policy, optionally starting from a template the user then edits. */
 export function AgentCreateForm({
@@ -15,6 +16,12 @@ export function AgentCreateForm({
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [entry, setEntry] = useState<RuleCondition[]>(
+    (template?.rules?.entry as RuleCondition[] | undefined) ?? [],
+  );
+  const [exit, setExit] = useState<RuleCondition[]>(
+    (template?.rules?.exit as RuleCondition[] | undefined) ?? [],
+  );
   async function submit(formData: FormData) {
     setWorking(true);
     setMessage(null);
@@ -37,6 +44,10 @@ export function AgentCreateForm({
       stopLossPct: Number(formData.get("stopLossPct")),
       takeProfitPct: Number(formData.get("takeProfitPct")),
       maxSlippageBps: Number(formData.get("maxSlippageBps")),
+      ...(entry.length ? { rules: { entry, exit } } : {}),
+      ...(String(formData.get("liveWallet") ?? "").trim()
+        ? { liveWallet: String(formData.get("liveWallet")).trim() }
+        : {}),
     };
     try {
       const response = await fetch("/api/agents", {
@@ -46,8 +57,11 @@ export function AgentCreateForm({
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message ?? "Could not save the agent.");
-      setMessage("Strategy saved. Test and review it before enabling live trading.");
-      router.refresh();
+      setMessage(
+        "Strategy saved. Open it to run the backtest and move it through the evaluation stages.",
+      );
+      if (payload.data?.id) router.push(`/agents/${encodeURIComponent(payload.data.id)}`);
+      else router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not save the agent.");
     } finally {
@@ -101,6 +115,21 @@ export function AgentCreateForm({
         }
         placeholder="One measurable factor per line"
         className="min-h-20 w-full rounded border border-line bg-ink p-2 text-xs"
+      />
+      <div className="space-y-3 border border-line p-3">
+        <p className="text-xs text-slate-400">
+          Executable rules. Entry conditions must all pass; any exit condition closes the position.
+          Without rules the strategy stays a research draft. Live-only conditions cannot be
+          backtested and are enforced at runtime.
+        </p>
+        <RuleList title="Entry — all must pass" conditions={entry} onChange={setEntry} />
+        <RuleList title="Exit — any closes" conditions={exit} onChange={setExit} />
+      </div>
+      <input
+        name="liveWallet"
+        placeholder="Solana wallet for live stages (optional)"
+        pattern="[1-9A-HJ-NP-Za-km-z]{32,44}"
+        className="w-full rounded border border-line bg-ink p-2 text-xs"
       />
       <div className="grid grid-cols-2 gap-2">
         <label className="text-xs text-slate-400">

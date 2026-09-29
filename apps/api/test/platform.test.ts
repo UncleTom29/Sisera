@@ -157,16 +157,14 @@ describe("Clawpump launches", () => {
       pending: true,
       result: null,
     });
-    const done = vi
-      .fn()
-      .mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          success: true,
-          mintAddress: "Mint1111111111111111111111111111111111111",
-        }),
-      });
+    const done = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        mintAddress: "Mint1111111111111111111111111111111111111",
+      }),
+    });
     const result = await new ClawpumpClient(key, done).completeSelfFundedLaunch({
       ...launch,
       txSignature: "sig",

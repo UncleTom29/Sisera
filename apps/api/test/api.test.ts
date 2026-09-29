@@ -45,10 +45,38 @@ describe("control plane API", () => {
     });
     await app.close();
   });
-  it("requires authorization for market data", async () => {
-    const app = await buildApi(readConfig({ NODE_ENV: "test", LOG_LEVEL: "silent" }));
-    const response = await app.inject({ method: "GET", url: "/v1/markets/BTCUSDT" });
-    expect(response.statusCode).toBe(401);
+  it("serves public market data anonymously but keeps accounts and orders behind a session", async () => {
+    const now = new Date().toISOString();
+    const snapshot: MarketSnapshot = {
+      instrumentId: instrument.id,
+      bid: "60000",
+      ask: "60001",
+      last: "60000.5",
+      quality: { status: "live", source: "test", observedAt: now, receivedAt: now, latencyMs: 1 },
+    };
+    const app = await buildApi(readConfig({ NODE_ENV: "test", LOG_LEVEL: "silent" }), {
+      marketData: { getInstrument: async () => instrument, getSnapshot: async () => snapshot },
+    });
+    const market = await app.inject({ method: "GET", url: "/v1/markets/BTCUSDT" });
+    expect(market.statusCode).toBe(200);
+    expect(market.json().snapshot.quality.source).toBe("test");
+    // Account, order, agent, and paid-feed routes still require a session.
+    for (const url of [
+      "/v1/preferences",
+      "/v1/alerts",
+      "/v1/activity/events",
+      "/v1/market-orders/paper",
+      "/v1/solana/orders",
+      "/v1/agents",
+      "/v1/social-feed",
+      "/v1/solana/wallet/So11111111111111111111111111111111111111112",
+    ]) {
+      const response = await app.inject({ method: "GET", url });
+      expect(response.statusCode, url).toBe(401);
+    }
+    // Writes are never anonymous, even on a public path.
+    const write = await app.inject({ method: "POST", url: "/v1/market-orders/paper", payload: {} });
+    expect(write.statusCode).toBe(401);
     await app.close();
   });
 

@@ -11,6 +11,7 @@ import {
   getPythReferences,
   getStockNews,
 } from "../../../lib/api";
+import { signTone } from "../../../lib/sign";
 
 export const metadata: Metadata = {
   title: "Intelligence",
@@ -152,6 +153,9 @@ export default async function IntelligencePage() {
             <p className="mt-2 text-xs text-slate-400">
               Compare token prices with the underlying shares. Differences can reflect market hours,
               liquidity, or trading costs.
+              {publicDivergences[0]
+                ? ` Share prices as of ${utcTime(publicDivergences[0].reference.feedUpdateTimestamp)}.`
+                : ""}
             </p>
           </div>
           {publicDivergences.length ? (
@@ -164,17 +168,12 @@ export default async function IntelligencePage() {
                 >
                   <p className="text-xs font-semibold text-white">{stock.symbol}</p>
                   <p className="mt-1 truncate text-[10px] text-slate-500">{stock.name}</p>
-                  <p
-                    className={`mt-3 font-mono text-xl ${premiumPct >= 0 ? "text-amber-300" : "text-emerald-300"}`}
-                  >
+                  <p className={`mt-3 font-mono text-xl ${signTone(premiumPct)}`}>
                     {premiumPct > 0 ? "+" : ""}
                     {premiumPct.toFixed(2)}%
                   </p>
                   <p className="mt-2 font-mono text-[10px] text-slate-400">
                     Token {formatUsd(stock.dexPriceUsd)} · share {formatUsd(reference.price)}
-                  </p>
-                  <p className="mt-2 font-mono text-[10px] text-slate-400">
-                    Share price updated {utcTime(reference.feedUpdateTimestamp)}
                   </p>
                 </Link>
               ))}
@@ -197,7 +196,8 @@ export default async function IntelligencePage() {
               Public stock movement
             </h2>
             <p className="mt-2 text-xs text-slate-400">
-              Largest absolute 24h changes among tokens with observed Solana prices.
+              Largest 24h moves among tokens trading on Solana
+              {movers[0] ? `, as of ${utcTime(movers[0].fetchedAt)}` : ""}.
             </p>
           </div>
           {movers.length ? (
@@ -210,15 +210,11 @@ export default async function IntelligencePage() {
                 >
                   <div>
                     <p className="text-sm font-semibold text-white">{stock.name}</p>
-                    <p className="mt-1 font-mono text-[10px] text-slate-500">
-                      {stock.symbol} · updated {utcTime(stock.fetchedAt)}
-                    </p>
+                    <p className="mt-1 font-mono text-[10px] text-slate-500">{stock.symbol}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-mono text-sm text-white">{formatUsd(stock.dexPriceUsd)}</p>
-                    <p
-                      className={`mt-1 font-mono text-xs ${(stock.change24hPct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}
-                    >
+                    <p className={`mt-1 font-mono text-xs ${signTone(stock.change24hPct ?? 0)}`}>
                       {(stock.change24hPct ?? 0) > 0 ? "+" : ""}
                       {(stock.change24hPct ?? 0).toFixed(2)}%
                     </p>
@@ -250,7 +246,8 @@ export default async function IntelligencePage() {
               Private companies in motion
             </h2>
             <p className="mt-2 text-xs text-slate-400">
-              Where private-market tokens sit relative to their current company marks.
+              Where private-market tokens sit relative to their company marks. Figures show the
+              premium or discount to the mark.
             </p>
           </div>
           {divergences.length ? (
@@ -269,12 +266,11 @@ export default async function IntelligencePage() {
                   </div>
                   <div className="text-right">
                     <p
-                      className={`font-mono text-sm ${Number(asset.premiumDiscountPct) >= 0 ? "text-amber-300" : "text-emerald-300"}`}
+                      className={`font-mono text-sm ${signTone(Number(asset.premiumDiscountPct))}`}
                     >
                       {Number(asset.premiumDiscountPct) > 0 ? "+" : ""}
                       {Number(asset.premiumDiscountPct).toFixed(2)}%
                     </p>
-                    <p className="mt-1 font-mono text-[10px] text-slate-500">Compared with mark</p>
                   </div>
                 </Link>
               ))}

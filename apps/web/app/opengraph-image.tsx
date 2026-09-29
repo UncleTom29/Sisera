@@ -16,7 +16,7 @@ export default async function OpenGraphImage() {
         position: "relative",
         background: c.ribbonEdge,
         color: c.bone,
-        fontFamily: "Schibsted Grotesk",
+        fontFamily: "Mona Sans",
       }}
     >
       {/* biome-ignore lint/a11y/useAltText: decorative background in a generated image */}
@@ -42,20 +42,22 @@ export default async function OpenGraphImage() {
         <div style={{ display: "flex", flexDirection: "column", maxWidth: 660 }}>
           <span
             style={{
-              fontFamily: "Newsreader",
-              fontSize: 66,
-              lineHeight: 1.02,
-              letterSpacing: -1.5,
+              fontFamily: "Mona Sans",
+              fontWeight: 600,
+              fontSize: 62,
+              lineHeight: 1.04,
+              letterSpacing: -2,
             }}
           >
             The research terminal for tokenized stocks and
           </span>
           <span
             style={{
-              fontFamily: "Newsreader",
-              fontStyle: "italic",
-              fontSize: 66,
-              lineHeight: 1.02,
+              fontFamily: "Mona Sans",
+              fontWeight: 600,
+              fontSize: 62,
+              lineHeight: 1.04,
+              letterSpacing: -2,
               color: c.bronze,
             }}
           >

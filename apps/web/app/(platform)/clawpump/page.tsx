@@ -1,148 +1,235 @@
-import { Boxes, CircleAlert, Search } from "lucide-react";
+import { BadgeCheck, Boxes, Search } from "lucide-react";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { auth } from "../../../auth";
-import { LiveRefresh } from "../../../components/live-refresh";
+import { EmptyState } from "../../../components/empty-state";
+import { LiveTokenPrice } from "../../../components/live-price";
 import { PageHeader } from "../../../components/page-header";
-import { accountErrorMessage, searchClawpump } from "../../../lib/api";
+import { getAgentTokens } from "../../../lib/api";
 
 export const metadata: Metadata = {
   title: "Agent markets",
-  description: "Tokens tied to trading agents, with activity and asset details.",
+  description: "Every token launched by AI agents on Clawpump, with price, volume, and market cap.",
 };
 
 export const dynamic = "force-dynamic";
 
-export default async function ClawpumpMarkets({
+const PAGE = 60;
+const sorts = [
+  { id: "volume", label: "24h volume" },
+  { id: "mcap", label: "Market cap" },
+  { id: "new", label: "Newest" },
+] as const;
+const compact = (value: number | null) =>
+  value == null
+    ? "—"
+    : `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value)}`;
+
+export default async function AgentMarkets({
   searchParams,
-}: { searchParams: Promise<{ query?: string }> }) {
-  const { query: rawQuery } = await searchParams;
-  const query = (rawQuery ?? "stock").trim().slice(0, 80);
+}: { searchParams: Promise<{ q?: string; sort?: string; page?: string }> }) {
+  const parameters = await searchParams;
+  const query = (parameters.q ?? "").trim().slice(0, 80);
+  const sort = sorts.find((option) => option.id === parameters.sort)?.id ?? "volume";
+  const page = Math.max(0, Math.min(300, Number(parameters.page ?? 0) || 0));
   const session = await auth();
   const identity = {
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
   };
-  const response =
-    query.length >= 2
-      ? await searchClawpump(query, identity).then(
-          (value) => ({ value, error: null as unknown }),
-          (error: unknown) => ({ value: null, error }),
-        )
-      : { value: null, error: null };
-  const result = response.value;
-  const tokens = result?.data.tokens ?? [];
+  const result = await getAgentTokens(
+    { sort, q: query || undefined, limit: PAGE, offset: page * PAGE },
+    identity,
+  ).catch(() => null);
+  const tokens = result?.data ?? [];
+  const link = (next: { q?: string; sort?: string; page?: number }) => {
+    const params = new URLSearchParams();
+    const q = next.q ?? query;
+    if (q) params.set("q", q);
+    params.set("sort", next.sort ?? sort);
+    if (next.page) params.set("page", String(next.page));
+    return `/clawpump?${params.toString()}`;
+  };
 
   return (
     <div className="min-h-full bg-ink">
       <PageHeader
-        eyebrow="Agent assets"
+        eyebrow="Markets / Agent tokens"
         title="Agent markets"
-        description="Discover tokens tied to trading agents, explore their activity and inspect each asset before making a decision."
-        actions={<LiveRefresh />}
+        description="Tokens launched by AI agents on Clawpump, ranked live. Each links to its agent, socials, and a Solana chart."
       />
-      <div className="space-y-5 p-4 md:p-6">
-        <form action="/clawpump" className="flex max-w-2xl gap-2">
-          <label className="flex flex-1 items-center gap-3 rounded-md border border-line bg-panel px-3 text-slate-400">
-            <Search size={16} />
-            <span className="sr-only">Search agent tokens</span>
-            <input
-              name="query"
-              defaultValue={query}
-              minLength={2}
-              maxLength={80}
-              className="h-11 w-full bg-transparent text-sm text-white outline-none"
-            />
-          </label>
-          <button
-            type="submit"
-            className="rounded-md bg-bronze-300 px-5 text-xs font-semibold text-panel"
+      <div className="p-4 md:p-6">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <form
+            action="/clawpump"
+            className="flex items-center gap-2 border border-line bg-panel px-3"
           >
-            Search
-          </button>
-        </form>
-        <div className="flex flex-wrap gap-2 text-xs text-slate-400">
-          <span>Try:</span>
-          {["stock", "agent", "AAPL", "TSLA"].map((term) => (
-            <a
-              key={term}
-              href={`/clawpump?query=${term}`}
-              className="rounded border border-line px-2 py-1 hover:text-white"
-            >
-              {term}
-            </a>
-          ))}
+            <Search size={13} className="text-slate-400" />
+            <input
+              name="q"
+              defaultValue={query}
+              placeholder="Search agents or tokens"
+              aria-label="Search agent tokens"
+              className="h-9 w-56 bg-transparent text-xs text-bone outline-none placeholder:text-slate-500"
+            />
+            <input type="hidden" name="sort" value={sort} />
+          </form>
+          <div className="flex border border-line">
+            {sorts.map((option) => (
+              <Link
+                key={option.id}
+                href={link({ sort: option.id, page: 0 })}
+                className={`px-3 py-2 text-xs ${sort === option.id ? "bg-bronze-300 text-ink" : "text-slate-300 hover:text-bone"}`}
+              >
+                {option.label}
+              </Link>
+            ))}
+          </div>
+          {result && (
+            <span className="text-[12px] text-slate-400">
+              {result.total.toLocaleString()} agent tokens{query ? ` matching "${query}"` : ""}
+            </span>
+          )}
         </div>
-        {result ? (
-          <section className="overflow-x-auto rounded-lg border border-line bg-panel">
-            <div className="flex items-center justify-between border-b border-line px-5 py-4">
-              <div className="flex items-center gap-2">
-                <Boxes size={16} className="text-bronze-300" />
-                <h2 className="text-sm font-semibold text-white">Search results</h2>
-              </div>
-              <span className="font-mono text-[10px] text-slate-500">{tokens.length} assets</span>
-            </div>
-            <table className="w-full min-w-[660px] text-left text-xs">
-              <thead className="border-b border-line font-mono text-[10px] uppercase text-slate-500">
-                <tr>
-                  <th className="px-5 py-3 font-medium">Asset</th>
-                  <th className="px-5 py-3 font-medium">Mint</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Market data</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tokens.map((token, index) => (
-                  <tr
-                    key={`${token.mint ?? token.address ?? token.symbol}-${index}`}
-                    className="border-b border-line/70 last:border-0"
-                  >
-                    <td className="px-5 py-3">
-                      <div className="font-semibold text-slate-100">{token.name}</div>
-                      <div className="font-mono text-[10px] text-slate-500">{token.symbol}</div>
-                    </td>
-                    <td className="px-5 py-3 font-mono text-slate-400">
-                      {token.mint ?? token.address ?? "Not supplied"}
-                    </td>
-                    <td className="px-5 py-3 text-slate-400">
-                      {token.verified ? "Verified" : "Check details"}
-                    </td>
-                    <td className="px-5 py-3">
-                      {token.price != null ? (
-                        <span className="text-slate-200">
-                          ${Number(token.price).toLocaleString()}
-                        </span>
-                      ) : (
-                        <span className="text-slate-500">Price pending</span>
-                      )}
-                    </td>
+        {tokens.length ? (
+          <section className="border border-line bg-panel">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[880px] text-left text-xs">
+                <thead className="border-b border-line bg-ink-raised text-[10px] uppercase tracking-wider text-slate-400">
+                  <tr>
+                    <th className="px-5 py-3 font-medium">Agent token</th>
+                    <th className="px-5 py-3 text-right font-medium">Price</th>
+                    <th className="px-5 py-3 text-right font-medium">Market cap</th>
+                    <th className="px-5 py-3 text-right font-medium">24h volume</th>
+                    <th className="px-5 py-3 text-right font-medium">Liquidity</th>
+                    <th className="px-5 py-3 font-medium">Links</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {!tokens.length && (
-              <p className="p-5 text-sm text-slate-400">
-                No assets match this search. Try “agent”, “stock” or a company symbol above.
-              </p>
-            )}
+                </thead>
+                <tbody>
+                  {tokens.map((token) => (
+                    <tr
+                      key={token.mint}
+                      className="border-b border-line/60 last:border-0 hover:bg-white/[.03]"
+                    >
+                      <td className="px-5 py-2.5">
+                        <div className="flex items-center gap-3">
+                          {token.imageUrl ? (
+                            <img
+                              src={token.imageUrl}
+                              alt=""
+                              width={28}
+                              height={28}
+                              className="size-7 rounded-full bg-ink object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span className="grid size-7 place-items-center rounded-full bg-ink text-[10px] text-slate-400">
+                              {token.symbol.slice(0, 2)}
+                            </span>
+                          )}
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-1.5 font-semibold text-bone">
+                              {token.symbol}
+                              {token.verified && (
+                                <BadgeCheck size={13} className="text-bronze-300" />
+                              )}
+                              {token.graduated && (
+                                <span className="border border-line px-1 text-[9px] font-normal uppercase text-slate-400">
+                                  Graduated
+                                </span>
+                              )}
+                            </p>
+                            <p className="max-w-xs truncate text-[11px] text-slate-400">
+                              {token.agentName ?? token.name}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-2.5 text-right text-bone">
+                        <LiveTokenPrice mint={token.mint} fallback={token.priceUsd} />
+                      </td>
+                      <td className="num px-5 py-2.5 text-right text-slate-300">
+                        {compact(token.marketCapUsd)}
+                      </td>
+                      <td className="num px-5 py-2.5 text-right text-slate-300">
+                        {compact(token.volume24hUsd)}
+                      </td>
+                      <td className="num px-5 py-2.5 text-right text-slate-300">
+                        {compact(token.liquidityUsd)}
+                      </td>
+                      <td className="px-5 py-2.5">
+                        <div className="flex gap-3 text-[11px]">
+                          <a
+                            href={`https://dexscreener.com/solana/${token.mint}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-bronze-300 hover:text-bone"
+                          >
+                            Chart
+                          </a>
+                          {token.twitter && (
+                            <a
+                              href={token.twitter}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-slate-300 hover:text-bone"
+                            >
+                              X
+                            </a>
+                          )}
+                          {token.website && (
+                            <a
+                              href={token.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-slate-300 hover:text-bone"
+                            >
+                              Site
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-between border-t border-line px-5 py-3 text-[11px] text-slate-400">
+              <span>
+                Page {page + 1}
+                {result
+                  ? ` of ${Math.max(1, Math.ceil(result.total / PAGE)).toLocaleString()}`
+                  : ""}
+              </span>
+              <div className="flex gap-2">
+                {page > 0 && (
+                  <Link
+                    href={link({ page: page - 1 })}
+                    className="border border-line px-3 py-1.5 text-slate-200 hover:border-bone"
+                  >
+                    Previous
+                  </Link>
+                )}
+                {result?.hasMore && (
+                  <Link
+                    href={link({ page: page + 1 })}
+                    className="border border-line px-3 py-1.5 text-slate-200 hover:border-bone"
+                  >
+                    Next
+                  </Link>
+                )}
+              </div>
+            </div>
           </section>
         ) : (
-          <div className="flex max-w-2xl gap-3 rounded-lg border border-amber-500/20 bg-amber-500/[.05] p-5">
-            <CircleAlert size={17} className="shrink-0 text-amber-300" />
-            <div>
-              <p className="text-sm text-white">Agent markets are reconnecting</p>
-              <p className="mt-1 text-xs text-slate-400">
-                {response.error
-                  ? accountErrorMessage(response.error)
-                  : "Enter at least two characters to search."}{" "}
-                Try another search or explore stock markets while new results arrive.
-              </p>
-            </div>
-          </div>
+          <EmptyState
+            icon={Boxes}
+            title={query ? "No agent tokens match this search" : "Agent listings are reconnecting"}
+            copy={
+              query ? "Try another agent or token name." : "Clawpump listings will appear shortly."
+            }
+          />
         )}
-        <p className="max-w-3xl text-xs leading-5 text-slate-500">
-          Agent tokens can be volatile. Review the creator, token address and available liquidity
-          before trading.
-        </p>
       </div>
     </div>
   );

@@ -1,6 +1,8 @@
 "use client";
 
 import { FileText } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 type Assessment = {
@@ -22,7 +24,11 @@ type Assessment = {
   };
 };
 
-export function StockAssessment({ symbol }: { symbol: string }) {
+export function StockAssessment({
+  symbol,
+  signedIn = true,
+}: { symbol: string; signedIn?: boolean }) {
+  const pathname = usePathname();
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,12 +42,10 @@ export function StockAssessment({ symbol }: { symbol: string }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ symbol }),
       });
-      if (!response.ok)
-        throw new Error(
-          response.status === 503
-            ? "Market research is temporarily unavailable."
-            : "Assessment could not be completed.",
-        );
+      if (response.status === 401) throw new Error("Sign in to run market research.");
+      if (response.status === 429)
+        throw new Error("You have run several assessments in a row. Try again in a minute.");
+      if (!response.ok) throw new Error("The assessment could not be completed. Try again.");
       const payload = (await response.json()) as { data: Assessment };
       setAssessment(payload.data);
     } catch (cause) {
@@ -52,28 +56,37 @@ export function StockAssessment({ symbol }: { symbol: string }) {
   }
 
   return (
-    <section className="mt-4 rounded-lg border border-line bg-panel p-6">
+    <section className="border border-line bg-panel p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="eyebrow">Market Research</p>
-          <h2 className="mt-1 text-sm font-semibold text-white">Company & Market Assessment</h2>
+          <h2 className="mt-1 text-sm font-semibold text-bone">Company and market assessment</h2>
         </div>
-        <button
-          type="button"
-          disabled={loading}
-          onClick={run}
-          className="inline-flex items-center gap-2 rounded border border-line bg-ink-raised px-3 py-2 text-xs font-medium text-slate-200 hover:border-bronze-300 hover:text-white disabled:opacity-50"
-        >
-          <FileText size={13} className="text-bronze-300" />
-          {loading ? "Analyzing…" : "Run assessment"}
-        </button>
+        {!signedIn ? (
+          <Link
+            href={`/sign-in?returnTo=${encodeURIComponent(pathname)}`}
+            className="inline-flex items-center gap-2 border border-line bg-ink-raised px-3 py-2 text-xs font-medium text-slate-200 hover:border-bronze-300"
+          >
+            <FileText size={13} className="text-bronze-300" /> Sign in to run research
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={run}
+            className="inline-flex items-center gap-2 rounded border border-line bg-ink-raised px-3 py-2 text-xs font-medium text-slate-200 hover:border-bronze-300 hover:text-white disabled:opacity-50"
+          >
+            <FileText size={13} className="text-bronze-300" />
+            {loading ? "Analyzing…" : "Run assessment"}
+          </button>
+        )}
       </div>
       {assessment ? (
         <div className="mt-5 space-y-4 text-xs leading-6 text-slate-300">
           <p>{assessment.summary}</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <p className="font-semibold text-emerald-300">Potential Catalysts</p>
+              <p className="font-semibold text-[var(--up)]">Potential catalysts</p>
               <ul className="mt-2 list-inside list-disc">
                 {assessment.opportunities.map((item) => (
                   <li key={item}>{item}</li>
@@ -81,7 +94,7 @@ export function StockAssessment({ symbol }: { symbol: string }) {
               </ul>
             </div>
             <div>
-              <p className="font-semibold text-amber-300">Key Risks</p>
+              <p className="font-semibold text-[var(--down)]">Key risks</p>
               <ul className="mt-2 list-inside list-disc">
                 {assessment.risks.map((item) => (
                   <li key={item}>{item}</li>

@@ -1,16 +1,15 @@
 import { unstable_cache } from "next/cache";
 import Link from "next/link";
 import { type ApiIdentity, getPrivateMarkets, getPublicStocks } from "../lib/api";
-import { LiveNumber } from "./live-number";
+import { LiveTokenChange, LiveTokenPrice } from "./live-price";
 
-type TickerItem = { href: string; symbol: string; price: number; change: number | null };
-
-const price = (value: number) =>
-  value.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: value >= 1000 ? 0 : 2,
-  });
+type TickerItem = {
+  href: string;
+  mint: string;
+  symbol: string;
+  price: number;
+  change: number | null;
+};
 
 /** A scrolling strip of tokenized stock and private-market prices. Renders nothing without data. */
 export async function TickerTape({
@@ -40,6 +39,7 @@ export async function TickerTape({
       .slice(0, 14)
       .map((stock) => ({
         href: `/stocks/${encodeURIComponent(stock.symbol)}`,
+        mint: stock.mint,
         symbol: stock.symbol,
         price: Number(stock.dexPriceUsd),
         change: stock.change24hPct,
@@ -49,6 +49,7 @@ export async function TickerTape({
       .slice(0, 6)
       .map((market) => ({
         href: `/private-markets/${encodeURIComponent(market.instrument.baseAsset)}`,
+        mint: market.instrument.venueSymbol,
         symbol: market.instrument.baseAsset,
         price: Number(market.tokenPrice),
         change: null,
@@ -65,13 +66,8 @@ export async function TickerTape({
         className="flex shrink-0 items-center gap-2 border-r border-line px-4 hover:bg-white/[.03]"
       >
         <span className="text-slate-300">{item.symbol}</span>
-        <LiveNumber value={item.price} display={price(item.price)} className="text-bone" />
-        {item.change != null && (
-          <span className={item.change >= 0 ? "text-[var(--up)]" : "text-[var(--down)]"}>
-            {item.change > 0 ? "+" : ""}
-            {item.change.toFixed(2)}%
-          </span>
-        )}
+        <LiveTokenPrice mint={item.mint} fallback={item.price} className="text-bone" />
+        <LiveTokenChange mint={item.mint} fallback={item.change} />
       </Link>
     ));
 

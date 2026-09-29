@@ -2,8 +2,8 @@
 export const site = {
   name: "Sisera",
   url: "https://sisera.xyz",
-  title: "Sisera — Research terminal for tokenized stocks and private markets",
-  shortDescription: "Research terminal for tokenized stocks and private markets.",
+  title: "Sisera — Free research terminal for tokenized stocks and private markets",
+  shortDescription: "Free research terminal for tokenized stocks and private markets.",
   description:
     "Compare tokenized stocks with their underlying shares, pre-IPO tokens with issuer marks, and crypto markets in one terminal, with company news, portfolio context, and rule-bound research agents.",
   themeColor: "#0c141b",
@@ -15,7 +15,7 @@ export const site = {
   dataSources: ["Pyth", "Jupiter", "CoinMarketCap", "Hyperliquid", "Binance", "Helius"],
 };
 
-/** Public marketing pages, in sitemap order. The workspace requires sign-in and is not indexed. */
+/** Public pages, in sitemap order. Market pages are public too and are listed separately. */
 export const publicPages = [
   { path: "/", changeFrequency: "hourly", priority: 1 },
   { path: "/about", changeFrequency: "monthly", priority: 0.6 },
@@ -26,6 +26,11 @@ export const publicPages = [
 ] as const;
 
 export const faqs = [
+  {
+    question: "Is Sisera free?",
+    answer:
+      "Yes. Sisera is free to use: every market, chart, and prediction research page is open without an account, and signing in to trade, keep a paper account, or build agents costs nothing. You only pay the network and venue fees on trades you place.",
+  },
   {
     question: "What is Sisera?",
     answer:

@@ -53,6 +53,123 @@ export const MarketAssessment = z.object({
 });
 export type MarketAssessment = z.infer<typeof MarketAssessment>;
 
+export type AssessmentContext = {
+  company: string;
+  symbol: string;
+  tokenPrice: string | null;
+  referencePrice: string | null;
+  referenceKind: "prestocks_mark" | "pyth_core_equity" | "public_equity" | "unavailable";
+  referenceFreshness: "live" | "carried_forward" | "stale" | "unavailable";
+  referenceObservedAt: string | null;
+  premiumDiscountPct: string | null;
+  volume24hUsd: number | null;
+  liquidityUsd: number | null;
+  change24hPct: number | null;
+  tradingHalted: boolean;
+  fetchedAt: string;
+  articles: Array<{ title: string; publishedAt: string; publisher: string; url: string }>;
+};
+
+const usd = (value: number) =>
+  `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(value)}`;
+
+/**
+ * Rule-based research built only from the supplied evidence. Used when no language model is
+ * configured or the model call fails, so research is always available and never invents data.
+ */
+export function assessFromEvidence(context: AssessmentContext): MarketAssessment {
+  const opportunities: string[] = [];
+  const risks: string[] = [];
+  const facts: string[] = [];
+  const token = context.tokenPrice == null ? null : Number(context.tokenPrice);
+  const reference = context.referencePrice == null ? null : Number(context.referencePrice);
+  const gap = context.premiumDiscountPct == null ? null : Number(context.premiumDiscountPct);
+  const referenceLabel =
+    context.referenceKind === "prestocks_mark" ? "the issuer mark" : "the underlying share";
+
+  if (token != null && Number.isFinite(token))
+    facts.push(`${context.symbol} trades at $${token.toFixed(2)}`);
+  if (context.change24hPct != null)
+    facts.push(
+      `${context.change24hPct >= 0 ? "up" : "down"} ${Math.abs(context.change24hPct).toFixed(2)}% over 24 hours`,
+    );
+  if (reference != null && Number.isFinite(reference))
+    facts.push(`against ${referenceLabel} at $${reference.toFixed(2)}`);
+
+  if (gap != null && Number.isFinite(gap)) {
+    const size = Math.abs(gap);
+    const side = gap >= 0 ? "premium" : "discount";
+    facts.push(`a ${size.toFixed(2)}% ${side}`);
+    if (size >= 5)
+      (gap >= 0 ? risks : opportunities).push(
+        `The token sits at a ${size.toFixed(1)}% ${side} to ${referenceLabel}. ${gap >= 0 ? "Buyers are paying above the reference and could lose the premium if it closes." : "The token is priced below the reference; check liquidity and token rights before treating that as value."}`,
+      );
+    else if (size <= 1)
+      opportunities.push(
+        `The token tracks ${referenceLabel} closely (${size.toFixed(2)}% gap), so price discovery looks orderly.`,
+      );
+  } else {
+    risks.push(
+      `No current reference price is available, so the token cannot be compared with ${referenceLabel}.`,
+    );
+  }
+  if (context.referenceFreshness === "carried_forward" || context.referenceFreshness === "stale")
+    risks.push(
+      "The reference price is from the last session, so the gap may reflect market hours rather than mispricing.",
+    );
+
+  if (context.liquidityUsd != null) {
+    if (context.liquidityUsd < 50_000)
+      risks.push(
+        `Liquidity is thin at ${usd(context.liquidityUsd)}; larger orders will move the price.`,
+      );
+    else
+      opportunities.push(
+        `Liquidity of ${usd(context.liquidityUsd)} supports moderate order sizes.`,
+      );
+  }
+  if (context.volume24hUsd != null && context.liquidityUsd != null && context.liquidityUsd > 0) {
+    const turnover = context.volume24hUsd / context.liquidityUsd;
+    if (turnover > 1)
+      opportunities.push(
+        `Turnover is active: ${usd(context.volume24hUsd)} traded in 24h, ${turnover.toFixed(1)}x its liquidity.`,
+      );
+    else if (turnover < 0.05)
+      risks.push(
+        `Trading is quiet: ${usd(context.volume24hUsd)} in 24h against ${usd(context.liquidityUsd)} of liquidity.`,
+      );
+  }
+  if (context.change24hPct != null && Math.abs(context.change24hPct) >= 5)
+    risks.push(
+      `A ${Math.abs(context.change24hPct).toFixed(1)}% move in 24h signals elevated volatility.`,
+    );
+  if (context.tradingHalted) risks.push("The issuer reports trading as halted for this token.");
+
+  const headlines = context.articles.slice(0, 3);
+  if (headlines.length)
+    opportunities.push(
+      `Recent coverage to review: ${headlines.map((article) => `"${article.title}" (${article.publisher})`).join("; ")}.`,
+    );
+  else risks.push("No recent company headlines were found to explain the move.");
+
+  const evidence =
+    Number(token != null) +
+    Number(reference != null) +
+    Number(context.liquidityUsd != null) +
+    Number(headlines.length > 0);
+  const summary = facts.length
+    ? `${context.company}: ${facts.join(", ")}. This view is built directly from market data and headlines, without a language model.`
+    : `${context.company}: not enough market data is available for an assessment right now.`;
+
+  return MarketAssessment.parse({
+    summary: summary.slice(0, 1200),
+    opportunities: opportunities.slice(0, 5).map((item) => item.slice(0, 400)),
+    risks: risks.slice(0, 5).map((item) => item.slice(0, 400)),
+    confidence: Math.min(0.75, 0.15 + evidence * 0.15),
+    actionability: "research_only",
+  });
+}
+
 export class OpenRouterResearchClient {
   constructor(
     private readonly apiKey: string,

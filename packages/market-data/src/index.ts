@@ -767,27 +767,48 @@ export class JupiterPredictionProvider {
     private readonly baseUrl = "https://api.jup.ag/prediction/v1",
     private readonly apiKey?: string,
     private readonly fetcher: Fetch = globalThis.fetch,
+    /** Events are fetched 100 at a time; this caps a full refresh at this many pages. */
+    private readonly maxPages = 8,
   ) {}
 
   async listOpenMarkets(limit = 20): Promise<PredictionMarket[]> {
-    if (this.cache && this.cache.until > Date.now())
-      return this.cache.markets
-        .filter((market) => Date.parse(market.closesAt ?? "") > Date.now())
-        .slice(0, limit);
-    this.pending ??= this.loadMarkets().finally(() => {
-      this.pending = null;
-    });
-    return (await this.pending)
+    const markets = await this.loadAll();
+    return markets
       .filter((market) => Date.parse(market.closesAt ?? "") > Date.now())
       .slice(0, limit);
   }
 
-  private async loadMarkets(): Promise<PredictionMarket[]> {
-    const startedAt = Date.now();
+  async getMarket(id: string): Promise<PredictionMarket | null> {
+    const markets = await this.loadAll();
+    return markets.find((market) => market.id === id) ?? null;
+  }
+
+  /** Markets in the same event, for comparing sibling outcomes. */
+  async listEventMarkets(eventId: string): Promise<PredictionMarket[]> {
+    const markets = await this.loadAll();
+    return markets.filter((market) => market.eventId === eventId);
+  }
+
+  /** Serves the last snapshot immediately and refreshes it in the background once it ages out. */
+  private async loadAll(): Promise<PredictionMarket[]> {
+    const refresh = () => {
+      this.pending ??= this.loadMarkets().finally(() => {
+        this.pending = null;
+      });
+      return this.pending;
+    };
+    if (this.cache) {
+      if (this.cache.until <= Date.now()) void refresh().catch(() => undefined);
+      return this.cache.markets;
+    }
+    return refresh();
+  }
+
+  private async fetchPage(start: number): Promise<{ records: unknown[]; hasNext: boolean }> {
     const url = new URL(`${this.baseUrl.replace(/\/$/, "")}/events`);
     url.searchParams.set("includeMarkets", "true");
-    url.searchParams.set("start", "0");
-    url.searchParams.set("end", "9");
+    url.searchParams.set("start", String(start));
+    url.searchParams.set("end", String(start + 99));
     let response: Response;
     try {
       response = await this.fetcher(url.toString(), {
@@ -795,91 +816,175 @@ export class JupiterPredictionProvider {
           accept: "application/json",
           ...(this.apiKey ? { "x-api-key": this.apiKey } : {}),
         },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(30000),
       });
     } catch {
       throw new MarketDataUnavailableError("Jupiter prediction events request failed");
     }
     if (!response.ok) throw new MarketDataUnavailableError(`Jupiter returned ${response.status}`);
     const payload = (await response.json()) as unknown;
-    const records =
-      payload && typeof payload === "object" ? (payload as Record<string, unknown>).data : null;
-    if (!Array.isArray(records))
+    const record =
+      payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+    if (!Array.isArray(record.data))
       throw new MarketDataUnavailableError("Unrecognized Jupiter events response");
-    const receivedAt = new Date().toISOString();
-    const markets = records.flatMap((event): PredictionMarket[] => {
-      if (!event || typeof event !== "object") return [];
-      const row = event as Record<string, unknown>;
-      const metadata =
-        row.metadata && typeof row.metadata === "object"
-          ? (row.metadata as Record<string, unknown>)
-          : {};
-      const eventTitle = typeof metadata.title === "string" ? metadata.title : "";
-      if (!Array.isArray(row.markets)) return [];
-      return row.markets.flatMap((raw): PredictionMarket[] => {
-        if (!raw || typeof raw !== "object") return [];
-        const market = raw as Record<string, unknown>;
-        if (typeof market.marketId !== "string" || market.status !== "open") return [];
-        const pricing =
-          market.pricing && typeof market.pricing === "object"
-            ? (market.pricing as Record<string, unknown>)
-            : {};
-        const yes = Number(pricing.buyYesPriceUsd) / 1_000_000;
-        const no = Number(pricing.buyNoPriceUsd) / 1_000_000;
-        const sellYes = Number(pricing.sellYesPriceUsd) / 1_000_000;
-        const sellNo = Number(pricing.sellNoPriceUsd) / 1_000_000;
-        if (![yes, no].every((price) => Number.isFinite(price) && price > 0 && price <= 1))
-          return [];
-        const close = Number(market.closeTime);
-        if (!Number.isFinite(close) || close * 1000 <= Date.now()) return [];
-        if (typeof market.rulesPrimary !== "string" || !market.rulesPrimary.trim()) return [];
-        const closesAt = new Date(close * 1000).toISOString();
-        const marketTitle = typeof market.title === "string" ? market.title : "";
-        return [
-          {
-            id: market.marketId,
-            provider: "jupiter",
-            underlyingProvider: typeof market.provider === "string" ? market.provider : null,
-            title:
-              marketTitle && marketTitle !== eventTitle
-                ? `${eventTitle} · ${marketTitle}`
-                : eventTitle || marketTitle,
-            category: typeof row.category === "string" ? row.category : null,
-            resolutionRules: typeof market.rulesPrimary === "string" ? market.rulesPrimary : null,
-            closesAt,
-            status: "open",
-            outcomes: [
-              {
-                id: `${market.marketId}:yes`,
-                label: "YES",
-                probability: String(yes),
-                ...(Number.isFinite(sellYes) && sellYes > 0 && sellYes <= yes
-                  ? { sellPrice: String(sellYes) }
-                  : {}),
-              },
-              {
-                id: `${market.marketId}:no`,
-                label: "NO",
-                probability: String(no),
-                ...(Number.isFinite(sellNo) && sellNo > 0 && sellNo <= no
-                  ? { sellPrice: String(sellNo) }
-                  : {}),
-              },
-            ],
-            quality: {
-              status: "delayed",
-              source: "jupiter-prediction-api",
-              observedAt: receivedAt,
-              receivedAt,
-              latencyMs: Date.now() - startedAt,
-            },
-          },
-        ];
-      });
-    });
-    this.cache = { until: Date.now() + 30_000, markets };
-    return markets;
+    const pagination =
+      record.pagination && typeof record.pagination === "object"
+        ? (record.pagination as Record<string, unknown>)
+        : {};
+    return { records: record.data, hasNext: pagination.hasNext === true };
   }
+
+  private toMarkets(records: unknown[], startedAt: number): PredictionMarket[] {
+    const receivedAt = new Date().toISOString();
+    const quality = {
+      status: "delayed" as const,
+      source: "jupiter-prediction-api",
+      observedAt: receivedAt,
+      receivedAt,
+      latencyMs: Date.now() - startedAt,
+    };
+    const markets = records.flatMap((event) => parsePredictionEvent(event, quality));
+    return [...new Map(markets.map((market) => [market.id, market])).values()].sort(
+      (a, b) => (b.eventVolume24hUsd ?? 0) - (a.eventVolume24hUsd ?? 0),
+    );
+  }
+
+  /**
+   * Publishes the first page as soon as it arrives, then loads the remaining pages in the
+   * background and replaces the snapshot once they are in. Pages are large, so a full refresh can
+   * take a minute; nobody waits for more than the first page.
+   */
+  private async loadMarkets(): Promise<PredictionMarket[]> {
+    const startedAt = Date.now();
+    const first = await this.fetchPage(0);
+    const firstMarkets = this.toMarkets(first.records, startedAt);
+    const previous = this.cache?.markets ?? [];
+    // Until the full set arrives, keep markets from the last full load that page one lacks.
+    const firstIds = new Set(firstMarkets.map((market) => market.id));
+    this.cache = {
+      until: Date.now() + 60_000,
+      markets: [...firstMarkets, ...previous.filter((market) => !firstIds.has(market.id))],
+    };
+    if (first.hasNext) void this.loadRemaining(first.records, startedAt).catch(() => undefined);
+    return this.cache.markets;
+  }
+
+  private async loadRemaining(records: unknown[], startedAt: number) {
+    const all = [...records];
+    const starts = Array.from({ length: this.maxPages - 1 }, (_, index) => (index + 1) * 100);
+    for (let index = 0; index < starts.length; index += 3) {
+      const batch = await Promise.allSettled(
+        starts.slice(index, index + 3).map((start) => this.fetchPage(start)),
+      );
+      let more = false;
+      for (const result of batch)
+        if (result.status === "fulfilled") {
+          all.push(...result.value.records);
+          more ||= result.value.hasNext;
+        }
+      if (!more) break;
+    }
+    this.cache = { until: Date.now() + 120_000, markets: this.toMarkets(all, startedAt) };
+  }
+}
+
+const usdMicros = (value: unknown) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number / 1_000_000 : null;
+};
+
+function parsePredictionEvent(
+  event: unknown,
+  quality: PredictionMarket["quality"],
+): PredictionMarket[] {
+  if (!event || typeof event !== "object") return [];
+  const row = event as Record<string, unknown>;
+  const metadata =
+    row.metadata && typeof row.metadata === "object"
+      ? (row.metadata as Record<string, unknown>)
+      : {};
+  const eventTitle = typeof metadata.title === "string" ? metadata.title : "";
+  const eventId = typeof row.eventId === "string" ? row.eventId : null;
+  if (!Array.isArray(row.markets)) return [];
+  return row.markets.flatMap((raw): PredictionMarket[] => {
+    if (!raw || typeof raw !== "object") return [];
+    const market = raw as Record<string, unknown>;
+    if (typeof market.marketId !== "string" || market.status !== "open") return [];
+    const pricing =
+      market.pricing && typeof market.pricing === "object"
+        ? (market.pricing as Record<string, unknown>)
+        : {};
+    const yes = Number(pricing.buyYesPriceUsd) / 1_000_000;
+    const sellYes = Number(pricing.sellYesPriceUsd) / 1_000_000;
+    // Many venue markets quote only the YES side; NO is then the complement of the YES bid.
+    const quotedNo = Number(pricing.buyNoPriceUsd) / 1_000_000;
+    const no =
+      Number.isFinite(quotedNo) && quotedNo > 0
+        ? quotedNo
+        : Number.isFinite(sellYes) && sellYes > 0
+          ? 1 - sellYes
+          : 1 - yes;
+    const quotedSellNo = Number(pricing.sellNoPriceUsd) / 1_000_000;
+    const sellNo =
+      Number.isFinite(quotedSellNo) && quotedSellNo > 0 ? quotedSellNo : Math.max(0, 1 - yes);
+    if (![yes, no].every((price) => Number.isFinite(price) && price > 0 && price < 1)) return [];
+    const close = Number(market.closeTime);
+    if (!Number.isFinite(close) || close * 1000 <= Date.now()) return [];
+    if (typeof market.rulesPrimary !== "string" || !market.rulesPrimary.trim()) return [];
+    const open = Number(market.openTime);
+    const marketTitle = typeof market.title === "string" ? market.title : "";
+    const team =
+      market.team && typeof market.team === "object"
+        ? (market.team as Record<string, unknown>)
+        : null;
+    const tokenIds = Array.isArray(market.clobTokenIds)
+      ? market.clobTokenIds.filter((id): id is string => typeof id === "string")
+      : [];
+    return [
+      {
+        id: market.marketId,
+        provider: "jupiter",
+        underlyingProvider: typeof market.provider === "string" ? market.provider : null,
+        title:
+          marketTitle && marketTitle !== eventTitle
+            ? `${eventTitle} · ${marketTitle}`
+            : eventTitle || marketTitle,
+        eventId,
+        eventTitle: eventTitle || null,
+        marketTitle: marketTitle || null,
+        category: typeof row.category === "string" ? row.category : null,
+        subcategory: typeof row.subcategory === "string" ? row.subcategory : null,
+        imageUrl:
+          (typeof market.imageUrl === "string" && market.imageUrl) ||
+          (team && typeof team.imageUrl === "string" ? team.imageUrl : null) ||
+          (typeof metadata.imageUrl === "string" ? metadata.imageUrl : null),
+        openedAt: Number.isFinite(open) && open > 0 ? new Date(open * 1000).toISOString() : null,
+        volumeUsd: usdMicros(pricing.volume) !== null ? Number(pricing.volume) : null,
+        eventVolume24hUsd: usdMicros(row.volume24hr),
+        venueTokenIds: tokenIds,
+        resolutionRules: market.rulesPrimary,
+        closesAt: new Date(close * 1000).toISOString(),
+        status: "open",
+        outcomes: [
+          {
+            id: `${market.marketId}:yes`,
+            label: "YES",
+            probability: String(yes),
+            ...(Number.isFinite(sellYes) && sellYes > 0 && sellYes <= yes
+              ? { sellPrice: String(sellYes) }
+              : {}),
+          },
+          {
+            id: `${market.marketId}:no`,
+            label: "NO",
+            probability: String(no),
+            ...(sellNo > 0 && sellNo <= no ? { sellPrice: String(sellNo) } : {}),
+          },
+        ],
+        quality,
+      },
+    ];
+  });
 }
 
 function normalizeSymbol(symbol: string): string {

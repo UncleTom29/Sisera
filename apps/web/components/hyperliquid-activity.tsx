@@ -1,8 +1,8 @@
 "use client";
 
 import { HttpTransport, InfoClient } from "@nktkas/hyperliquid";
-import { useWallets } from "@privy-io/react-auth";
 import { useEffect, useState } from "react";
+import { useSiseraWallets } from "../lib/use-sisera-wallets";
 
 type Fill = {
   oid: number;
@@ -15,8 +15,7 @@ type Fill = {
 };
 
 export function HyperliquidActivity() {
-  const { wallets } = useWallets();
-  const address = wallets[0]?.address;
+  const { evmAddress: address } = useSiseraWallets();
   const [fills, setFills] = useState<Fill[] | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {

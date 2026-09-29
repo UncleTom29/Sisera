@@ -6,10 +6,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "../../../auth";
 import { DeltaBadge } from "../../../components/delta-badge";
+import { LivePerpPrice } from "../../../components/live-price";
 import { LiveRefresh } from "../../../components/live-refresh";
-import { MarketChart } from "../../../components/market-chart";
 import { MarketOrderTicket } from "../../../components/market-order-ticket";
+import { PerpMarketStrip } from "../../../components/perp-market-strip";
+import { SignInToTrade } from "../../../components/sign-in-to-trade";
 import { TerminalDetails } from "../../../components/terminal-details";
+import { TradingChart } from "../../../components/trading-chart";
 import {
   type Venue,
   getCandles,
@@ -19,6 +22,7 @@ import {
   getOrderBook,
   getReferenceMarkets,
 } from "../../../lib/api";
+import { signTone } from "../../../lib/sign";
 
 export const metadata: Metadata = {
   title: "Perpetuals terminal",
@@ -38,13 +42,15 @@ export default async function TerminalPage({
     redirect(`/spot/${universe.includes(parameters.symbol ?? "") ? parameters.symbol : "BTCUSDT"}`);
   if (!parameters.venue) redirect("/terminal?venue=hyperliquid");
   const venue: Venue = "hyperliquid";
-  const symbol = universe.includes(parameters.symbol ?? "")
+  // Any Hyperliquid perpetual can be opened; the provider maps BTCUSDT-style symbols to coins.
+  const symbol = /^[A-Z0-9]{2,12}USDT$/.test(parameters.symbol ?? "")
     ? (parameters.symbol as string)
     : "BTCUSDT";
   const interval = intervals.includes(parameters.interval ?? "")
     ? (parameters.interval as string)
     : "15m";
   const session = await auth();
+  const signedIn = Boolean(session) || process.env.SISERA_LOCAL_OPERATOR_MODE === "true";
   const identity = {
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
@@ -99,57 +105,7 @@ export default async function TerminalPage({
           </span>
         </div>
 
-        <div className="hide-scrollbar mb-5 flex gap-2 overflow-x-auto pb-1">
-          {markets.length > 0 ? (
-            markets.map(({ instrument, snapshot: item }) => (
-              <Link
-                key={instrument.id}
-                href={`/terminal?symbol=${instrument.baseAsset}USDT&interval=${interval}&venue=${venue}`}
-                className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-md border px-3 py-2.5 transition-colors hover:border-slate-500 ${symbol === `${instrument.baseAsset}USDT` ? "border-bronze-400/50 bg-bronze-400/[0.08]" : "border-line bg-panel"}`}
-              >
-                <div>
-                  <p className="text-xs font-semibold text-slate-100">{instrument.baseAsset}</p>
-                  <p className="mt-0.5 font-mono text-[10px] text-slate-500">
-                    {formatCompact(item.last)}
-                  </p>
-                </div>
-                <span
-                  className={`font-mono text-xs ${Number(item.change24hPct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}
-                >
-                  {Number(item.change24hPct ?? 0) > 0 ? "+" : ""}
-                  {Number(item.change24hPct ?? 0).toFixed(2)}%
-                </span>
-              </Link>
-            ))
-          ) : references.length > 0 ? (
-            references.map((item) => (
-              <Link
-                key={item.symbol}
-                href={`/terminal?symbol=${item.symbol}&interval=${interval}&venue=${venue}`}
-                className={`flex min-w-40 shrink-0 items-center justify-between gap-4 rounded-md border px-3 py-2.5 hover:border-slate-500 ${symbol === item.symbol ? "border-bronze-400/50 bg-bronze-400/[0.08]" : "border-line bg-panel"}`}
-              >
-                <div>
-                  <p className="text-xs font-semibold text-slate-100">
-                    {item.symbol.replace("USDT", "")}
-                  </p>
-                  <p className="mt-0.5 font-mono text-[10px] text-slate-500">
-                    ${formatCompact(item.priceUsd.toString())}
-                  </p>
-                </div>
-                <span
-                  className={`font-mono text-xs ${Number(item.change24hPct ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300"}`}
-                >
-                  {Number(item.change24hPct ?? 0) > 0 ? "+" : ""}
-                  {Number(item.change24hPct ?? 0).toFixed(2)}%
-                </span>
-              </Link>
-            ))
-          ) : (
-            <div className="w-full rounded-md border border-line bg-panel px-4 py-3 text-sm text-slate-400">
-              Live markets are reconnecting. Explore stocks and market trends while prices refresh.
-            </div>
-          )}
-        </div>
+        <PerpMarketStrip active={symbol} interval={interval} />
 
         <section className="mb-4 rounded-lg border border-line bg-panel px-5 py-4">
           <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
@@ -170,7 +126,16 @@ export default async function TerminalPage({
               <p className="data-label">{venue === "hyperliquid" ? "Mark price" : "Last traded"}</p>
               <div className="mt-1 flex items-center gap-3">
                 <span className="font-mono text-[24px] font-medium tracking-[-0.04em] text-slate-50">
-                  {formatMoney(snapshot?.last ?? reference?.priceUsd.toString())}
+                  <LivePerpPrice
+                    coin={symbol.replace(/USDT$/, "")}
+                    fallback={
+                      snapshot?.last != null
+                        ? Number(snapshot.last)
+                        : reference
+                          ? reference.priceUsd
+                          : null
+                    }
+                  />
                 </span>
                 <DeltaBadge value={snapshot?.change24hPct ?? reference?.change24hPct?.toString()} />
               </div>
@@ -206,38 +171,26 @@ export default async function TerminalPage({
         </section>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_270px_300px]">
-          <section className="flex min-h-[570px] flex-col overflow-hidden rounded-lg border border-line bg-panel">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-              <div className="flex items-center gap-2">
-                <CandlestickChart size={16} className="text-bronze-300" />
-                <h3 className="text-sm font-semibold text-slate-100">Price chart</h3>
-                <span className="ml-1 font-mono text-[10px] text-slate-500">
-                  {market?.instrument.displaySymbol ?? symbol} · {interval}
-                </span>
-              </div>
-              <div className="flex items-center rounded-md bg-ink-raised p-1">
-                {intervals.map((value) => (
-                  <Link
-                    key={value}
-                    href={`/terminal?symbol=${symbol}&interval=${value}&venue=${venue}`}
-                    className={`grid h-7 min-w-8 place-items-center rounded px-1.5 font-mono text-[10px] ${interval === value ? "bg-[#34464d] text-slate-50" : "text-slate-400 hover:text-slate-100"}`}
-                  >
-                    {value}
-                  </Link>
-                ))}
-              </div>
-            </div>
-            {candles.length > 0 ? (
-              <div className="min-h-[510px] flex-1 p-2">
-                <MarketChart candles={candles} />
-              </div>
-            ) : (
-              <DataUnavailable
-                title="Chart reconnecting"
-                detail="Recent price history will appear as soon as the market connection resumes."
-              />
-            )}
-          </section>
+          <div className="min-w-0">
+            <TradingChart
+              source={{ kind: venue === "hyperliquid" ? "hyperliquid" : "binance", id: symbol }}
+              title={market?.instrument.displaySymbol ?? symbol}
+              initialBars={candles.map((candle) => ({
+                time: candle.time,
+                open: Number(candle.open),
+                high: Number(candle.high),
+                low: Number(candle.low),
+                close: Number(candle.close),
+                volume: Number(candle.volume),
+              }))}
+              defaultInterval={
+                (["1m", "5m", "15m", "1h", "4h", "1d"] as const).find(
+                  (value) => value === interval,
+                ) ?? "15m"
+              }
+              height={510}
+            />
+          </div>
 
           <section className="min-h-[570px] overflow-hidden rounded-lg border border-line bg-panel">
             <div className="flex items-center justify-between border-b border-line px-4 py-3">
@@ -257,15 +210,19 @@ export default async function TerminalPage({
           </section>
 
           <aside className="min-h-[570px] overflow-hidden rounded-lg border border-line bg-panel">
-            <MarketOrderTicket
-              venue="hyperliquid"
-              bid={snapshot?.bid}
-              ask={snapshot?.ask}
-              symbol={symbol}
-              quoteAsset={market?.instrument.quoteAsset ?? "USDT"}
-              quoteObservedAt={snapshot?.quality.observedAt}
-              quoteStatus={snapshot?.quality.status}
-            />
+            {signedIn ? (
+              <MarketOrderTicket
+                venue="hyperliquid"
+                bid={snapshot?.bid}
+                ask={snapshot?.ask}
+                symbol={symbol}
+                quoteAsset={market?.instrument.quoteAsset ?? "USDT"}
+                quoteObservedAt={snapshot?.quality.observedAt}
+                quoteStatus={snapshot?.quality.status}
+              />
+            ) : (
+              <SignInToTrade label={"perpetuals"} returnTo={"/terminal?venue=hyperliquid"} />
+            )}
           </aside>
         </div>
 

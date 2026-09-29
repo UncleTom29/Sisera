@@ -15,18 +15,16 @@ async function asset(name: string) {
 }
 
 export async function ogFonts() {
-  const [display, displayItalic, sans, sansBold, mono] = await Promise.all([
-    asset("newsreader-400-normal.woff"),
-    asset("newsreader-400-italic.woff"),
-    asset("schibsted-grotesk-500-normal.woff"),
-    asset("schibsted-grotesk-600-normal.woff"),
+  const [medium, semibold, bold, mono] = await Promise.all([
+    asset("mona-sans-500-normal.woff"),
+    asset("mona-sans-600-normal.woff"),
+    asset("mona-sans-700-normal.woff"),
     asset("commit-mono-400-normal.woff"),
   ]);
   return [
-    { name: "Newsreader", data: display, weight: 400 as const, style: "normal" as const },
-    { name: "Newsreader", data: displayItalic, weight: 400 as const, style: "italic" as const },
-    { name: "Schibsted Grotesk", data: sans, weight: 500 as const, style: "normal" as const },
-    { name: "Schibsted Grotesk", data: sansBold, weight: 600 as const, style: "normal" as const },
+    { name: "Mona Sans", data: medium, weight: 500 as const, style: "normal" as const },
+    { name: "Mona Sans", data: semibold, weight: 600 as const, style: "normal" as const },
+    { name: "Mona Sans", data: bold, weight: 700 as const, style: "normal" as const },
     { name: "Commit Mono", data: mono, weight: 400 as const, style: "normal" as const },
   ];
 }

@@ -13,6 +13,43 @@ declare module "fastify" {
   }
 }
 
+/**
+ * Market data that anyone can read without a session: prices, charts, order books, news, and
+ * research over public markets. Only GET requests to these routes are open; portfolios, orders,
+ * wallets, agents, alerts, and paid feeds still require a Privy session.
+ */
+export const publicMarketRoutes: ReadonlySet<string> = new Set([
+  "/v1/public-stocks",
+  "/v1/private-markets",
+  "/v1/market-overview",
+  "/v1/rwa/stocks",
+  "/v1/rwa/:symbol",
+  "/v1/rwa/:symbol/history",
+  "/v1/crypto/:id/profile",
+  "/v1/solana/tokens/:mint/history",
+  "/v1/stocks/:symbol/news",
+  "/v1/pyth/reference",
+  "/v1/pyth/references",
+  "/v1/reference-markets",
+  "/v1/markets",
+  "/v1/markets/:symbol",
+  "/v1/markets/:symbol/candles",
+  "/v1/markets/:symbol/depth",
+  "/v1/markets/:symbol/intelligence",
+  "/v1/spot-universe",
+  "/v1/perpetual-metrics",
+  "/v1/chains",
+  "/v1/macro-regime",
+  "/v1/prediction-markets",
+  "/v1/prediction-markets/:id",
+  "/v1/prediction-markets/:id/research",
+  "/v1/agent-tokens",
+  "/v1/live/prices",
+]);
+
+/** The read-only identity given to anonymous requests on public market routes. */
+const publicPrincipal: Principal = { subject: "public", tenantId: "public", roles: ["viewer"] };
+
 export function createAuthenticator(config: ApiConfig) {
   const privy =
     config.PRIVY_APP_ID && config.PRIVY_APP_SECRET
@@ -40,6 +77,15 @@ export function createAuthenticator(config: ApiConfig) {
         };
         return;
       }
+    }
+
+    if (
+      request.method === "GET" &&
+      !request.headers.authorization &&
+      publicMarketRoutes.has(request.routeOptions.url ?? "")
+    ) {
+      request.principal = publicPrincipal;
+      return;
     }
 
     const token = request.headers.authorization?.match(/^Bearer (.+)$/)?.[1];

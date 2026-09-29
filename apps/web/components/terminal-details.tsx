@@ -81,7 +81,7 @@ export function TerminalDetails({ intelligence }: { intelligence: MarketIntellig
                   </div>
                   <div className="mt-4 h-1 rounded-full bg-slate-700/60">
                     <div
-                      className={`h-full rounded-full ${signal.score >= 0 ? "bg-emerald-400" : "bg-rose-400"}`}
+                      className={`h-full rounded-full ${signal.score >= 0 ? "bg-[var(--up)]" : "bg-[var(--down)]"}`}
                       style={{ width: `${Math.min(Math.abs(signal.score), 100)}%` }}
                     />
                   </div>

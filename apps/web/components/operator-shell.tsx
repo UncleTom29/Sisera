@@ -106,8 +106,15 @@ export function OperatorShell({
   children,
   operator,
   localMode = false,
+  signedIn = true,
   ticker,
-}: { children: ReactNode; operator: string; localMode?: boolean; ticker?: ReactNode }) {
+}: {
+  children: ReactNode;
+  operator: string;
+  localMode?: boolean;
+  signedIn?: boolean;
+  ticker?: ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [commandsOpen, setCommandsOpen] = useState(false);
@@ -329,8 +336,19 @@ export function OperatorShell({
                 ⌘K
               </span>
             </button>
-            <PortfolioConnect compact />
-            <OperatorProfile operator={operator} localMode={localMode} />
+            {signedIn ? (
+              <>
+                <PortfolioConnect compact />
+                <OperatorProfile operator={operator} localMode={localMode} />
+              </>
+            ) : (
+              <Link
+                href={`/sign-in?returnTo=${encodeURIComponent(pathname)}`}
+                className="flex h-9 items-center bg-bronze-300 px-4 text-[13px] font-semibold text-ink hover:bg-bronze-200"
+              >
+                Sign in
+              </Link>
+            )}
           </div>
         </div>
       </header>

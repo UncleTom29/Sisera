@@ -2,6 +2,7 @@ import { ArrowUpRight, CircleAlert, RadioTower } from "lucide-react";
 import Link from "next/link";
 import { auth } from "../auth";
 import { getPrivateMarkets, getPublicStocks, getStockNews } from "../lib/api";
+import { signTone } from "../lib/sign";
 import { NewsBrowser } from "./news-browser";
 import { PageHeader } from "./page-header";
 
@@ -119,9 +120,7 @@ export async function StockIntelligence() {
                         <td className="px-5 py-3 text-right font-mono text-slate-400">
                           ${Number(asset.markPrice).toFixed(2)}
                         </td>
-                        <td
-                          className={`px-5 py-3 text-right font-mono ${gap > 0 ? "text-amber-300" : "text-emerald-300"}`}
-                        >
+                        <td className={`px-5 py-3 text-right font-mono ${signTone(gap)}`}>
                           {gap > 0 ? "+" : ""}
                           {gap.toFixed(2)}%
                         </td>

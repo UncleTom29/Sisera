@@ -7,7 +7,7 @@ export function GET() {
 
 > ${site.description}
 
-Sisera is a web terminal at ${site.url}. It is a research and trading workspace, not a broker or investment adviser. Market data comes from ${site.dataSources.join(", ")}.
+Sisera is a free web terminal at ${site.url}. Every market page is public; signing in is only needed to trade, keep a paper account, or build agents. It is a research and trading workspace, not a broker or investment adviser. Market data comes from ${site.dataSources.join(", ")}, with prices refreshed every second.
 
 ## What Sisera does
 
@@ -20,6 +20,13 @@ Sisera is a web terminal at ${site.url}. It is a research and trading workspace,
 - Agents: rule-bound research agents drafted as hashed policies with capital caps, drawdown limits, stop-loss and take-profit rules, and a kill switch. Agents propose; an operator decides. They move through a seven-stage lifecycle (draft, backtest, stress test, paper, shadow, limited live, live).
 
 ## Key pages
+
+- [Tokenized stocks](${site.url}/stocks): every xStocks token on Solana with live prices and share-price premiums
+- [Private markets](${site.url}/private-markets): pre-IPO tokens against issuer marks
+- [Crypto spot](${site.url}/markets): every actively traded Binance USDT pair
+- [Perpetuals](${site.url}/terminal?venue=hyperliquid): every Hyperliquid perpetual
+- [Predictions](${site.url}/predictions): thousands of prediction markets, each with probability history and research
+- [Agent markets](${site.url}/clawpump): tokens launched by AI agents on Clawpump
 
 - [Home](${site.url}/): overview of the terminal
 - [About](${site.url}/about): what Sisera is and how it works

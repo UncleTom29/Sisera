@@ -46,6 +46,16 @@ export class PreStocksProvider {
 
   async list(): Promise<PreStock[]> {
     if (this.cache && this.cache.until > Date.now()) return this.cache.value;
+    try {
+      return await this.load();
+    } catch (error) {
+      // PreStocks has brief outages; keep serving the last good snapshot rather than nothing.
+      if (this.cache) return this.cache.value;
+      throw error;
+    }
+  }
+
+  private async load(): Promise<PreStock[]> {
     const response = await this.fetcher(`${this.baseUrl}/api/prestocks`, {
       headers: { accept: "application/json" },
       signal: AbortSignal.timeout(8000),

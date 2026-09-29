@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { auth } from "../../../../auth";
-import { MarketChart } from "../../../../components/market-chart";
+import { AssetTabs } from "../../../../components/asset-tabs";
+import { LiveSpotPrice } from "../../../../components/live-price";
 import { MarketOrderTicket } from "../../../../components/market-order-ticket";
 import { PageHeader } from "../../../../components/page-header";
+import { SignInToTrade } from "../../../../components/sign-in-to-trade";
+import { TradingChart } from "../../../../components/trading-chart";
+import { TradingViewChart } from "../../../../components/tradingview-chart";
 import {
   getCandles,
   getCryptoProfile,
@@ -31,6 +35,7 @@ export default async function SpotMarketPage({ params }: { params: Promise<{ sym
   const { symbol: rawSymbol } = await params;
   const symbol = /^[A-Z0-9]{5,20}$/.test(rawSymbol) ? rawSymbol : "BTCUSDT";
   const session = await auth();
+  const signedIn = Boolean(session) || process.env.SISERA_LOCAL_OPERATOR_MODE === "true";
   const identity = {
     accessToken: session?.accessToken,
     localOperator: process.env.SISERA_LOCAL_OPERATOR_MODE === "true",
@@ -73,7 +78,10 @@ export default async function SpotMarketPage({ params }: { params: Promise<{ sym
             <div>
               <p className="data-label">Last traded · USDT</p>
               <p className="mt-1 font-mono text-2xl text-white">
-                {market ? Number(market.snapshot.last).toLocaleString() : "Waiting for live quote"}
+                <LiveSpotPrice
+                  symbol={symbol}
+                  fallback={market ? Number(market.snapshot.last) : null}
+                />
               </p>
             </div>
             {market?.snapshot.quality.observedAt && (
@@ -82,30 +90,50 @@ export default async function SpotMarketPage({ params }: { params: Promise<{ sym
               </p>
             )}
           </div>
-          {candles.length ? (
-            <div className="h-[440px]">
-              <MarketChart candles={candles} />
-            </div>
-          ) : (
-            <div className="grid h-[440px] place-items-center px-6 text-center text-sm text-slate-400">
-              <div>
-                <p className="font-semibold text-white">Chart is reconnecting</p>
-                <p className="mt-2">Explore the market context below while live history loads.</p>
-              </div>
-            </div>
-          )}
+          <AssetTabs
+            tabs={[
+              {
+                id: "chart",
+                label: "Chart",
+                panel: (
+                  <TradingChart
+                    source={{ kind: "binance", id: symbol }}
+                    initialBars={candles.map((candle) => ({
+                      time: candle.time,
+                      open: Number(candle.open),
+                      high: Number(candle.high),
+                      low: Number(candle.low),
+                      close: Number(candle.close),
+                      volume: Number(candle.volume),
+                    }))}
+                    defaultInterval="15m"
+                    height={440}
+                  />
+                ),
+              },
+              {
+                id: "tradingview",
+                label: "TradingView",
+                panel: <TradingViewChart symbol={`BINANCE:${symbol}`} interval="15" height={520} />,
+              },
+            ]}
+          />
         </section>
         <aside className="space-y-4">
           <section className="border border-line bg-panel">
-            <MarketOrderTicket
-              venue="binance"
-              bid={market?.snapshot.bid}
-              ask={market?.snapshot.ask}
-              symbol={symbol}
-              quoteAsset="USDT"
-              quoteObservedAt={market?.snapshot.quality.observedAt}
-              quoteStatus={market?.snapshot.quality.status}
-            />
+            {signedIn ? (
+              <MarketOrderTicket
+                venue="binance"
+                bid={market?.snapshot.bid}
+                ask={market?.snapshot.ask}
+                symbol={symbol}
+                quoteAsset="USDT"
+                quoteObservedAt={market?.snapshot.quality.observedAt}
+                quoteStatus={market?.snapshot.quality.status}
+              />
+            ) : (
+              <SignInToTrade label={symbol} returnTo={`/spot/${encodeURIComponent(symbol)}`} />
+            )}
           </section>
           <section className="border border-line bg-panel p-4">
             <h2 className="text-sm font-semibold text-white">Spot order book</h2>

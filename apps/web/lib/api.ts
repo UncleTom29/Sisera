@@ -582,12 +582,31 @@ export async function getPublicPerpAccount(address: string, identity: ApiIdentit
   return payload.data;
 }
 
-export async function getPredictionMarkets(identity: ApiIdentity) {
-  const payload = await getJson<{ data: PredictionMarket[] }>(
-    "/v1/prediction-markets?limit=24",
-    identity,
-  );
-  return payload.data;
+export type PredictionPage = {
+  data: PredictionMarket[];
+  total: number;
+  all: number;
+  categories: Array<{ name: string; count: number }>;
+};
+
+/** One filtered, sorted page of open prediction markets, with category counts. */
+export async function getPredictionMarkets(
+  identity: ApiIdentity,
+  query: {
+    limit?: number;
+    offset?: number;
+    category?: string | undefined;
+    q?: string | undefined;
+    sort?: "volume" | "closing" | "contested";
+  } = {},
+) {
+  const params = new URLSearchParams();
+  params.set("limit", String(query.limit ?? 50));
+  params.set("offset", String(query.offset ?? 0));
+  if (query.category && query.category !== "all") params.set("category", query.category);
+  if (query.q) params.set("q", query.q);
+  params.set("sort", query.sort ?? "volume");
+  return getJson<PredictionPage>(`/v1/prediction-markets?${params.toString()}`, identity, 10000);
 }
 
 export async function getAgents(identity: ApiIdentity) {
@@ -677,5 +696,127 @@ export async function getSolanaOrders(identity: ApiIdentity) {
       createdAt: string;
     }>;
   }>("/v1/solana/orders", identity);
+  return payload.data;
+}
+
+export type SpotMarket = {
+  symbol: string;
+  base: string;
+  quote: string;
+  last: number;
+  change24hPct: number;
+  high24h: number;
+  low24h: number;
+  volume24hBase: number;
+  volume24hUsd: number;
+};
+
+export async function getSpotUniverse(identity: ApiIdentity) {
+  const payload = await getJson<{ data: SpotMarket[] }>("/v1/spot-universe", identity, 10000);
+  return payload.data;
+}
+
+export type AgentToken = {
+  mint: string;
+  name: string;
+  symbol: string;
+  description: string | null;
+  imageUrl: string | null;
+  priceUsd: number | null;
+  marketCapUsd: number | null;
+  volume24hUsd: number | null;
+  liquidityUsd: number | null;
+  agentName: string | null;
+  verified: boolean;
+  graduated: boolean;
+  tags: string[];
+  website: string | null;
+  twitter: string | null;
+  createdAt: string | null;
+  launchPlatform: string | null;
+};
+
+export async function getAgentTokens(
+  query: {
+    sort?: "volume" | "new" | "mcap";
+    q?: string | undefined;
+    limit?: number;
+    offset?: number;
+  },
+  identity: ApiIdentity,
+) {
+  const params = new URLSearchParams();
+  if (query.sort) params.set("sort", query.sort);
+  if (query.q) params.set("q", query.q);
+  params.set("limit", String(query.limit ?? 60));
+  params.set("offset", String(query.offset ?? 0));
+  return getJson<{ data: AgentToken[]; total: number; hasMore: boolean }>(
+    `/v1/agent-tokens?${params.toString()}`,
+    identity,
+    12000,
+  );
+}
+
+export type PredictionResearch = {
+  marketId: string;
+  history: Array<{ time: number; value: number }>;
+  stats: {
+    probability: number;
+    change24hPts: number | null;
+    change7dPts: number | null;
+    change30dPts: number | null;
+    sinceOpenPts: number | null;
+    high: number | null;
+    low: number | null;
+    dailyVolatilityPts: number | null;
+    maxDrawdownPts: number | null;
+    shareOfTimeAbove50: number | null;
+    daysOpen: number | null;
+    daysToClose: number | null;
+    volumeUsd: number | null;
+  };
+  orderBook: {
+    bestBid: number | null;
+    bestAsk: number | null;
+    spread: number | null;
+    bidDepthUsd: number;
+    askDepthUsd: number;
+    lastTrade: number | null;
+  } | null;
+  related: Array<{ id: string; title: string; probability: number }>;
+  underlying: {
+    symbol: string;
+    spot: number;
+    strike: number;
+    kind: "touch" | "settle";
+    direction: "up" | "down";
+    distancePct: number;
+    alreadyThere: boolean;
+    annualizedVolatility: number;
+    daysToClose: number;
+    modelProbability: number;
+    historicalFrequency: number | null;
+    historicalWindows: number;
+    marketProbability: number;
+    candles: Array<{ time: number; open: number; high: number; low: number; close: number }>;
+  } | null;
+  sources: string[];
+  measuredAt: string;
+};
+
+export async function getPredictionMarket(id: string, identity: ApiIdentity) {
+  return getJson<{ data: PredictionMarket; related: PredictionMarket[] }>(
+    `/v1/prediction-markets/${encodeURIComponent(id)}`,
+    identity,
+    12000,
+  );
+}
+
+export async function getPredictionResearch(id: string, identity: ApiIdentity) {
+  const payload = await getJson<{ data: PredictionResearch }>(
+    `/v1/prediction-markets/${encodeURIComponent(id)}/research`,
+    identity,
+    20000,
+  );
   return payload.data;
 }

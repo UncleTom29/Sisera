@@ -2,8 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { AgentTemplate } from "../lib/api";
 
-export function AgentCreateForm({ enabled }: { enabled: boolean }) {
+/** Builds a custom agent policy, optionally starting from a template the user then edits. */
+export function AgentCreateForm({
+  enabled,
+  template,
+}: {
+  enabled: boolean;
+  template?: AgentTemplate | null;
+}) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
@@ -47,16 +55,25 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
     }
   }
   return (
-    <form action={submit} className="space-y-3 border border-line bg-panel p-5">
-      <h2 className="text-sm font-semibold text-white">Build your strategy</h2>
+    <form
+      id="builder"
+      action={submit}
+      className="scroll-mt-20 space-y-3 border border-line bg-panel p-5"
+    >
+      <h2 className="text-sm font-semibold text-bone">
+        {template ? `Customize ${template.name}` : "Build your strategy"}
+      </h2>
       <p className="text-xs text-slate-400">
-        Choose the markets to follow, describe your rules and set limits before testing the idea.
+        {template
+          ? "Every field below comes from the template. Change the markets, rules, and limits to make it yours, then save your copy."
+          : "Choose the markets to follow, describe your rules and set limits before testing the idea."}
       </p>
       <input
         name="name"
         required
         minLength={3}
         maxLength={80}
+        defaultValue={template ? `${template.name} (my copy)` : undefined}
         placeholder="Strategy name"
         className="w-full rounded border border-line bg-ink p-2 text-xs"
       />
@@ -65,19 +82,23 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
         required
         minLength={20}
         maxLength={1000}
+        defaultValue={template?.description}
         placeholder="Entry, exit and abstain rules"
         className="min-h-24 w-full rounded border border-line bg-ink p-2 text-xs"
       />
       <input
         name="universe"
         required
+        defaultValue={template?.universe.join(", ")}
         placeholder="AAPLx, NVDAx or BTCUSDT, ETHUSDT"
         className="w-full rounded border border-line bg-ink p-2 text-xs"
       />
       <textarea
         name="factors"
         required
-        defaultValue={"EMA 12/26 crossover\nRelative volume above 1.2"}
+        defaultValue={
+          template ? template.factors.join("\n") : "EMA 12/26 crossover\nRelative volume above 1.2"
+        }
         placeholder="One measurable factor per line"
         className="min-h-20 w-full rounded border border-line bg-ink p-2 text-xs"
       />
@@ -86,6 +107,7 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
           Timeframe
           <select
             name="timeframe"
+            defaultValue={template?.timeframe ?? "1h"}
             className="mt-1 w-full rounded border border-line bg-ink p-2 text-slate-100"
           >
             <option>1h</option>
@@ -159,7 +181,7 @@ export function AgentCreateForm({ enabled }: { enabled: boolean }) {
         disabled={!enabled || working}
         className="rounded bg-bronze-300 px-4 py-2 text-xs font-semibold text-ink disabled:opacity-40"
       >
-        {working ? "Saving…" : "Save strategy"}
+        {working ? "Saving…" : template ? "Save my copy" : "Save strategy"}
       </button>
       {!enabled && (
         <p className="text-xs text-amber-300">

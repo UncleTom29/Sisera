@@ -52,6 +52,13 @@ export const applicationSchema = {
   browserRequirements: "Requires a modern browser with JavaScript enabled.",
   description: site.description,
   publisher: { "@id": `${site.url}/#organization` },
+  isAccessibleForFree: true,
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+    availability: "https://schema.org/InStock",
+  },
   featureList: [
     "Tokenized stock prices compared with underlying share reference prices",
     "Pre-IPO token prices compared with issuer marks and implied valuations",
